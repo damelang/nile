@@ -1,0 +1,127 @@
+Kernel C code generation looks sort of like this:
+
+*** FOR KERNEL TYPES ***
+
+--- In the .h file ---
+
+typedef struct {
+    $KERNEL_BASE$_t base;
+    $KERNEL_FIELDS$ (only the parameters are needed)
+} $NAMESPACE$_$KERNEL_NAME$_t;
+
+nile_Kernel_t *
+$NAMESPACE$_$KERNEL_NAME$ (nile_t *nl, nile_Kernel_t *k_,
+                      $KERNEL_PARAMETERS$);
+
+nile_Kernel_t *
+$NAMESPACE$_$KERNEL_NAME$_clone (nile_t *nl, nile_Kernel_t *k_);
+
+--- In the .c file ---
+
+nile_Kernel_t *
+$NAMESPACE$_$KERNEL_NAME$ (nile_t *nl, nile_Kernel_t *k_,
+                      $KERNEL_PARAMETERS$)
+{
+    $NAMESPACE$_$KERNEL_NAME$_t *k = ($NAMESPACE$_$KERNEL_NAME$_t *) k_;
+    $KERNEL_PARAMETERS_ASSIGNMENT$
+    return k_;
+}
+
+Here we also generate the clone function, which is the same as for kernels (see below).
+Although the function visibility is static below, here it is public.
+
+*** FOR KERNELS ***
+
+--- In the .h file ---
+
+typedef struct {
+    $KERNEL_BASE$_t base;
+    $KERNEL_FIELDS$ (this includes parameters and prologue vars)
+} $NAMESPACE$_$KERNEL_NAME$_t;
+
+static nile_Kernel_t *
+$NAMESPACE$_$KERNEL_NAME$_clone (nile_t *nl, nile_Kernel_t *k_)
+{
+    $NAMESPACE$_$KERNEL_NAME$_t *k = ($NAMESPACE$_$KERNEL_NAME$_t *) k_;
+    $NAMESPACE$_$KERNEL_NAME$_t *clone =
+        ($NAMESPACE$_$KERNEL_NAME$_t *) $KERNEL_BASE$_clone (nl, k_);
+    $COPY KERNEL PARAMETERS (no need for prologue vars, but it wouldn't hurt$
+      $REAL FIELDS ARE COPIED DIRECTLY$
+      $KERNELS HAVE TO GO THROUGH THE k->clone() FUNCTION$
+    return (nile_Kernel_t *) clone;
+}
+
+static int
+$NAMESPACE$_$KERNEL_NAME$_process (nile_t *nl, nile_Kernel_t *k_,
+                              nile_Buffer_t **in_, nile_Buffer_t **out_)
+{
+#define IN_QUANTUM $IN_QUANTUM$
+#define OUT_QUANTUM $OUT_QUANTUM$
+    nile_Buffer_t *in = *in_;
+    nile_Buffer_t *out = *out_;
+    $NAMESPACE$_$KERNEL_NAME$_t *k = ($NAMESPACE$_$KERNEL_NAME$_t *) k_;
+    $KERNEL_FIELDS AS LOCAL VARS$
+
+    if (!k_->initialized) {
+        k_->initialized = 1;
+
+        $KERNEL_PROLOGUE$
+
+        $FOR FORWARDING KERNELS, THE FOLLOWING$
+            $FOR EACH peek variable at offset i $
+                $VAR$ = nile_Buffer_peek (in, $i$);
+            nile_Kernel_t *f =
+                $FORWARDING STATEMENT BODY$
+
+            f->downstream = k_->downstream;
+            k_->downstream = f;
+    }
+
+    $FOR FORWARDING KERNELS, THE FOLLOWING$
+        return NILE_INPUT_FOWARD;
+
+    $FOR COMPUTATION KERNELS, THE FOLLOWING$
+        while (in->i < in->n) {
+            $DECLARE KERNEL_PRIME_VARS$
+            $FOR EACH INPUT VAR$
+                real $VAR$ = nile_Buffer_shift (in);
+            $KERNEL_BODY$
+
+            $OUTPUT IS:$
+                out = nile_Buffer_prepare_to_append (nl, out, OUT_QUANTUM, k_);
+                $FOR EACH OUTPUT VAR$
+                      nile_Buffer_append (out, $VAR$);
+            $OR$
+                out = nile_Buffer_append_repeat (nl, out, $VAR$, $TIMES$, k_);
+            $OR$
+                in = nile_Buffer_prepare_to_prepend (nl, in, IN_QUANTUM, k_);
+                $FOR EACH OUTPUT FEEDBACK VAR$
+                    nile_Buffer_prepend (in, $VAR$);
+                in->i -= IN_QUANTUM;
+
+            $KERNEL_PRIME_VARS_UPDATE$
+        }
+
+        if (in->eos) {
+            $KERNEL_EPILOGUE$
+        }
+        else {
+            $KERNEL_FIELDS WRITE BACK FROM LOCAL VARS
+             (only prologue vars needed, not parameters)$
+        }
+        *in_ = in;
+        *out_ = out;
+        return NILE_INPUT_CONSUMED;
+
+#undef IN_QUANTUM
+#undef OUT_QUANTUM
+}
+
+nile_Kernel_t *
+$NAMESPACE$_$KERNEL_NAME$ (nile_t *nl,
+                     $KERNEL_PARAMETERS$)
+{
+    $NAMESPACE$_$KERNEL_NAME$_t *k = NILE_KERNEL_NEW (nl, $NAMESPACE$_$KERNEL_NAME$);
+    $KERNEL_PARAMETERS_ASSIGNMENT$
+    return (nile_Kernel_t *) k;
+}
