@@ -1,0 +1,26 @@
+- fix lost signal bug (see star demo in gezira)
+- get it to work with multiple threads
+- make ready_q stuff to avoid using the semaphore.
+- make nile_Kernel_exec aware of the shutdown flag.
+- rename certain parts to match OS terminology (e.g., OS process state names)
+- rename nile_feed to nile_send ?
+- get rid of nile_Interleave__clone
+- port to Linux and Windows
+- nile.c should be using nile_Real_... operations in some places
+- align the incoming memory to 32-bits (to ensure atomic ops)?
+- use binary semaphores (Events on Win32?) instead of
+  counting semaphores, since we can count ourselves and just
+  need a sleep/wakup mechanism
+- keep a reference to nl in kernels so that we don't have to
+  pass around nl so much.
+- on uniprocessors, we should make nile_pause relinquish the processor?
+- optimize SortBy for when the input stream is wholly contained
+  in the first input buffer. Do an in-place sort and
+  just forward the modified input buffer downstream
+- rename "initialized" field to something related to first_time
+  or prologue or something?
+- what if they give us an input buffer that isn't a multiple of in_quantum?
+  (obviously by mistake)
+- handle the limit on number of kernels that can be pipelined.
+  we just have to split them up into multiple pipelines, not too hard?
+- should pipeline kernels even be n-ary?

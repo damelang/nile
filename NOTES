@@ -1,0 +1,23 @@
+Unicode chars, code points and ASCII equivalents
+    - × 00D7 *
+    - ‖ 2016 \norm
+    - → 2192 ->
+    - ⇒ 21D2 =>
+    - ∀ 2200 \forall
+    - ∙ 2219 \dot
+    - √ 221A \sqrt()
+    - ∧ 2227 \and
+    - ∨ 2228 \or
+    - ≠ 2260 !=
+    - ≤ 2264 <=
+    - ≥ 2265 >=
+    - ⊕ 2295 \xor
+    - ⋖ 22D6 \min (*)
+    - ⋗ 22D7 \max (*)
+    - ⌈ 2308 \ceiling()
+    - ⌉ 2309
+    - ⌊ 230A \floor()
+    - ⌋ 230B
+    - ⟂ 27C2 \perp (*)
+
+    (*)  must add to DejaVu Sans Mono

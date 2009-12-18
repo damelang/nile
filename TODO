@@ -1,0 +1,19 @@
+- introduce _ vars back into the language?
+- support what's needed for png.nl and zlib.nl
+    - binary data processing
+    - other kernel control
+    - user-defined, primitive operation
+- write tests
+- debuggers?
+- write cola compiler
+- write simple stand-alone examples
+    - pike's prime sieve
+- write documentation
+    - update PDF doc
+    - document the kernel clone rules (when a kernel is referenced more that
+      once in a pipeline expression)
+    - document that kernel parameters are immutable
+- fix font problem on windows (add missing chars to DejaVu Sans Mono and/or Inconsolata)
+- what about things like 2b + 0.5c
+    - introduce a math mode? (single letter variables, etc.?)
+      perhaps only in the body of ∀ blocks?

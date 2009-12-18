@@ -1,0 +1,3 @@
+- update runtime to match new GroupBy type (and behavior)
+- review code (it's been a while)
+- make it more like the c runtime?
