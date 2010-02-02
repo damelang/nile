@@ -166,12 +166,8 @@ nile_main (nile_t *nl)
     for (;;) {
         nile_lock (&nl->ready_q_lock);
             nl->nthreads_active--;
-            shutdown = nl->shutdown;
             signal_idle = !nl->nthreads_active && !nl->ready_q;
         nile_unlock (&nl->ready_q_lock);
-
-        if (shutdown)
-            break;
 
         if (signal_idle)
            nile_Sem_signal (&nl->idle_sem);
@@ -187,12 +183,14 @@ nile_main (nile_t *nl)
             }
             signal_q_no_longer_too_long =
                 nl->ready_q_length == READY_Q_TOO_LONG_LENGTH - 1;
+            shutdown = nl->shutdown;
         nile_unlock (&nl->ready_q_lock);
-        
-        if (k)
-            k->next = NULL;
-        else
+
+        if (shutdown)
+            break;
+        if (!k)
             continue;
+        k->next = NULL;
 
         if (signal_q_no_longer_too_long)
            nile_Sem_signal (&nl->ready_q_no_longer_too_long_sem);
