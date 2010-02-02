@@ -516,7 +516,7 @@ nile_Pipeline_clone (nile_t *nl, nile_Kernel_t *k_)
 
 static int
 nile_Pipeline_process (nile_t *nl, nile_Kernel_t *k_,
-                       nile_Buffer_t **in, nile_Buffer_t **out)
+                       nile_Buffer_t **in_, nile_Buffer_t **out_)
 {
     nile_Pipeline_t *k = (nile_Pipeline_t *) k_;
 
