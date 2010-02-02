@@ -477,7 +477,7 @@ nile_Kernel_exec (nile_t *nl, nile_Kernel_t *k)
 
     if (out) {
         out->eos = eos;
-        if (response != NILE_INPUT_FORWARD && out->n)
+        if (response == NILE_INPUT_CONSUMED || response == NILE_INPUT_SUSPEND)
             nile_Kernel_inbox_append (nl, k->downstream, out);
         else
             nile_Buffer_free (nl, out);
