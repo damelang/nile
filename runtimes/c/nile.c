@@ -405,7 +405,7 @@ nile_Kernel_ready (nile_t *nl, nile_Kernel_t *k)
 void
 nile_Kernel_inbox_append (nile_t *nl, nile_Kernel_t *k, nile_Buffer_t *b)
 {
-    int must_activate;
+    int must_activate = 0;
 
     nile_lock (&k->lock); 
         if (k->inbox) {
@@ -413,7 +413,6 @@ nile_Kernel_inbox_append (nile_t *nl, nile_Kernel_t *k, nile_Buffer_t *b)
             while (inbox->next)
                 inbox = inbox->next;
             inbox->next = b;
-            must_activate = 0;
         }
         else {
             k->inbox = b;
