@@ -276,7 +276,7 @@ nile_feed (nile_t *nl, nile_Kernel_t *k, nile_Real_t *data, int n, int eos)
         ready_q_length = nl->ready_q_length;
     nile_unlock (&nl->ready_q_lock);
 
-    while (!(ready_q_length < READY_Q_TOO_LONG_LENGTH)) {
+    while (ready_q_length >= READY_Q_TOO_LONG_LENGTH) {
         nile_Sem_wait (&nl->ready_q_no_longer_too_long_sem);
         nile_lock (&nl->ready_q_lock);
             ready_q_length = nl->ready_q_length;
