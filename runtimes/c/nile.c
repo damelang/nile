@@ -573,61 +573,38 @@ nile_Interleave_clone (nile_t *nl, nile_Kernel_t *k_)
     return (nile_Kernel_t *) clone;
 }
 
-typedef struct {
+typedef struct nile_InterleaveChild nile_InterleaveChild_t;
+struct nile_InterleaveChild {
     nile_Kernel_t base;
-    int lock;
-    nile_Buffer_t *out;
-} nile_Interleave__shared_t;
-
-typedef struct nile_Interleave__ nile_Interleave__t;
-
-struct nile_Interleave__ {
-    nile_Kernel_t base;
-    nile_Interleave__shared_t *shared;
+    nile_InterleaveChild_t *sibling;
     int quantum;
     int j0;
-    nile_Interleave__t *sibling;
-    int j;
     int n;
+    int j;
 };
 
-static nile_Kernel_t *
-nile_Interleave__clone (nile_t *nl, nile_Kernel_t *k_)
-{
-    /* You can't clone this type of kernel, it is created just-in-time
-       during initialization of Interleave.
-     */
-    return NULL;
-}
-
 static int
-nile_Interleave__process (nile_t *nl, nile_Kernel_t *k_,
-                          nile_Buffer_t **in_, nile_Buffer_t **out_)
+nile_InterleaveChild_process (nile_t *nl, nile_Kernel_t *k_,
+                              nile_Buffer_t **in_, nile_Buffer_t **out_)
 {
-    nile_Interleave__t *k = (nile_Interleave__t *) k_;
-    int *lock = &k->shared->lock;
+    nile_InterleaveChild_t *k = (nile_InterleaveChild_t *) k_;
     nile_Buffer_t *in = *in_;
     nile_Buffer_t *out;
-    int done = 0;
+    int *lock = &k_->downstream->lock;
     int j; 
 
-    if (!k_->initialized) {
-        k_->initialized = 1;
-        k->j = k->j0;
-        k->n = NILE_BUFFER_SIZE - (k->quantum + k->sibling->quantum) + k->j0 + 1;
-    }
-
+    k_->initialized = 1;
     if (*out_) {
         nile_Buffer_free (nl, *out_);
         *out_ = NULL;
     }
 
     nile_lock (lock);
-        out = k->shared->out;
+        out = k_->downstream->inbox;
         j = k->j;
     nile_unlock (lock);
 
-    while (in->i < in->n && j != -1) {
+    while (in->i < in->n && j < k->n) {
         int i0 = in->i;
         while (in->i < in->n && j < k->n) {
             int q = k->quantum;
@@ -635,72 +612,74 @@ nile_Interleave__process (nile_t *nl, nile_Kernel_t *k_,
                 out->data[j++] = in->data[in->i++];
             j += k->sibling->quantum;
         }
-        int flush_needed = (in->eos && !(in->i < in->n)) || !(j < k->n);
+        int done = in->eos && in->i == in->n;
 
         nile_lock (lock);
             out->n += in->i - i0;
-            if (flush_needed) {
-                j = -1;
-                if (k->sibling->j == -1) {
-                    done = in->eos && !(in->i < in->n);
-                    if (done)
-                        out->eos = 1;
-                    nile_Kernel_inbox_append (nl, k_->downstream, out);
-                    if (!done) {
-                        out = nile_Buffer_new (nl);
-                        j = k->j0;
-                        k->sibling->j = k->sibling->j0;
-                        nile_Kernel_ready (nl, &k->sibling->base);
-                    }
+            k->j = j;
+            if (done) {
+                if (out->eos) {
+                    nile_Kernel_inbox_append (nl, k_->downstream->downstream, out);
+                    nile_Kernel_free (nl, k_->downstream);
+                    nile_Kernel_free (nl, &k->sibling->base);
+                }
+                else {
+                    out->eos = 1;
+                    nile_Buffer_free (nl, in);
+                    *in_ = NULL;
                 }
             }
-            k->shared->out = out;
-            k->j = j;
+            else if (k->j >= k->n && k->sibling->j >= k->sibling->n) {
+                nile_Kernel_inbox_append (nl, k_->downstream->downstream, out);
+                out = k_->downstream->inbox = nile_Buffer_new (nl);
+                j = k->j = k->j0;
+                k->sibling->j = k->sibling->j0;
+                nile_Kernel_ready (nl, &k->sibling->base);
+            }
         nile_unlock (lock);
     }
 
-    if (done)
-        nile_Kernel_free (nl, &k->shared->base);
-
-    return (j == -1 && !done ? NILE_INPUT_SUSPEND : NILE_INPUT_CONSUMED);
+    return (*in_ && in->i == in->n ? NILE_INPUT_CONSUMED : NILE_INPUT_SUSPEND);
 }
 
-static nile_Interleave__t *
-nile_Interleave_ (nile_t *nl, nile_Interleave__shared_t *shared, int quantum, int j0)
+static nile_InterleaveChild_t *
+nile_InterleaveChild (nile_t *nl, int quantum, int j0, int n)
 {
-    nile_Interleave__t *k = NILE_KERNEL_NEW (nl, nile_Interleave_);
-    k->shared = shared;
+    nile_InterleaveChild_t *k = (nile_InterleaveChild_t *)
+        nile_Kernel_new (nl, nile_InterleaveChild_process, NULL);
     k->quantum = quantum;
     k->j0 = j0;
+    k->n = n;
+    k->j = j0;
     return k;
 }
 
 static int
 nile_Interleave_process (nile_t *nl, nile_Kernel_t *k_,
-                         nile_Buffer_t **in, nile_Buffer_t **out)
+                         nile_Buffer_t **in_, nile_Buffer_t **out_)
 {
     nile_Interleave_t *k = (nile_Interleave_t *) k_;
 
     if (!k_->initialized) {
         k_->initialized = 1;
-        nile_Interleave__shared_t *shared =
-            (nile_Interleave__shared_t *) nile_Kernel_new (nl, NULL, NULL);
-        shared->lock = 0;
-        shared->out = nile_Buffer_new (nl);
-        nile_Interleave__t *child1 =
-            nile_Interleave_ (nl, shared, k->quantum1, 0);
-        nile_Interleave__t *child2 =
-            nile_Interleave_ (nl, shared, k->quantum2, k->quantum1);
+        nile_Kernel_t *gchild = nile_Kernel_new (nl, NULL, NULL);
+        gchild->inbox = nile_Buffer_new (nl);
+        gchild->downstream = k_->downstream;
+        int eob = NILE_BUFFER_SIZE - (k->quantum1 + k->quantum2) + 1;
+        nile_InterleaveChild_t *child1 =
+            nile_InterleaveChild (nl, k->quantum1, 0, eob);
+        nile_InterleaveChild_t *child2 =
+            nile_InterleaveChild (nl, k->quantum2, k->quantum1, eob + k->quantum1);
+        child1->base.downstream = gchild;
+        child2->base.downstream = gchild;
         child1->sibling = child2;
         child2->sibling = child1;
-        child1->base.downstream = k_->downstream;
-        child2->base.downstream = k_->downstream;
         k->v_k1->downstream = &child1->base;
         k->v_k2->downstream = &child2->base;
         k_->downstream = k->v_k2;
     }
 
-    nile_Kernel_inbox_append (nl, k->v_k1, nile_Buffer_clone (nl, *in));
+    nile_Kernel_inbox_append (nl, k->v_k1, nile_Buffer_clone (nl, *in_));
     return NILE_INPUT_FORWARD;
 }
 
@@ -757,12 +736,11 @@ nile_GroupBy_process (nile_t *nl, nile_Kernel_t *k_,
             clone = k_->downstream->clone (nl, k_->downstream);
             out->eos = 1;
             nile_Kernel_inbox_append (nl, k_->downstream, out);
-            nile_Kernel_inbox_prepend (nl, k_, in);
             k_->downstream = clone;
-            *out_ = NULL;
-            *in_ = NULL;
+            nile_Kernel_inbox_prepend (nl, k_, in);
             nile_Kernel_ready (nl, k_);
-            return NILE_INPUT_SUSPEND;
+            *in_ = out = NULL;
+            break;
         }
         out = nile_Buffer_prepare_to_append (nl, out, k->quantum, k_);
         int q = k->quantum;
@@ -771,7 +749,7 @@ nile_GroupBy_process (nile_t *nl, nile_Kernel_t *k_,
     }
 
     *out_ = out;
-    return NILE_INPUT_CONSUMED;
+    return (*in_ ? NILE_INPUT_CONSUMED : NILE_INPUT_SUSPEND);
 }
 
 nile_Kernel_t *
@@ -840,11 +818,11 @@ nile_SortBy_process (nile_t *nl, nile_Kernel_t *k_,
 
             int j = out->n / k->quantum / 2 * k->quantum;
             while (j < out->n)
-                out->next->data[out->next->n++] = out->data[j++];
-            out->n -= out->next->n;
+                next->data[next->n++] = out->data[j++];
+            out->n -= next->n;
 
-            if (key > out->next->data[k->index])
-                out = out->next;
+            if (key > next->data[k->index])
+                out = next;
         }
 
         /* insert new element */
@@ -856,7 +834,7 @@ nile_SortBy_process (nile_t *nl, nile_Kernel_t *k_,
             int q = k->quantum;
             while (q--)
                 out->data[jj++] = out->data[j++];
-            j -= (k->quantum + k->quantum);
+            j -= k->quantum + k->quantum;
         }
         j += k->quantum;
         int q = k->quantum;
