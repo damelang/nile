@@ -1,22 +1,33 @@
-- fix lost signal bug (see star demo in gezira)
-- get it to work with multiple threads
-- make ready_q stuff to avoid using the semaphore.
-- make nile_Kernel_exec aware of the shutdown flag.
-- rename certain parts to match OS terminology (e.g., OS process state names)
-- rename nile_feed to nile_send ?
-- get rid of nile_Interleave__clone
+- rethink naming:
+    - nile_main processes kernels
+    - nile_Kernel_exec processes stream buffers
+    - k->process (of type nile_Kernel_process_t) processes stream elements
+
 - port to Linux and Windows
+- store an nl var in the kernel (and buffer?) struct
+- Make sure that we can handle buffers with n = 0
+    - initialize blocks or peek statements have to check that the
+      input stream isn't empty, I think.
+    - Does that mean that we have to send an empty buffer for eos?
+    - Does that mean that initialize blocks (that reference the first element)
+      have to check that the in buffers n != 0?
+- make ready_q stuff to avoid using the sys-level semaphore.
+- make nile_Kernel_exec aware of the shutdown flag?
+- rename certain parts to match OS terminology (e.g., OS process state names)?
+- rename nile_feed to nile_send ?
 - nile.c should be using nile_Real_... operations in some places
 - align the incoming memory to 32-bits (to ensure atomic ops)?
+  or refuse memory that isn't aligned?
 - use binary semaphores (Events on Win32?) instead of
   counting semaphores, since we can count ourselves and just
   need a sleep/wakup mechanism
-- keep a reference to nl in kernels so that we don't have to
-  pass around nl so much.
 - on uniprocessors, we should make nile_pause relinquish the processor?
+  what other things should we be avoiding/skipping on uniprocessors?
+  make things work even for nthreads = 0?
 - optimize SortBy for when the input stream is wholly contained
   in the first input buffer. Do an in-place sort and
   just forward the modified input buffer downstream
+  Does this matter?
 - rename "initialized" field to something related to first_time
   or prologue or something?
 - what if they give us an input buffer that isn't a multiple of in_quantum?
