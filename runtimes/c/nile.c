@@ -17,20 +17,20 @@ static inline void nile_pause () { }
 /* Atomic functions */
 
 #if (defined(__GNUC__) || defined(__INTEL_COMPILER)) && defined(__linux)
-static inline int nile_atomic_test_and_set (int * volatile l)
+static inline int nile_atomic_test_and_set (volatile int *latile l)
     { return __sync_lock_test_and_set (l, 1); }
-static inline void nile_atomic_clear (int * volatile l)
+static inline void nile_atomic_clear (volatile int *l)
     { __sync_lock_release (l); }
 #elif defined(__MACH__) && defined(__APPLE__)
 #include <libkern/OSAtomic.h>
-static inline int nile_atomic_test_and_set (int * volatile l)
+static inline int nile_atomic_test_and_set (volatile int *l)
     { return OSAtomicTestAndSetBarrier (0, l); }
-static inline void nile_atomic_clear (int * volatile l)
+static inline void nile_atomic_clear (volatile int *l)
     { OSAtomicTestAndClearBarrier (0, l); }
 #elif defined(_MSC_VER)
-static inline int nile_atomic_test_and_set (int * volatile l)
+static inline int nile_atomic_test_and_set (volatile int *l)
     { return InterlockedExchangeAcquire (l, 1); }
-static inline void nile_atomic_clear (int * volatile l)
+static inline void nile_atomic_clear (volatile int *l)
     { InterlockedDecrementRelease (l); }
 #else
 #   error Unsupported platform!
@@ -39,14 +39,14 @@ static inline void nile_atomic_clear (int * volatile l)
 /* Spin locks */
 
 static void
-nile_lock (int * volatile lock)
+nile_lock (volatile int *lock)
 {
     while (*lock || nile_atomic_test_and_set (lock))
         nile_pause ();
 }
 
 static void
-nile_unlock (int * volatile lock)
+nile_unlock (volatile int *lock)
 {
     nile_atomic_clear (lock);
 }
