@@ -86,7 +86,33 @@ nile_Sem_wait (nile_Sem_t *s)
 #elif defined(__linux)
 #   error Need to implement nile_Sem_t for Linux!
 #elif defined(_WIN32)
-#   error Need to implement nile_Sem_t for Windows!
+
+typedef HANDLE nile_Sem_t;
+
+static void
+nile_Sem_new (nile_Sem_t *s, int value)
+{
+    *s = CreateSemaphore (NULL, value, MAX_THREADS, NULL);
+}
+
+static void
+nile_Sem_free (nile_Sem_t *s)
+{
+    CloseHandle (*s);
+}
+
+static void
+nile_Sem_signal (nile_Sem_t *s)
+{
+    ReleaseSemaphore (*s, 1, NULL);
+}
+
+static void
+nile_Sem_wait (nile_Sem_t *s)
+{
+    WaitForSingleObject (*s, INFINITE);
+}
+
 #else
 #   error Unsupported platform!
 #endif
