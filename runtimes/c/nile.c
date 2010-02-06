@@ -617,6 +617,8 @@ nile_InterleaveChild_process (nile_t *nl, nile_Kernel_t *k_,
     nile_Buffer_t *in = *in_;
     nile_Buffer_t *out;
     int *lock = &k_->downstream->lock;
+    int sibling_is_suspended;
+    int sibling_is_done;
     int j; 
 
     k_->initialized = 1;
@@ -630,7 +632,7 @@ nile_InterleaveChild_process (nile_t *nl, nile_Kernel_t *k_,
         j = k->j;
     nile_unlock (lock);
 
-    while (in->i < in->n && j < k->n) {
+    for (;;) {
         int i0 = in->i;
         while (in->i < in->n && j < k->n) {
             int q = k->quantum;
@@ -638,34 +640,41 @@ nile_InterleaveChild_process (nile_t *nl, nile_Kernel_t *k_,
                 out->data[j++] = in->data[in->i++];
             j += k->sibling->quantum;
         }
-        int done = in->eos && in->i == in->n;
 
         nile_lock (lock);
             out->n += in->i - i0;
             k->j = j;
-            if (done) {
-                if (out->eos) {
-                    nile_Kernel_inbox_append (nl, k_->downstream->downstream, out);
-                    nile_Kernel_free (nl, k_->downstream);
-                    nile_Kernel_free (nl, &k->sibling->base);
-                }
-                else {
-                    out->eos = 1;
-                    nile_Buffer_free (nl, in);
-                    *in_ = NULL;
-                }
-            }
-            else if (k->j >= k->n && k->sibling->j >= k->sibling->n) {
-                nile_Kernel_inbox_append (nl, k_->downstream->downstream, out);
-                out = k_->downstream->inbox = nile_Buffer_new (nl);
-                j = k->j = k->j0;
-                k->sibling->j = k->sibling->j0;
-                nile_Kernel_ready (nl, &k->sibling->base);
-            }
+            sibling_is_suspended = k->sibling->j >= k->sibling->n;
         nile_unlock (lock);
+
+        if (in->i < in->n && sibling_is_suspended) {
+            nile_Kernel_inbox_append (nl, k_->downstream->downstream, out);
+            out = k_->downstream->inbox = nile_Buffer_new (nl);
+            j = k->j = k->j0;
+            k->sibling->j = k->sibling->j0;
+            nile_Kernel_ready (nl, &k->sibling->base);
+        }
+        else break;
     }
 
-    return (*in_ && in->i == in->n ? NILE_INPUT_CONSUMED : NILE_INPUT_SUSPEND);
+    if (in->i == in->n && in->eos) {
+        nile_lock (lock);
+            sibling_is_done = out->eos;
+            out->eos = 1;
+        nile_unlock (lock);
+        if (sibling_is_done) {
+            nile_Kernel_inbox_append (nl, k_->downstream->downstream, out);
+            nile_Kernel_free (nl, k_->downstream);
+            nile_Kernel_free (nl, &k->sibling->base);
+        }
+        else {
+            nile_Buffer_free (nl, in);
+            *in_ = NULL;
+            return NILE_INPUT_SUSPEND;
+        }
+    }
+
+    return in->i == in->n ? NILE_INPUT_CONSUMED : NILE_INPUT_SUSPEND;
 }
 
 static nile_InterleaveChild_t *
@@ -690,12 +699,12 @@ nile_Interleave_process (nile_t *nl, nile_Kernel_t *k_,
         k_->initialized = 1;
         nile_Kernel_t *gchild = nile_Kernel_new (nl, NULL, NULL);
         gchild->inbox = nile_Buffer_new (nl);
-        gchild->downstream = k_->downstream;
         int eob = NILE_BUFFER_SIZE - (k->quantum1 + k->quantum2) + 1;
         nile_InterleaveChild_t *child1 =
             nile_InterleaveChild (nl, k->quantum1, 0, eob);
         nile_InterleaveChild_t *child2 =
             nile_InterleaveChild (nl, k->quantum2, k->quantum1, eob + k->quantum1);
+        gchild->downstream = k_->downstream;
         child1->base.downstream = gchild;
         child2->base.downstream = gchild;
         child1->sibling = child2;
@@ -765,8 +774,8 @@ nile_GroupBy_process (nile_t *nl, nile_Kernel_t *k_,
             k_->downstream = clone;
             nile_Kernel_inbox_prepend (nl, k_, in);
             nile_Kernel_ready (nl, k_);
-            *in_ = out = NULL;
-            break;
+            *in_ = *out_ = NULL;
+            return NILE_INPUT_SUSPEND;
         }
         out = nile_Buffer_prepare_to_append (nl, out, k->quantum, k_);
         int q = k->quantum;
@@ -775,7 +784,7 @@ nile_GroupBy_process (nile_t *nl, nile_Kernel_t *k_,
     }
 
     *out_ = out;
-    return (*in_ ? NILE_INPUT_CONSUMED : NILE_INPUT_SUSPEND);
+    return NILE_INPUT_CONSUMED;
 }
 
 nile_Kernel_t *
