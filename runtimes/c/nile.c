@@ -412,8 +412,8 @@ static void
 nile_Kernel_ready (nile_t *nl, nile_Kernel_t *k)
 {
     nile_lock (&nl->ready_q_lock);
-        if (nl->ready_q) {
-            nile_Kernel_t *ready_q = nl->ready_q;
+        nile_Kernel_t *ready_q = nl->ready_q;
+        if (ready_q) {
             while (ready_q->next)
                 ready_q = ready_q->next;
             ready_q->next = k;
@@ -434,8 +434,8 @@ nile_Kernel_inbox_append (nile_t *nl, nile_Kernel_t *k, nile_Buffer_t *b)
     int must_activate = 0;
 
     nile_lock (&k->lock); 
-        if (k->inbox) {
-            nile_Buffer_t *inbox = k->inbox;
+        nile_Buffer_t *inbox = k->inbox;
+        if (inbox) {
             while (inbox->next)
                 inbox = inbox->next;
             inbox->next = b;
