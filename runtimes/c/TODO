@@ -1,3 +1,31 @@
+- change semaphores to signals
+  
+  nile_main()
+
+  for (;;) {
+    nile_lock ()
+      k = nl->ready_q;
+      if (k) 
+        nl->ready_q = k->next;
+      else
+        nl->nthreads_active--;
+      shutdown = nl->shutdown;
+    nile_unlock ()
+
+    if (shutdown)
+      break;
+
+    if (k) {
+      ...exec k
+    }
+    else {
+      nile_Signal_wait (nl->ready_q_signal);
+      nile_lock ()
+        nl->threads_active++;
+      nile_unlock ()
+    }
+  }
+
 - rethink naming:
     - nile_main processes kernels
     - nile_Kernel_exec processes stream buffers
