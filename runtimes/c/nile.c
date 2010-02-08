@@ -29,9 +29,9 @@ static inline void nile_atomic_clear (volatile int *l)
     { OSAtomicTestAndClearBarrier (0, l); }
 #elif defined(_MSC_VER)
 static inline int nile_atomic_test_and_set (volatile int *l)
-    { return InterlockedExchange (l, 1); }
+    { return InterlockedExchange ((long *) l, 1); }
 static inline void nile_atomic_clear (volatile int *l)
-    { InterlockedDecrement (l); }
+    { InterlockedDecrement ((long *) l); }
 #else
 #   error Unsupported platform!
 #endif
