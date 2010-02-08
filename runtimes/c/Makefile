@@ -4,7 +4,7 @@ libnile.a: nile.o
 	ar rcs $@ $^
 
 %.o: %.c *.h $(MAKEFILE_LIST)
-	gcc -c $(CFLAGS) $<
+	$(CC) -c $(CFLAGS) $<
 
 clean:
 	/bin/rm -rf *.o *.a *.gch
