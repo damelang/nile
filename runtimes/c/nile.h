@@ -21,7 +21,7 @@ void
 nile_sync (nile_t *nl);
 
 nile_Kernel_t *
-nile_Pipeline (nile_t *nl, ...) __attribute__ ((sentinel));
+nile_Pipeline (nile_t *nl, ...);
 
 /* INTERNAL API */
 
