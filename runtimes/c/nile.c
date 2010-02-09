@@ -17,21 +17,21 @@ static inline void nile_pause () { }
 /* Atomic functions */
 
 #if (defined(__GNUC__) || defined(__INTEL_COMPILER)) && defined(__linux)
-static inline int nile_atomic_test_and_set (volatile int *latile l)
+static inline long nile_atomic_test_and_set (volatile long *l)
     { return __sync_lock_test_and_set (l, 1); }
-static inline void nile_atomic_clear (volatile int *l)
+static inline void nile_atomic_clear (volatile long *l)
     { __sync_lock_release (l); }
 #elif defined(__MACH__) && defined(__APPLE__)
 #include <libkern/OSAtomic.h>
-static inline int nile_atomic_test_and_set (volatile int *l)
+static inline long nile_atomic_test_and_set (volatile long *l)
     { return OSAtomicTestAndSetBarrier (0, l); }
-static inline void nile_atomic_clear (volatile int *l)
+static inline void nile_atomic_clear (volatile long *l)
     { OSAtomicTestAndClearBarrier (0, l); }
 #elif defined(_MSC_VER)
-static inline int nile_atomic_test_and_set (volatile int *l)
-    { return InterlockedExchange ((long *) l, 1); }
-static inline void nile_atomic_clear (volatile int *l)
-    { InterlockedDecrement ((long *) l); }
+static inline long nile_atomic_test_and_set (volatile long *l)
+    { return InterlockedExchange (l, 1); }
+static inline void nile_atomic_clear (volatile long *l)
+    { InterlockedDecrement (l); }
 #else
 #   error Unsupported platform!
 #endif
@@ -39,14 +39,14 @@ static inline void nile_atomic_clear (volatile int *l)
 /* Spin locks */
 
 static void
-nile_lock (volatile int *lock)
+nile_lock (volatile long *lock)
 {
     while (*lock || nile_atomic_test_and_set (lock))
         nile_pause ();
 }
 
 static void
-nile_unlock (volatile int *lock)
+nile_unlock (volatile long *lock)
 {
     nile_atomic_clear (lock);
 }
@@ -166,8 +166,8 @@ struct nile_ {
     int ready_q_length;
     int shutdown;
     nile_Buffer_t *freelist;
-    int freelist_lock;
-    int ready_q_lock;
+    long freelist_lock;
+    long ready_q_lock;
     nile_Sem_t ready_q_has_kernel;
     nile_Sem_t ready_q_no_longer_too_long_sem;
     nile_Sem_t idle_sem;
@@ -616,7 +616,7 @@ nile_InterleaveChild_process (nile_t *nl, nile_Kernel_t *k_,
     nile_InterleaveChild_t *k = (nile_InterleaveChild_t *) k_;
     nile_Buffer_t *in = *in_;
     nile_Buffer_t *out;
-    int *lock = &k_->downstream->lock;
+    long *lock = &k_->downstream->lock;
     int sibling_is_suspended;
     int sibling_is_done;
     int j; 

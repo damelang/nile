@@ -73,7 +73,7 @@ struct nile_Kernel_ {
     nile_Kernel_process_t process;
     nile_Kernel_clone_t clone;
     nile_Kernel_t *downstream;
-    int lock;
+    long lock;
     nile_Buffer_t *inbox;
     int initialized;
     int active;
