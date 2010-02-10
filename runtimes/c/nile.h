@@ -37,6 +37,7 @@ static inline real nile_Real_clg (real a)
     { real b = (int) a; return b < a ? b + 1 : b; }
 static inline real nile_Real_abs (real a) { return fabsf (a); }
 static inline real nile_Real_sqr (real a) { return sqrtf (a); }
+static inline real nile_Real_neg (real a) { return -a; }
 static inline real nile_Real_add (real a, real b) { return a + b; }
 static inline real nile_Real_sub (real a, real b) { return a - b; }
 static inline real nile_Real_mul (real a, real b) { return a * b; }
