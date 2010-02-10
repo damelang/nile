@@ -14,41 +14,36 @@ static inline void nile_pause () { _mm_pause (); }
 static inline void nile_pause () { }
 #endif
 
-/* Atomic functions */
+/* Atomic exchange */
 
-#if (defined(__GNUC__) || defined(__INTEL_COMPILER)) && defined(__linux)
-static inline long nile_atomic_test_and_set (volatile long *l)
-    { return __sync_lock_test_and_set (l, 1); }
-static inline void nile_atomic_clear (volatile long *l)
-    { __sync_lock_release (l); }
-#elif defined(__MACH__) && defined(__APPLE__)
-#include <libkern/OSAtomic.h>
-static inline long nile_atomic_test_and_set (volatile long *l)
-    { return OSAtomicTestAndSetBarrier (0, l); }
-static inline void nile_atomic_clear (volatile long *l)
-    { OSAtomicTestAndClearBarrier (0, l); }
-#elif defined(_MSC_VER)
-static inline long nile_atomic_test_and_set (volatile long *l)
-    { return InterlockedExchange (l, 1); }
-static inline void nile_atomic_clear (volatile long *l)
-    { InterlockedDecrement (l); }
+#if defined(__GNUC__) && defined(__i386__)
+static inline long
+nile_xchg(volatile long *l, long v)
+{
+    __asm__ __volatile__("xchgl %1,%0"
+                         : "=r" (v) : "m" (*l), "0" (v) : "memory");
+    return v;
+}
+#elif defined(_MSC_VER) || defined(__INTEL_COMPILER)
+#include <intrin.h>
+#define nile_xchg _InterlockedExchange
 #else
-#   error Unsupported platform!
+#error Unsupported platform!
 #endif
 
 /* Spin locks */
 
-static void
+static inline void
 nile_lock (volatile long *lock)
 {
-    while (*lock || nile_atomic_test_and_set (lock))
+    while (*lock || nile_xchg (lock, 1))
         nile_pause ();
 }
 
-static void
+static inline void
 nile_unlock (volatile long *lock)
 {
-    nile_atomic_clear (lock);
+    nile_xchg (lock, 0);
 }
 
 /* Semaphores */
