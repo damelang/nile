@@ -1,5 +1,3 @@
-Reverse : α >> α
-
 GroupBy (i : Real) : α >> α
 
 SortBy (i : Real) : α >> α
