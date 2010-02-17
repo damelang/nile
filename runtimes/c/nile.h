@@ -56,7 +56,6 @@ static inline real nile_Real_min (real a, real b) { return a < b ? a : b; }
 static inline real nile_Real_max (real a, real b) { return a > b ? a : b; }
 static inline real nile_Real_ave (real a, real b) { return (a + b) / 2; }
 static inline real nile_Real_sel (real a, real b, real c) { return b ? a : c; }
-static inline real nile_Real_mod (real a, real b) { return fmod (a, b); }
 
 /* Kernels */
 
