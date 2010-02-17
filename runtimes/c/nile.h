@@ -31,6 +31,8 @@ nile_Pipeline (nile_t *nl, ...);
 
 #define real nile_Real_t
 
+static inline nile_Real_t nile_Real        (float a) { return       a; }
+static inline int         nile_Real_to_int (real  a) { return (int) a; }
 static inline real nile_Real_flr (real a)
     { real b = (int) a; return b > a ? b - 1 : b; }
 static inline real nile_Real_clg (real a)
