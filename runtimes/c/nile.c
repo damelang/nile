@@ -1,4 +1,7 @@
 #include <stdarg.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include "nile.h"
 
 #define real nile_Real_t
@@ -16,17 +19,16 @@ static inline void nile_pause () { }
 
 /* Atomic exchange */
 
-#if defined(__GNUC__) && defined(__i386__)
+#if defined(_WIN32)
+#define nile_xchg InterlockedExchange
+#elif defined(__GNUC__) && defined(__i386__)
 static inline long
-nile_xchg(volatile long *l, long v)
+nile_xchg (volatile long *l, long v)
 {
     __asm__ __volatile__("xchgl %1,%0"
                          : "=r" (v) : "m" (*l), "0" (v) : "memory");
     return v;
 }
-#elif defined(_MSC_VER) || defined(__INTEL_COMPILER)
-#include <intrin.h>
-#define nile_xchg _InterlockedExchange
 #else
 #error Unsupported platform!
 #endif
