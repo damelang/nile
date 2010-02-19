@@ -21,9 +21,9 @@ static inline void nile_pause () { }
 
 #if defined(_WIN32)
 #define nile_xchg InterlockedExchange
-#elif defined(__GNUC__) && defined(__i386__)
-static inline long
-nile_xchg (volatile long *l, long v)
+#elif defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
+static inline uint32_t
+nile_xchg (volatile uint32_t *l, uint32_t v)
 {
     __asm__ __volatile__("xchgl %1,%0"
                          : "=r" (v) : "m" (*l), "0" (v) : "memory");
@@ -36,14 +36,14 @@ nile_xchg (volatile long *l, long v)
 /* Spin locks */
 
 static inline void
-nile_lock (volatile long *lock)
+nile_lock (volatile uint32_t *lock)
 {
     while (*lock || nile_xchg (lock, 1))
         nile_pause ();
 }
 
 static inline void
-nile_unlock (volatile long *lock)
+nile_unlock (volatile uint32_t *lock)
 {
     nile_xchg (lock, 0);
 }
@@ -163,8 +163,8 @@ struct nile_ {
     int ready_q_length;
     int shutdown;
     nile_Buffer_t *freelist;
-    long freelist_lock;
-    long ready_q_lock;
+    uint32_t freelist_lock;
+    uint32_t ready_q_lock;
     nile_Sem_t ready_q_has_kernel;
     nile_Sem_t ready_q_no_longer_too_long_sem;
     nile_Sem_t idle_sem;
@@ -613,7 +613,7 @@ nile_InterleaveChild_process (nile_t *nl, nile_Kernel_t *k_,
     nile_InterleaveChild_t *k = (nile_InterleaveChild_t *) k_;
     nile_Buffer_t *in = *in_;
     nile_Buffer_t *out;
-    long *lock = &k_->downstream->lock;
+    uint32_t *lock = &k_->downstream->lock;
     int sibling_is_suspended;
     int sibling_is_done;
     int j; 

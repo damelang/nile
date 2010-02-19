@@ -25,6 +25,12 @@ nile_Pipeline (nile_t *nl, ...);
 
 /* INTERNAL API */
 
+#if defined( _MSC_VER)
+typedef unsigned __int32 uint32_t;
+#else
+#include <stdint.h>
+#endif
+
 /* Real numbers */
 
 #include <math.h>
@@ -76,7 +82,7 @@ struct nile_Kernel_ {
     nile_Kernel_process_t process;
     nile_Kernel_clone_t clone;
     nile_Kernel_t *downstream;
-    long lock;
+    uint32_t lock;
     nile_Buffer_t *inbox;
     int initialized;
     int active;
