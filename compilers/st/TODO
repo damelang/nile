@@ -1,10 +1,13 @@
 - support user-defined operators (Alex calls them 'typed-macros')
-- walk through with Alex
-- use code gen. templates?
-- combine pipeline optimization
+- "types" day with Alex
+- "syntax" day with Alex
+- "code generation" day with Alex
+    - use code gen. templates?
+- combine multi-stage pipeline optimization
 - get rid of static functions in generated header file
 - don't writeback kernel parameters
 - don't clone prologue vars
 - is there an easy way to get rid of some of the
   extra temporary vars?
+- generate nile_Real (CONSTANT) for constants
 - generate js code again
