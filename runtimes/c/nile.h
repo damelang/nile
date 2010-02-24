@@ -188,6 +188,9 @@ nile_Buffer_peek (nile_Buffer_t *b, int i)
 /* Primitive kernels */
 
 nile_Kernel_t *
+nile_Mix (nile_t *nl, nile_Kernel_t *k1, nile_Kernel_t *k2);
+
+nile_Kernel_t *
 nile_Interleave (nile_t *nl, nile_Kernel_t *k1, int quantum1,
                              nile_Kernel_t *k2, int quantum2);
 

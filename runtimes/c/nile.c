@@ -573,6 +573,97 @@ nile_Pipeline (nile_t *nl, ...)
     return (nile_Kernel_t *) k;
 }
 
+/* Mix kernel */
+
+typedef struct {
+    nile_Kernel_t base;
+    nile_Kernel_t *v_k1;
+    nile_Kernel_t *v_k2;
+} nile_Mix_t;
+
+static nile_Kernel_t *
+nile_Mix_clone (nile_t *nl, nile_Kernel_t *k_)
+{
+    nile_Mix_t *k = (nile_Mix_t *) k_;
+    nile_Mix_t *clone = (nile_Mix_t *) nile_Kernel_clone (nl, k_);
+    clone->v_k1 = k->v_k1->clone (nl, k->v_k1);
+    clone->v_k2 = k->v_k2->clone (nl, k->v_k2);
+    return (nile_Kernel_t *) clone;
+}
+
+typedef struct {
+    nile_Kernel_t base;
+    uint32_t lock;
+    int done;
+} nile_MixChild_t;
+
+static int
+nile_MixChild_process (nile_t *nl, nile_Kernel_t *k_,
+                       nile_Buffer_t **in_, nile_Buffer_t **out_)
+{
+    nile_MixChild_t *k = (nile_MixChild_t *) k_;
+    nile_Buffer_t *in = *in_;
+    int done;
+
+    k_->initialized = 1;
+    if (*out_) {
+        nile_Buffer_free (nl, *out_);
+        *out_ = NULL;
+    }
+
+    if (in->eos) {
+        nile_lock (&k->lock);
+            in->eos = done = k->done;
+            k->done = 1;
+            nile_Kernel_inbox_append (nl, k_->downstream, in);
+        nile_unlock (&k->lock);
+        *in_ = NULL;
+        if (done)
+            nile_Kernel_free (nl, k_);
+        return NILE_INPUT_SUSPEND;
+    }
+    else
+        return NILE_INPUT_FORWARD;
+}
+
+static nile_MixChild_t *
+nile_MixChild (nile_t *nl)
+{
+    nile_MixChild_t *k = (nile_MixChild_t *)
+        nile_Kernel_new (nl, nile_MixChild_process, NULL);
+    k->lock = 0;
+    k->done = 0;
+    return k;
+}
+
+static int
+nile_Mix_process (nile_t *nl, nile_Kernel_t *k_,
+                  nile_Buffer_t **in_, nile_Buffer_t **out_)
+{
+    nile_Mix_t *k = (nile_Mix_t *) k_;
+
+    if (!k_->initialized) {
+        k_->initialized = 1;
+        nile_MixChild_t *child = nile_MixChild (nl);
+        child->base.downstream = k_->downstream;
+        k->v_k1->downstream = &child->base;
+        k->v_k2->downstream = &child->base;
+        k_->downstream = k->v_k2;
+    }
+
+    nile_Kernel_inbox_append (nl, k->v_k1, nile_Buffer_clone (nl, *in_));
+    return NILE_INPUT_FORWARD;
+}
+
+nile_Kernel_t *
+nile_Mix (nile_t *nl, nile_Kernel_t *k1, nile_Kernel_t *k2)
+{
+    nile_Mix_t *k = NILE_KERNEL_NEW (nl, nile_Mix);
+    k->v_k1 = k1;
+    k->v_k2 = k2;
+    return (nile_Kernel_t *) k;
+}
+
 /* Interleave kernel */
 
 typedef struct {
