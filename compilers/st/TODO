@@ -1,10 +1,10 @@
 - unary negation should be lower precedence than tuple member access
-- support user-defined operators (Alex calls them 'typed-macros')
+- support overloading of operators
 - "types" day with Alex
 - "syntax" day with Alex
 - "code generation" day with Alex
     - use code gen. templates?
-- combine multi-stage pipeline optimization
+- combine multi-stage pipeline optimization ?
 - get rid of static functions in generated header file
 - don't writeback kernel parameters
 - don't clone prologue vars
