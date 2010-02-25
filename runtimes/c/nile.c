@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <stdarg.h>
 #ifdef _WIN32
 #include <windows.h>
@@ -7,6 +8,13 @@
 #define real nile_Real_t
 #define MAX_THREADS 50
 #define READY_Q_TOO_LONG_LENGTH 25
+
+#ifndef NILE_MULTI_THREADED
+
+#define nile_lock(l)
+#define nile_unlock(l)
+
+#else
 
 /* CPU pause */
 
@@ -48,7 +56,19 @@ nile_unlock (volatile uint32_t *lock)
     nile_xchg (lock, 0);
 }
 
+#endif
+
 /* Semaphores */
+
+#ifndef NILE_MULTI_THREADED
+
+typedef int nile_Sem_t;
+#define nile_Sem_new(s, value)
+#define nile_Sem_free(s)
+#define nile_Sem_signal(s)
+#define nile_Sem_wait(s)
+
+#else
 
 #if defined(__MACH__)
 
@@ -112,6 +132,8 @@ nile_Sem_wait (nile_Sem_t *s)
 
 #else
 #   error Unsupported platform!
+#endif
+
 #endif
 
 /* Threads */
@@ -192,8 +214,12 @@ nile_main (nile_t *nl)
             signal_idle = !nl->nthreads_active && !nl->ready_q;
         nile_unlock (&nl->ready_q_lock);
 
-        if (signal_idle)
-           nile_Sem_signal (&nl->idle_sem);
+        if (signal_idle) {
+            nile_Sem_signal (&nl->idle_sem);
+#ifndef NILE_MULTI_THREADED
+            break;
+#endif
+        }
 
         nile_Sem_wait (&nl->ready_q_has_kernel);
 
@@ -240,7 +266,11 @@ nile_new (int nthreads, char *mem, int memsize)
 {
     int i;
     nile_t *nl = (nile_t *) mem;
+#ifndef NILE_MULTI_THREADED
+    nl->nthreads = 0;
+#else
     nl->nthreads = nthreads < MAX_THREADS ? nthreads : MAX_THREADS;
+#endif
     nl->nthreads_active = nl->nthreads;
     nl->ready_q = NULL;
     nl->ready_q_length = 0;
@@ -315,6 +345,11 @@ nile_feed (nile_t *nl, nile_Kernel_t *k, nile_Real_t *data, int n, int eos)
             in->eos = eos;
         nile_Kernel_inbox_append (nl, k, in);
     }
+
+#ifndef NILE_MULTI_THREADED
+    nl->nthreads_active++;
+    nile_main (nl);
+#endif
 }
 
 /* External synchronization (waiting until all kernels are done) */
