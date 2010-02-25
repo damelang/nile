@@ -15,10 +15,10 @@ contents
 
 	^ writeStream contents! !
 
-!IndentingWriteStream methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 13:27'!
+!IndentingWriteStream methodsFor: 'as yet unclassified' stamp: 'aw 2/5/2010 09:58'!
 cr
 
-	writeStream cr.
+	self nextPut: Character cr.
 	pos := indentationLevelStack last.
 	lineIsEmpty := true.! !
 
@@ -45,12 +45,10 @@ nextPutAll: aString
 	writeStream nextPutAll: aString.
 	pos := pos + aString size.! !
 
-!IndentingWriteStream methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 13:27'!
+!IndentingWriteStream methodsFor: 'as yet unclassified' stamp: 'aw 2/5/2010 09:43'!
 nextPut: aCharacter
 
-	self indentIfNecessary.
-	writeStream nextPut: aCharacter.
-	pos := pos + 1.! !
+	self nextPutAll: aCharacter asString.! !
 
 !IndentingWriteStream methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 13:29'!
 popIndentationLevel
@@ -64,19 +62,17 @@ pushIndentationLevel
 
 	indentationLevelStack addLast: pos.! !
 
-!IndentingWriteStream methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 13:28'!
+!IndentingWriteStream methodsFor: 'as yet unclassified' stamp: 'aw 2/5/2010 10:01'!
 space
 
-	self indentIfNecessary.
-	writeStream space.
-	pos := pos + 1.! !
+	self nextPut: Character space.! !
 
-!IndentingWriteStream methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 13:28'!
+!IndentingWriteStream methodsFor: 'as yet unclassified' stamp: 'aw 2/5/2010 10:02'!
 tab
 
-	self indentIfNecessary.
-	writeStream tab.
-	pos := pos + self tabSize.! !
+	self nextPut: Character tab.
+	" nextPut has already incremented the position, but we consider tabs to be more spaces "
+	pos := pos + self tabSize - 1.! !
 
 !IndentingWriteStream methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 13:28'!
 tabSize
@@ -105,6 +101,11 @@ akType =
 
 	{nameTypePairs:ps} trans:kt -> [NileAbstractKernelType argumentNames: (ps at: #names) argumentTypes: (ps at: #types) underlyingKernelType: kt]! !
 
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 15:28'!
+apply: aRule
+
+	^ self perform: aRule! !
+
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 05:27'!
 assign :lhs trans:rhs =
 
@@ -119,20 +120,36 @@ assign :lhs trans:rhs =
 	[self coerce: rhs to: lhsType]:coercedRhs
 	[self emitAssignmentInto: iLhs, '_' from: coercedRhs withType: lhsType]! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/13/2009 18:30'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 12:07'!
 binOp trans:x :op trans:y =
 
-	// op is a typed macro
+	// op is a UDO
 	?[typedMacros includesKey: op]
 	[typedMacros at: op]:macroType
-	[self coerce: x to: macroType top1]:cx
-	[self coerce: y to: macroType top2]:cy
-	trans(macroType macro value: {#var. cx} value: {#var. cy}):ans
-	-> [self coerce: ans to: macroType tans]
+	(
+		?[macroType canBeUsedPairwise]
+		[currentKernelVarTypes at: x]:tx
+		[currentKernelVarTypes at: y]:ty
+		?[tx isTupleType or: [ty isTupleType]]
+		[tx max: ty]:tans
+		[self coerce: x to: tans]:cx
+		[self coerce: y to: tans]:cy
+		[tans elementNames collect: [:en |
+			{#var. self apply: #trans withArgs: {macroType expandWithArgs: {{#fieldAccess. {#var. cx}. en}. {#fieldAccess. {#var. cy}. en}}}}
+		]]:es
+		trans({#tuple}, es):ans
+		-> [self coerce: ans to: tans]
+	|
+		[self coerce: x to: macroType top1]:cx
+		[self coerce: y to: macroType top2]:cy
+		trans(macroType expandWithArgs: {{#var. cx}. {#var. cy}}):ans
+		-> [self coerce: ans to: macroType tans]
+	)
 
 |
 
-	// op is not a typed macro
+	// op is not a UDO
+	?[(typedMacros includesKey: op) not]
 	[currentKernelVarTypes at: x]:tx
 	[currentKernelVarTypes at: y]:ty
 	[tx max: ty]:tans
@@ -148,10 +165,11 @@ coerce: rhsTmp to: lhsType
 
 	^ self coerce: rhsTmp to: lhsType into: nil! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 09:22'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/9/2010 14:26'!
 coerce: rhsTmp to: lhsType into: desiredName
 
 	| rhsType coercedRhsTmp |
+	lhsType isAnyType ifTrue: [^ rhsTmp].
 	rhsType := currentKernelVarTypes at: rhsTmp.
 	rhsType isKernelType ifTrue: [
 		lhsType isKernelType
@@ -176,7 +194,7 @@ coerce: rhsTmp to: lhsType into: desiredName
 				]
 		].
 		lhsType underlyingScalarType ifNil: [
-			self error: 'cannot coerce scalar value to non-homogeneous vector'.
+			self error: 'cannot coerce scalar value to non-homogeneous tuple'.
 		].
 		coercedRhsTmp := desiredName ifNil: [self newTmpName].
 		self declareVariable: coercedRhsTmp withType: lhsType.
@@ -184,7 +202,7 @@ coerce: rhsTmp to: lhsType into: desiredName
 		^ coercedRhsTmp
 	].
 	lhsType isScalarType ifTrue: [
-		self error: 'cannot coerce vector value to scalar'
+		self error: 'cannot coerce tuple value to scalar'
 	].
 	lhsType == rhsType ifTrue: [
 		^ desiredName
@@ -194,7 +212,7 @@ coerce: rhsTmp to: lhsType into: desiredName
 				]
 	].
 	lhsType elementTypes size ~= rhsType elementTypes size ifTrue: [
-		self error: 'vector value cannot be coerced to vector of a different size'.
+		self error: 'tuple value cannot be coerced to tuple of a different size'.
 	].
 	coercedRhsTmp := desiredName ifNil: [self newTmpName].
 	rhsType elementNames withIndexDo: [:en :ii |
@@ -224,10 +242,10 @@ condExpr trans:c trans:x trans:y =
 	[self emitCondExpr: cc with: cx and: cy type: tans into: ans]
 	-> [ans]! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/15/2009 09:30'!
-decl :n trans:v =
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 15:46'!
+decl :n trans:t trans:v =
 
-	[currentKernelVarTypes at: v]:t
+	[t isAnyType ifTrue: [t := currentKernelVarTypes at: v]]
 		[self intern: n]:in
 		[self declareVariable: in withType: t]
 		[self declareVariable: in, '_' withType: t]
@@ -252,15 +270,20 @@ declareType: name toBe: type
 	types at: name put: type.
 	type isKernelType ifTrue: [self emitKernelType: type named: name].! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 05:34'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 10:42'!
 declareVariable: name withType: type
 
 	| iName |
 	iName := self intern: name.
-	(currentKernelVarTypes includesKey: iName) ifTrue: [self error: 'cannot re-declare variable: ', name].
+	(currentKernelVarTypes includesKey: iName) ifTrue: [
+		" TODO: take out the check below, fix this problem properly (see prologue look-ahead stuff in #kernel) "
+		(prologueVarNames includes: name) ifFalse: [
+			self error: 'cannot re-declare variable: ', name
+		]
+	].
 	currentKernelVarTypes at: iName put: type.! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 12:51'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/25/2010 01:05'!
 emitAbstractKernelConstructorFor: n withType: t
 
 	| isJustAType formatString prototypePrinter |
@@ -379,12 +402,13 @@ emitFakeKernelConstructorFor: n withType: t
 		nextPutAll: 'return (nile_Kernel_t *) k;'; cr;
 		popIndentationLevel; nextPut: $}; cr; cr.! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 12:52'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/23/2010 14:51'!
 emitForAllWithPattern: pat body: body andEpilogue: epilogue
 
 	| pvs |
 	currentForAllAssignments := Set new.
 	cOut nextPutAll: 'while (in->i < in->n) {'; cr; condTab; pushIndentationLevel.
+	self initializePrimeVars.
 	pvs := self apply: #transPat withArgs: {currentKernelType inputType. pat}.
 	pvs do: [:pv |
 		cOut nextPutAll: pv; nextPutAll: ' = nile_Buffer_shift(in);';cr
@@ -440,14 +464,9 @@ emitKApp: k withType: kt andArgs: as into: tmpName
 	].
 	cOut nextPutAll: ');'; cr.! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 21:52'!
-emitKernelBody {#forwarding :peek :fwdExpr} =
-
-	[self emitForwardingWithPeek: peek andForwardingExpression: fwdExpr],
-
-emitKernelBody {#forAll :pat :body :epilogue} =
-
-	[self emitForAllWithPattern: pat body: body andEpilogue: epilogue]! !
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/19/2010 14:44'!
+emitKernelBody {#forwarding :peek :fwdExpr}   = [self emitForwardingWithPeek: peek andForwardingExpression: fwdExpr],
+emitKernelBody {#forAll :pat :body :epilogue} = [self emitForAllWithPattern: pat body: body andEpilogue: epilogue]! !
 
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 12:52'!
 emitKernelConstructorFor: n withType: t
@@ -494,37 +513,42 @@ emitKernelDeclarationHeader: name
 		nextPutAll: 'nile_Buffer_t *out = *out_;'; cr;
 		nextPutAll: ('{1}{2}_t *k = ({1}{2}_t *) k_;' format: {prefix. name}); cr.! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 12:05'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/23/2010 14:56'!
 emitKernelFieldsAsLocalVars
 
-	currentKernelType argumentNames, prologueVarNames do: [:v |
+"prologueVarNames ifNotEmpty: [self halt]."
+	(currentKernelType underlyingKernelType
+		ifNil: [{}] 
+		ifNotNil: [currentKernelType underlyingKernelType argumentNames]),
+	currentKernelType argumentNames,
+	prologueVarNames do: [:v |
 		| iv vt isFromPrologue |
 		iv := self intern: v.
 		isFromPrologue := false.
-		vt := currentKernelVarTypes at: iv ifAbsent: [
-			isFromPrologue := true.
-			prologueVarTypes at: (prologueVarNames indexOf: iv).
-		].
+		vt := currentKernelVarTypes at: iv.
+		isFromPrologue := prologueVarNames includes: v.
 		vt isKernelType ifTrue: [
 			cOut nextPutAll: ('nile_Kernel_t *{1} = k->{1};' format: {iv}); cr.
 		] ifFalse: [
 			vt suffixNames do: [:s |
 				cOut nextPutAll: ('{1}{2}{3} = k->{2}{3};' format: {self varDeclKeyword. iv. s}); cr.
 				isFromPrologue ifTrue: [
-					cOut nextPutAll: ('{1}{2}_{3} = {2}{3};' format: {self varDeclKeyword. iv. s}); cr.
+					cOut nextPutAll: ('{1}{2}_{3};' format: {self varDeclKeyword. iv. s}); cr.
 				].
 			].
 		].	
 	].
 	cOut cr.! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 12:53'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 10:45'!
 emitKernelInitializerWithPrologue: prologue andBody: body
 
 	cOut
 		nextPutAll: 'if (!!k_->initialized) {'; cr; condTab; pushIndentationLevel;
 		nextPutAll: 'k_->initialized = 1;'; cr.
+"Transcript show: 'translating prologue...'; cr."
 	self apply: #trans withArgs: {prologue}.
+"Transcript show: 'done.'; cr."
 	body first == #forwarding ifTrue: [
 		| fv |
 		self apply: #trans withArgs: {body second}.
@@ -612,17 +636,26 @@ emitReductionOf: x type: tx withOp: op into: tmp
 		cOut nextPutAll: ';'; cr.
 	].! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 13:44'!
-emitScalarPromotionOf: sName to: vType as: vName
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:12'!
+emitScalarPromotionOf: sName to: tType as: tName
 
-	vType suffixNames do: [:suff |
-		cOut nextPutAll: ('{1}{2}{3} = {4};' format: {self varDeclKeyword. vName. suff. sName}); cr.
+	tType suffixNames do: [:suff |
+		cOut nextPutAll: ('{1}{2}{3} = {4};' format: {self varDeclKeyword. tName. suff. sName}); cr.
 	].! !
 
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 18:37'!
 emitScalar: x as: tmpName
 	
 	cOut nextPutAll: ('{1}{2} = {3};' format: {self varDeclKeyword. tmpName. x printString}); cr.! !
+
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:15'!
+emitTuple: tmpName withElements: eNames andType: tmpType
+
+	tmpType elementTypes withIndexDo: [:et :ii |
+		et suffixNames do: [:s |
+			cOut nextPutAll: ('{1}{2}_{3}{4} = {5}{4};' format: {self varDeclKeyword. tmpName. ii asString. s. eNames at: ii}); cr.
+		].
+	].! !
 
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 03:56'!
 emitUnaryOp: op on: x type: t into: ans
@@ -631,23 +664,15 @@ emitUnaryOp: op on: x type: t into: ans
 		cOut nextPutAll: ('{1}{2}{3} = {4}({5}{3});' format: {self varDeclKeyword. ans. suff. op. x}); cr.
 	].! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 12:06'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 15:48'!
 emitVarDeclFor: n initializedWith: v withType: t
 
-	| in |
+	| in cv |
 	in := self intern: n.
+	cv := self coerce: v to: t.
 	t suffixNames do: [:suff |
 		(prologueVarNames includes: in) ifFalse: [cOut nextPutAll: self varDeclKeyword].
-		cOut nextPutAll: ('{1}{2} = {3}{2};' format: {in. suff. v}); cr.
-	].! !
-
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 02:16'!
-emitVector: tmpName withElements: eNames andType: tmpType
-
-	tmpType elementTypes withIndexDo: [:et :ii |
-		et suffixNames do: [:s |
-			cOut nextPutAll: ('{1}{2}_{3}{4} = {5}{4};' format: {self varDeclKeyword. tmpName. ii asString. s. eNames at: ii}); cr.
-		].
+		cOut nextPutAll: ('{1}{2} = {3}{2};' format: {in. suff. cv}); cr.
 	].! !
 
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 10:36'!
@@ -659,37 +684,41 @@ ensureValidNodeType :nt =
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 17:23'!
 epilogue = trans*! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 02:17'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 11:04'!
 fieldAccess trans:wholeName :fieldName =
 
 	[currentKernelVarTypes at: wholeName]:wholeType
-	?[wholeType isNamedVectorType]
-	?[wholeType elementNames includes: fieldName]
+	[wholeType isTupleType ifFalse: [self error: 'trying to access field ', fieldName, ' of non-tuple-type ', wholeType printString]]
+	[(wholeType elementNames includes: fieldName) ifFalse: [self error: 'trying to access non-existent field ', fieldName, ' of tuple type ', wholeType printString]]
 	[wholeType elementTypes at: (wholeType elementNames indexOf: fieldName)]:partType
 	[wholeName, '_', fieldName]:partName
 	[(currentKernelVarTypes includesKey: partName) ifFalse: [self declareVariable: partName withType: partType]]
 	-> [partName]! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 12:50'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 13:16'!
 if trans:cond =
 
 	[(currentKernelVarTypes at: cond) isScalarType ifFalse: [self error: 'condition of if-statement must be a scalar']]
 	[currentForAllAssignments]:oldAs
+	[currentKernelVarTypes]:oldKVTs
 
 	[cOut nextPutAll: 'if (', cond, ') {'; cr; condTab; pushIndentationLevel]
-	[oldAs copy]:currentForAllAssignments
+	[oldAs   copy]:currentForAllAssignments
+	[oldKVTs copy]:currentKernelVarTypes
 	trans
 	[currentForAllAssignments]:newAs1
 
 	[cOut
 		popIndentationLevel; nextPut: $}; cr;
 		nextPutAll: 'else {'; cr; condTab; pushIndentationLevel]
-	[oldAs copy]:currentForAllAssignments
+	[oldAs   copy]:currentForAllAssignments
+	[oldKVTs copy]:currentKernelVarTypes
 	trans
 	[currentForAllAssignments]:newAs2
 	[cOut popIndentationLevel; nextPut: $}; cr]
 
-	[newAs1 ifNotNil: [newAs1 union: newAs2]]:currentForAllAssignments! !
+	[newAs1 ifNotNil: [newAs1 union: newAs2]]:currentForAllAssignments
+	[oldKVTs]:currentKernelVarTypes! !
 
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/13/2009 19:39'!
 in = 
@@ -700,18 +729,30 @@ in =
 		[self emitInCommand: (self coerce: tmpName to: currentKernelType inputType) withType: currentKernelType inputType]
 	)*! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 11:16'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/9/2010 14:17'!
 initialize
 
 	super initialize.
 	globals := Dictionary new.
 	types := Dictionary new
 		at: 'Real' put: NileRealType new;
+		at: 'Any' put: NileAnyType new;
 		yourself.
 	typedMacros := Dictionary new.
 	cOut := self writeStream on: (String new: 1024).
 	hOut := self writeStream on: (String new: 1024).
 	numTmps := 0.! !
+
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/23/2010 14:51'!
+initializePrimeVars
+
+	prologueVarNames do: [:v |
+		| iv |
+		iv := self intern: v.
+		(prologueVarTypes at: (prologueVarNames indexOf: v)) suffixNames do: [:s |
+			cOut nextPutAll: ('{1}_{2} = {1}{2};' format: {iv. s}); cr.
+		].
+	].! !
 
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/13/2009 21:31'!
 intern: v
@@ -722,17 +763,19 @@ intern: v
 		ifFalse: ['v_', v].
 	^ ans! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/14/2009 22:52'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/24/2010 11:20'!
 kArg :t =
 
 	pTransHelper(#pipeline. t):p -> [p key] // this is a kind of a hack to catch a {#pipeline...} before trans, so we can propagate the type info
+|	pTransHelper(#kApp. t):p -> [p key]
 |	trans
 |	pTrans(t):a -> [a key]
 |	pTransHelper(#offset. t)! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/15/2009 09:48'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 10:51'!
 kernel :name trans:currentKernelType =
 
+//[Transcript show: 'starting to compile kernel ', name; cr]
 	[globals copy]:currentKernelVarTypes                    // so we don't need to use 2 dicts for lookup
 	[Set new]:currentKernelAssignableVars
 	[currentKernelType arguments keysAndValuesDo: [:k :v |
@@ -744,13 +787,31 @@ kernel :name trans:currentKernelType =
 	[OrderedCollection new]:prologueVarNames
 	[OrderedCollection new]:prologueVarTypes
 
+//	[currentKernelVarTypes copy]:origCurrentKernelVarTypes
+//[Transcript show: 'looking at prologue'; cr]
 	{#prologue {#compound
-		(	{#decl :n1 :v1}
+		(	{#decl :n1 trans:dt1 :v1}
 				[prologueVarNames add: (self intern: n1)]
-				[prologueVarTypes add: (self typeOf: v1)]
+				[prologueVarTypes add: (dt1 isAnyType ifTrue: [self typeOf: v1] ifFalse: [dt1])]
+				[self declareVariable: prologueVarNames last withType: prologueVarTypes last]
+		|	{#peekStmt {#var :n}}
+				[prologueVarNames add: (self intern: n)]
+				[prologueVarTypes add: currentKernelType inputType]
+				[self declareVariable: prologueVarNames last withType: prologueVarTypes last]
+		|	{#peekStmt {#tuple
+				[prologueVarNames size]:offset
+				({#var :n}
+					[prologueVarNames add: (self intern: n)]
+					[prologueVarTypes add: (currentKernelType inputType elementTypes at: prologueVarNames size - offset)]
+					[self declareVariable: prologueVarNames last withType: prologueVarTypes last]
+				)*
+			}}
 		|	:someOtherKindOfNode
 		)*
 	}}:prologue
+//[Transcript show: 'done looking at prologue'; cr]
+	//[origCurrentKernelVarTypes]:currentKernelVarTypes
+
 	anything:body
 
 	[self
@@ -763,7 +824,9 @@ kernel :name trans:currentKernelType =
 
 	emitKernelBody(body)
 
-	[self emitKernelDeclarationFooter]! !
+	[self emitKernelDeclarationFooter]
+//[Transcript show: 'done with kernel ', name; cr]
+! !
 
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 05:51'!
 kernelArgumentVars: type includeTypes: includeTypes
@@ -827,7 +890,7 @@ newTmpName
 	numTmps := numTmps + 1.
 	^ self makeTmpName: numTmps! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/14/2009 00:53'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/16/2010 15:15'!
 nileToTargetLangOperator: op
 
 	" ignore the following line -- is just a hack to get around some silliness in the OMeta2 compiler "
@@ -836,6 +899,7 @@ nileToTargetLangOperator: op
 	op = '='		ifTrue: [^ 'nile_Real_eq'].
 	op = '≠'		ifTrue: [^ 'nile_Real_neq'].
 	op = '×'		ifTrue: [^ 'nile_Real_mul'].
+	op = '/'		ifTrue: [^ 'nile_Real_div'].
 	op = '+'		ifTrue: [^ 'nile_Real_add'].
 	op = '-'		ifTrue: [^ 'nile_Real_sub'].
 	op = '<'		ifTrue: [^ 'nile_Real_lt'].
@@ -844,13 +908,11 @@ nileToTargetLangOperator: op
 	op = '≥'		ifTrue: [^ 'nile_Real_geq'].
 	op = '∧'		ifTrue: [^ 'nile_Real_and'].
 	op = '∨'		ifTrue: [^ 'nile_Real_or'].
-	op = '~'		ifTrue: [^ 'nile_Real_ave'].
-	op = '||'	ifTrue: [^ 'nile_Real_abs'].
-	op = '⌈⌉'	ifTrue: [^ 'nile_Real_clg'].
-	op = '⌊⌋'	ifTrue: [^ 'nile_Real_flr'].
-	op = '⋗'		ifTrue: [^ 'nile_Real_max'].
-	op = '⋖'		ifTrue: [^ 'nile_Real_min'].
-	^ op.! !
+	op = '⌈_⌉'	ifTrue: [^ 'nile_Real_clg'].
+	op = '⌊_⌋'	ifTrue: [^ 'nile_Real_flr'].
+	op = '√_'	ifTrue: [^ 'nile_Real_sqr'].
+	op = '-_'	ifTrue: [^ 'nile_Real_neg'].
+	self error: 'undefined operator ', op printString.! !
 
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 12:09'!
 nOut trans:n trans:x =
@@ -871,10 +933,10 @@ nType :tn =
 
 	[types at: tn ifAbsent: [self error: 'unkown type: ', tn]]! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 11:14'!
-nvType =
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:23'!
+ntType =
 
-	nameTypePairs:ps -> [NileNamedVectorType elementTypes: (ps at: #types) elementNames: (ps at: #names)]! !
+	nameTypePairs:ps -> [NileNamedTupleType elementTypes: (ps at: #types) elementNames: (ps at: #names)]! !
 
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 02:06'!
 out trans:tmpName =
@@ -882,25 +944,26 @@ out trans:tmpName =
 	[currentKernelVarTypes at: tmpName ifAbsent: [self error: tmpName, ' is undeclared']]:tmpType
 	[self emitOutCommand: (self coerce: tmpName to: currentKernelType outputType) withType: currentKernelType outputType]! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/13/2009 20:37'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/25/2010 01:03'!
 output
 
 	| allLower allCaps |
 	allLower := prefix asLowercase allButLast.
 	allCaps := prefix asUppercase allButLast.
-	^ (WriteStream on: (String new: 1024))
-			nextPutAll: '/* THE .H FILE */'; cr; cr;
+	^ {
+		(WriteStream on: (String new: 1024))
 			nextPutAll: '#ifndef ', allCaps, '_H'; cr;
 			nextPutAll: '#define ', allCaps, '_H'; cr; cr;
 			nextPutAll: '#include "nile.h"'; cr; cr;
 			nextPutAll: hOut contents; cr; cr;
 			nextPutAll: '#endif'; cr; cr;
-			nextPutAll: '---------------------------';  cr; cr; cr;
-			nextPutAll: '/* THE .C FILE */'; cr; cr;
+			contents.
+		(WriteStream on: (String new: 1024))
 			nextPutAll: '#include <stddef.h>'; cr;
 			nextPutAll: '#include "', allLower, '.h"'; cr; cr;
 			nextPutAll: cOut contents;
-			contents! !
+			contents
+	}! !
 
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 12:13'!
 peek =
@@ -911,13 +974,34 @@ peek =
 
 	trans! !
 
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/24/2010 17:33'!
+peekStmt =
+
+	transPat(currentKernelType inputType):pvs
+		[pvs do: [:pv | cOut nextPutAll: pv; nextPutAll: ' = in->data[in->i++];'; cr]]
+		[cOut nextPutAll: 'in->i -= ', pvs size printString, ';'; cr]! !
+
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/13/2009 17:09'!
 pipeline =
 
 	pPipeline(currentKernelType inputType):ans
 	-> [ans key]! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 12:45'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/24/2010 13:54'!
+pKApp :ttt 'Mix' =
+
+	kArg(ttt):k1 [currentKernelVarTypes at: k1]:tk1
+	kArg(ttt):k2 [currentKernelVarTypes at: k2]:tk2
+	[self newTmpName]:ans
+	[tk1 ~= tk2 ifTrue: [self error: 'Mix applied to kernels of different types']]
+	[NileAbstractKernelType
+		argumentNames: #('a' 'b')
+		argumentTypes: {tk1. tk1}
+		underlyingKernelType: tk1]:it
+	[self declareVariable: ans withType: tk1]
+	[self emitKApp: 'Mix' withType: it andArgs: {k1. k2} into: ans]
+	-> [ans -> tk1 outputType],
+
 pKApp :ttt 'Interleave' =
 
 	kArg(ttt):k1 [currentKernelVarTypes at: k1]:tk1 trans({#scalar. tk1 outputType size}):k1s
@@ -925,7 +1009,7 @@ pKApp :ttt 'Interleave' =
 	[self newTmpName]:ans
 	[(NileKernelType
 		inputType: tk1 inputType
-		outputType: (NileVectorType elementTypes: {tk1 outputType. tk2 outputType}))]:ikt
+		outputType: (NileTupleType elementTypes: {tk1 outputType. tk2 outputType}))]:ikt
 	[NileAbstractKernelType
 		argumentNames: #('a' 'b' 'c' 'd')
 		argumentTypes: {NileRealType new. NileRealType new. NileRealType new. NileRealType new}
@@ -1022,10 +1106,15 @@ pTransHelper :tag :type =
 
 	{exactly(tag) apply(('p', tag capitalized) asSymbol. type):ans} -> [ans]! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 08:40'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/24/2010 19:36'!
 pVar :ttt =
 
-	:name  [self intern: name]:iName [currentKernelVarTypes at: iName]:kt -> [iName -> kt outputType]! !
+	:name  [self intern: name]:iName [currentKernelVarTypes at: iName]:kt
+		(
+			?[name = iName] -> [prefix, iName, '(nl)' -> kt outputType]
+		|
+			-> [iName -> kt outputType]
+		)! !
 
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/13/2009 18:43'!
 reduce :op trans:x =
@@ -1055,7 +1144,7 @@ trans &anything:node =
 	{:nodeType ensureValidNodeType(nodeType) apply(nodeType):ans} -> [ans]
 |	[node inspect] [self error: 'could not translate this node!!']! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 06:41'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/24/2010 18:05'!
 transPat :patType =
 	{#var :name}
 	[self intern: name]:iName
@@ -1067,16 +1156,25 @@ transPat :patType =
 			[(currentKernelVarTypes at: iName) = patType ifFalse: [self error: 'pattern ', name, ''' has the wrong type']]
 			[currentForAllAssignments add: iName]
 			-> [iName, '_']
-	|	[self declareVariable: iName withType: patType]
-			-> ['nile_Real_t ', iName]
+	|	//[Transcript show: 'declaring variable ', iName, ' with type ', patType printString; cr]
+		[self declareVariable: iName withType: patType]
+			-> [((prologueVarNames includes: iName) ifTrue: [''] ifFalse: [self varDeclKeyword]), iName]
 	):name
 	-> [patType suffixNames collect: [:s | name, s]],
 
 transPat :patType =
-	?[patType isVectorType]
+	{#wildcard}
+	[self newTmpName]:iName
+	-> [patType suffixNames collect: [:s |
+			cOut nextPutAll: ('{1}{2}{3};' format: {self varDeclKeyword. iName. s}); cr.
+			iName, s
+		]],
+
+transPat :patType =
+	?[patType isTupleType]
 	[1]:ii
 	[OrderedCollection new]:ans
-	{#vector
+	{#tuple
 		(
 			?[ii <= patType elementTypes size]
 			transPat(patType elementTypes at: ii):varNames
@@ -1091,16 +1189,42 @@ transPat :patType :badPat =
 	[badPat inspect]
 	[self error: 'invalid pattern']! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 11:06'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:23'!
+tType =
+
+	trans*:ts -> [NileTupleType elementTypes: ts]! !
+
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:15'!
+tuple =
+
+	[self newTmpName]:tmpName
+	trans*:elementNames
+	[elementNames collect: [:n | currentKernelVarTypes at: n]]:elementTypes
+	[NileTupleType elementTypes: elementTypes]:tmpType
+	[self declareVariable: tmpName withType: tmpType]
+	[self emitTuple: tmpName withElements: elementNames andType: tmpType]
+	-> [tmpName]! !
+
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 14:30'!
 typeDef :tn trans:t =
+
+//	[tn = 'ImageExtendMode' ifTrue: [self halt]]
+
+	[globals copy]:currentKernelVarTypes                    // so we don't need to use 2 dicts for lookup
+	[Set new]:currentKernelAssignableVars
+	[OrderedCollection new]:prologueVarNames
+	[OrderedCollection new]:prologueVarTypes
 
 	[self declareType: tn toBe: t] -> [t]! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 02:29'!
-typedMacro :op trans:tx trans:ty trans:tans :m =
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 13:47'!
+typedExpr trans:e trans:t = [self coerce: e to: t]! !
+
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 16:14'!
+typedMacro :op :nx trans:tx :ny (exactly(nil) | trans):ty trans:tans :body =
 
 	[(typedMacros includesKey: op) ifTrue: [self error: 'cannot redefine typed macro: ', op]]
-	[typedMacros at: op put: (NileTypedMacroType top1: tx top2: ty tans: tans macro: m)]! !
+	[typedMacros at: op put: (NileTypedMacroType nop1: nx top1: tx nop2: ny top2: ty tans: tans macroBody: body)]! !
 
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 11:16'!
 typeOf: expr
@@ -1113,14 +1237,36 @@ typeOf: expr
 	cOut := oldCOut.
 	^ currentKernelVarTypes at: n! !
 
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 03:54'!
+!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 11:34'!
 unOp :op trans:x =
 
+	// op is a typed macro
+	?[typedMacros includesKey: op]
+	[typedMacros at: op]:macroType
+	(
+		?[macroType canBeUsedPairwise]
+		[currentKernelVarTypes at: x]:tx
+		?[tx isTupleType]
+		[tx elementNames collect: [:en |
+			{#var. self apply: #trans withArgs: {macroType expandWithArgs: {{#fieldAccess. {#var. x}. en}}}}
+		]]:es
+		trans({#tuple}, es):ans
+		-> [self coerce: ans to: tx]
+	|
+		[self coerce: x to: macroType top1]:cx
+		trans(macroType expandWithArgs: {{#var. cx}}):ans
+		-> [self coerce: ans to: macroType tans]
+	)
+
+|
+
+	// op is not a typed macro
+	?[(typedMacros includesKey: op) not]
 	[currentKernelVarTypes at: x]:tans
-		[self newTmpName]:ans
-		[self declareVariable: ans withType: tans]
-		[self emitUnaryOp: (self nileToTargetLangOperator: op) on: x type: tans into: ans]
-		-> [ans]! !
+	[self newTmpName]:ans
+	[self declareVariable: ans withType: tans]
+	[self emitUnaryOp: (self nileToTargetLangOperator: op) on: x type: tans into: ans]
+	-> [ans]! !
 
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 12:11'!
 updatePrimeVars
@@ -1142,22 +1288,6 @@ var :name =
 varDeclKeyword
 
 	^ 'nile_Real_t '! !
-
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 02:14'!
-vector =
-
-	[self newTmpName]:tmpName
-	trans*:elementNames
-	[elementNames collect: [:n | currentKernelVarTypes at: n]]:elementTypes
-	[NileVectorType elementTypes: elementTypes]:tmpType
-	[self declareVariable: tmpName withType: tmpType]
-	[self emitVector: tmpName withElements: elementNames andType: tmpType]
-	-> [tmpName]! !
-
-!NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 10:55'!
-vType =
-
-	trans*:ts -> [NileVectorType elementTypes: ts]! !
 
 !NileCTranslator methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 12:12'!
 writeBackKernelFields
@@ -1185,52 +1315,52 @@ writeStream
 NileCTranslator class
 	instanceVariableNames: ''!
 
-!NileCTranslator class methodsFor: 'as yet unclassified' stamp: 'aw 12/13/2009 18:30'!
-circleTimesMacro
-
-	^ {#typedMacro. '⊗'.
-			{#nType. 'Matrix'}.
-			{#nType. 'Point'}.
-			{#nType. 'Point'}.
-			[:m :p |
-				{#vector.
-					{#binOp.
-						{#binOp.
-							{#binOp.
-								{#fieldAccess. m. 'a'}.
-								'×'.
-								{#fieldAccess. p. 'x'}}.
-							'+'.
-							{#binOp.
-								{#fieldAccess. m. 'c'}.
-								'×'.
-								{#fieldAccess. p. 'y'}}}.
-						'+'.
-						{#fieldAccess. m. 'e'}}.
-					{#binOp.
-						{#binOp.
-							{#binOp.
-								{#fieldAccess. m. 'b'}.
-								'×'.
-								{#fieldAccess. p. 'x'}}.
-							'+'.
-							{#binOp.
-								{#fieldAccess. m. 'd'}.
-								'×'.
-								{#fieldAccess. p. 'y'}}}.
-						'+'.
-						{#fieldAccess. m. 'f'}}}
-			]
-		}.
-! !
-
-!NileCTranslator class methodsFor: 'as yet unclassified' stamp: 'aw 12/14/2009 01:02'!
+!NileCTranslator class methodsFor: 'as yet unclassified' stamp: 'aw 2/23/2010 15:57'!
 initialize
 
 	"
 		self initialize
 	"
-	BuiltInKernelNames := #('Interleave' 'GroupBy' 'SortBy') asSet.! !
+	BuiltInKernelNames := #('Interleave' 'GroupBy' 'SortBy' 'Mix') asSet.! !
+
+!NileCTranslator class methodsFor: 'as yet unclassified' stamp: 'aw 2/25/2010 00:43'!
+nileParser
+
+	^ NileParser! !
+
+!NileCTranslator class methodsFor: 'as yet unclassified' stamp: 'aw 2/25/2010 01:01'!
+translate: files in: folder withPrefix: prefix
+
+	| input tree code |
+	input := WriteStream on: (String new: 1024).
+	tree := OrderedCollection new.
+	files do: [:file |
+		| stream |
+		stream := FileStream readOnlyFileNamed: folder, file.
+		stream wantsLineEndConversion: true.
+		input nextPutAll: stream contents; cr; cr.
+	].
+	tree := self nileParser matchAll: input contents with: #start.
+	code := self match: {prefix. tree} with: #start.
+	(FileStream newFileNamed: folder, prefix, '.h') wantsLineEndConversion: true; nextPutAll: code first;  close.
+	(FileStream newFileNamed: folder, prefix, '.c') wantsLineEndConversion: true; nextPutAll: code second; close.! !
+
+
+OMeta2 subclass: #NileMacroExpander
+	instanceVariableNames: 'actuals'
+	classVariableNames: ''
+	poolDictionaries: ''
+	category: 'Nile'!
+
+!NileMacroExpander methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 16:30'!
+exp {#var :x} = ?[actuals includesKey: x]       -> [actuals at: x],
+exp {#var :x} = ?[(actuals includesKey: x) not] -> [{#var. x}],
+exp string:s  =                                 -> [s],
+exp number:n  =                                 -> [n],
+exp {exp*:xs} =                                 -> [xs asArray]! !
+
+!NileMacroExpander methodsFor: 'as yet unclassified' stamp: 'aw 2/9/2010 11:59'!
+expand :actuals = exp! !
 
 
 Object subclass: #NileType
@@ -1241,6 +1371,11 @@ Object subclass: #NileType
 
 !NileType methodsFor: 'as yet unclassified' stamp: 'aw 9/22/2009 04:34'!
 isAbstractKernelType
+
+	^ false! !
+
+!NileType methodsFor: 'as yet unclassified' stamp: 'aw 2/9/2010 14:29'!
+isAnyType
 
 	^ false! !
 
@@ -1416,6 +1551,21 @@ suffixNames
 
 	^ #('')! !
 
+!NileKernelType methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 15:16'!
+underlyingKernelType
+
+	^ nil! !
+
+!NileKernelType methodsFor: 'as yet unclassified' stamp: 'aw 2/23/2010 15:54'!
+= aKernelType
+
+	^
+		inputType = aKernelType inputType and: [
+		outputType = aKernelType outputType and: [
+		self argumentNames = aKernelType argumentNames and: [
+		self argumentTypes = aKernelType argumentTypes
+	]]]! !
+
 "-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- "!
 
 NileKernelType class
@@ -1428,15 +1578,49 @@ inputType: it outputType: ot
 
 
 NileType subclass: #NileTypedMacroType
-	instanceVariableNames: 'top1 top2 tans macro'
+	instanceVariableNames: 'top1 top2 tans nop1 nop2 macroBody'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'Nile'!
 
-!NileTypedMacroType methodsFor: 'as yet unclassified' stamp: 'aw 9/21/2009 13:44'!
-macro
+!NileTypedMacroType methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 11:23'!
+canBeUsedPairwise
 
-	^ macro! !
+	^ top1 isRealType and: [
+		(top2 isNil or: [top2 isRealType]) and: [tans isRealType]
+	]! !
+
+!NileTypedMacroType methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 16:27'!
+expandWithArgs: actuals
+
+	| dict ans |
+	dict := Dictionary new.
+	dict at: nop1 put: (actuals at: 1).
+	dict at: nop2 put: (actuals at: 2 ifAbsent: [nil]).
+	ans := NileMacroExpander matchAll: {dict. macroBody} with: #expand.
+	^ ans! !
+
+!NileTypedMacroType methodsFor: 'as yet unclassified' stamp: 'aw 2/9/2010 14:46'!
+nop1: n1 top1: t1 nop2: n2 top2: t2 tans: ta macroBody: m
+
+	nop1 := n1.
+	top1 := t1.
+	nop2 := n2.
+	top2 := t2.
+	tans := ta.
+	macroBody := m.! !
+
+!NileTypedMacroType methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 16:18'!
+printOn: aStream
+
+	aStream nextPutAll: 'TypedMacroType['.
+	nop1 printOn: aStream. aStream nextPutAll: ', '.
+	top1 printOn: aStream. aStream nextPutAll: ', '.
+	nop2 printOn: aStream. aStream nextPutAll: ', '.
+	top2 printOn: aStream. aStream nextPutAll: ', '.
+	tans printOn: aStream. aStream nextPutAll: ', '.
+	macroBody printOn: aStream.
+	aStream nextPut: $].! !
 
 !NileTypedMacroType methodsFor: 'as yet unclassified' stamp: 'aw 9/21/2009 13:44'!
 tans
@@ -1449,14 +1633,6 @@ top1
 	^ top1! !
 
 !NileTypedMacroType methodsFor: 'as yet unclassified' stamp: 'aw 9/21/2009 13:44'!
-top1: t1 top2: t2 tans: ta macro: m
-
-	top1 := t1.
-	top2 := t2.
-	tans := ta.
-	macro := m.! !
-
-!NileTypedMacroType methodsFor: 'as yet unclassified' stamp: 'aw 9/21/2009 13:44'!
 top2
 
 	^ top2! !
@@ -1466,10 +1642,10 @@ top2
 NileTypedMacroType class
 	instanceVariableNames: ''!
 
-!NileTypedMacroType class methodsFor: 'as yet unclassified' stamp: 'aw 9/21/2009 13:45'!
-top1: t1 top2: t2 tans: ta macro: m
+!NileTypedMacroType class methodsFor: 'as yet unclassified' stamp: 'aw 2/9/2010 14:47'!
+nop1: n1 top1: t1 nop2: n2 top2: t2 tans: ta macroBody: m
 
-	^ self new top1: t1 top2: t2 tans: ta macro: m! !
+	^ self new nop1: n1 top1: t1 nop2: n2 top2: t2 tans: ta macroBody: m! !
 
 
 NileType subclass: #NileValueType
@@ -1483,8 +1659,8 @@ isColorComponentType
 
 	^ true! !
 
-!NileValueType methodsFor: 'as yet unclassified' stamp: 'aw 9/19/2009 15:10'!
-isNamedVectorType
+!NileValueType methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:01'!
+isNamedTupleType
 
 	^ false! !
 
@@ -1498,8 +1674,8 @@ isScalarType
 
 	^ false! !
 
-!NileValueType methodsFor: 'as yet unclassified' stamp: 'aw 9/18/2009 13:30'!
-isVectorType
+!NileValueType methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:01'!
+isTupleType
 
 	^ false! !
 
@@ -1524,6 +1700,30 @@ underlyingScalarType
 	^ self subclassResponsibility! !
 
 
+NileValueType subclass: #NileAnyType
+	instanceVariableNames: ''
+	classVariableNames: 'Singleton'
+	poolDictionaries: ''
+	category: 'Nile'!
+
+!NileAnyType methodsFor: 'as yet unclassified' stamp: 'aw 2/9/2010 14:27'!
+isAnyType
+
+	^ true! !
+
+"-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- "!
+
+NileAnyType class
+	instanceVariableNames: ''!
+
+!NileAnyType class methodsFor: 'as yet unclassified' stamp: 'aw 2/9/2010 14:16'!
+new
+
+	^ Singleton ifNil: [
+		Singleton := self basicNew.
+	]! !
+
+
 NileValueType subclass: #NileScalarType
 	instanceVariableNames: ''
 	classVariableNames: ''
@@ -1535,10 +1735,10 @@ isScalarType
 
 	^ true! !
 
-!NileScalarType methodsFor: 'as yet unclassified' stamp: 'aw 9/19/2009 15:12'!
+!NileScalarType methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:01'!
 max: anotherType
 
-	^ anotherType isVectorType
+	^ anotherType isTupleType
 		ifTrue: [anotherType]
 		ifFalse: [self]! !
 
@@ -1592,40 +1792,40 @@ printOn: aStream
 	aStream nextPutAll: 'Real'.! !
 
 
-NileValueType subclass: #NileVectorType
+NileValueType subclass: #NileTupleType
 	instanceVariableNames: 'suffixNames elementTypes elementNames'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'Nile'!
 
-!NileVectorType methodsFor: 'as yet unclassified' stamp: 'aw 12/15/2009 13:40'!
+!NileTupleType methodsFor: 'as yet unclassified' stamp: 'aw 12/15/2009 13:40'!
 elementNames
 
 	^ elementNames ifNil: [elementNames :=  (1 to: elementTypes size) collect: [:ii | ii printString]]! !
 
-!NileVectorType methodsFor: 'as yet unclassified' stamp: 'aw 9/18/2009 13:32'!
+!NileTupleType methodsFor: 'as yet unclassified' stamp: 'aw 9/18/2009 13:32'!
 elementTypes
 
 	^ elementTypes! !
 
-!NileVectorType methodsFor: 'as yet unclassified' stamp: 'aw 9/17/2009 13:36'!
+!NileTupleType methodsFor: 'as yet unclassified' stamp: 'aw 9/17/2009 13:36'!
 elementTypes: ets
 
 	elementTypes := ets.! !
 
-!NileVectorType methodsFor: 'as yet unclassified' stamp: 'aw 9/18/2009 13:30'!
-isVectorType
+!NileTupleType methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:18'!
+isTupleType
 
 	^ true! !
 
-!NileVectorType methodsFor: 'as yet unclassified' stamp: 'aw 9/19/2009 15:11'!
+!NileTupleType methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:02'!
 max: anotherType
 
-	^ anotherType isNamedVectorType
+	^ anotherType isNamedTupleType
 		ifTrue: [anotherType]
 		ifFalse: [self]! !
 
-!NileVectorType methodsFor: 'as yet unclassified' stamp: 'aw 12/15/2009 13:42'!
+!NileTupleType methodsFor: 'as yet unclassified' stamp: 'aw 12/15/2009 13:42'!
 printOn: aStream
 
 	aStream nextPut: $[.
@@ -1634,12 +1834,12 @@ printOn: aStream
 		separatedBy: [aStream nextPutAll: ', '].
 	aStream nextPut: $].! !
 
-!NileVectorType methodsFor: 'as yet unclassified' stamp: 'aw 9/17/2009 13:57'!
+!NileTupleType methodsFor: 'as yet unclassified' stamp: 'aw 9/17/2009 13:57'!
 size
 
 	^ self suffixNames size! !
 
-!NileVectorType methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 13:43'!
+!NileTupleType methodsFor: 'as yet unclassified' stamp: 'aw 12/17/2009 13:43'!
 suffixNames
 
 	^ suffixNames ifNil: [
@@ -1650,7 +1850,7 @@ suffixNames
 		suffixNames
 	]! !
 
-!NileVectorType methodsFor: 'as yet unclassified' stamp: 'aw 9/17/2009 14:08'!
+!NileTupleType methodsFor: 'as yet unclassified' stamp: 'aw 9/17/2009 14:08'!
 underlyingScalarType
 	" returns nil if I am not homogeneous "
 
@@ -1661,11 +1861,11 @@ underlyingScalarType
 	].
 	^ st! !
 
-!NileVectorType methodsFor: 'as yet unclassified' stamp: 'aw 10/7/2009 14:04'!
+!NileTupleType methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:02'!
 = t
 
-	t isVectorType ifFalse: [^ false].
-	t isNamedVectorType ifTrue: [^ false].
+	t isTupleType ifFalse: [^ false].
+	t isNamedTupleType ifTrue: [^ false].
 	elementTypes size ~~ t elementTypes size ifTrue: [^ false].
 	elementTypes with: t elementTypes do: [:et1 :et2 |
 		et1 ~= et2 ifTrue: [^ false].
@@ -1674,27 +1874,27 @@ underlyingScalarType
 
 "-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- "!
 
-NileVectorType class
+NileTupleType class
 	instanceVariableNames: ''!
 
-!NileVectorType class methodsFor: 'as yet unclassified' stamp: 'aw 9/17/2009 13:36'!
+!NileTupleType class methodsFor: 'as yet unclassified' stamp: 'aw 9/17/2009 13:36'!
 elementTypes: ets
 
 	^ self new elementTypes: ets! !
 
 
-NileVectorType subclass: #NileNamedVectorType
+NileTupleType subclass: #NileNamedTupleType
 	instanceVariableNames: ''
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'Nile'!
 
-!NileNamedVectorType methodsFor: 'as yet unclassified' stamp: 'aw 9/22/2009 00:47'!
+!NileNamedTupleType methodsFor: 'as yet unclassified' stamp: 'aw 9/22/2009 00:47'!
 elementNames
 
 	^ elementNames! !
 
-!NileNamedVectorType methodsFor: 'as yet unclassified' stamp: 'aw 9/22/2009 00:47'!
+!NileNamedTupleType methodsFor: 'as yet unclassified' stamp: 'aw 9/22/2009 00:47'!
 elementNames: ens
 
 	elementNames := ens.
@@ -1702,17 +1902,17 @@ elementNames: ens
 		self error: 'invalid named vector type'.
 	].! !
 
-!NileNamedVectorType methodsFor: 'as yet unclassified' stamp: 'aw 9/22/2009 00:47'!
-isNamedVectorType
+!NileNamedTupleType methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:17'!
+isNamedTupleType
 	
 	^ true! !
 
-!NileNamedVectorType methodsFor: 'as yet unclassified' stamp: 'aw 9/19/2009 15:10'!
+!NileNamedTupleType methodsFor: 'as yet unclassified' stamp: 'aw 9/19/2009 15:10'!
 max: anotherType
 
 	^ self! !
 
-!NileNamedVectorType methodsFor: 'as yet unclassified' stamp: 'aw 12/14/2009 23:07'!
+!NileNamedTupleType methodsFor: 'as yet unclassified' stamp: 'aw 12/14/2009 23:07'!
 offsetOfField: f
 
 	| r |
@@ -1723,7 +1923,7 @@ offsetOfField: f
 	].
 	self error: f, ' is not a valid field name for type ', self printString! !
 
-!NileNamedVectorType methodsFor: 'as yet unclassified' stamp: 'aw 9/22/2009 00:47'!
+!NileNamedTupleType methodsFor: 'as yet unclassified' stamp: 'aw 9/22/2009 00:47'!
 printOn: aStream
 
 	| first |
@@ -1740,7 +1940,7 @@ printOn: aStream
 	].
 	aStream nextPut: $].! !
 
-!NileNamedVectorType methodsFor: 'as yet unclassified' stamp: 'aw 9/22/2009 00:47'!
+!NileNamedTupleType methodsFor: 'as yet unclassified' stamp: 'aw 9/22/2009 00:47'!
 suffixNames
 
 	suffixNames ifNil: [
@@ -1753,10 +1953,10 @@ suffixNames
 	].
 	^ suffixNames! !
 
-!NileNamedVectorType methodsFor: 'as yet unclassified' stamp: 'aw 10/7/2009 14:05'!
+!NileNamedTupleType methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:02'!
 = t
 
-	t isNamedVectorType ifFalse: [^ false].
+	t isNamedTupleType ifFalse: [^ false].
 	elementTypes size ~~ t elementTypes size ifTrue: [^ false].
 	elementTypes with: t elementTypes do: [:et1 :et2 |
 		et1 ~= et2 ifTrue: [^ false].
@@ -1768,10 +1968,10 @@ suffixNames
 
 "-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- "!
 
-NileNamedVectorType class
+NileNamedTupleType class
 	instanceVariableNames: ''!
 
-!NileNamedVectorType class methodsFor: 'as yet unclassified' stamp: 'aw 9/17/2009 13:40'!
+!NileNamedTupleType class methodsFor: 'as yet unclassified' stamp: 'aw 9/17/2009 13:40'!
 elementTypes: ts elementNames: ns
 
 	^ (self new elementTypes: ts) elementNames: ns! !
@@ -1816,32 +2016,33 @@ spaces = [0]:n (space [n + 1]:n)* -> [n]! !
 
 
 OffsideRuleParser subclass: #NileParser
-	instanceVariableNames: ''
+	instanceVariableNames: 'builtInOps prefixes infixOps'
 	classVariableNames: ''
 	poolDictionaries: ''
 	category: 'Nile'!
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/2/2009 14:40'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:20'!
 akType =
 
-	"(" listOf(#vTypeP. ','):as ")" ":" kType:kt -> [{#akType. as. kt}]! !
+	"(" listOf(#tTypeP. ','):as ")" ":" kType:kt -> [{#akType. as. kt}]! !
 
 !NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/8/2009 11:34'!
 arrowKis =
 
 	"⇒" kis! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/9/2009 10:55'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/10/2010 17:35'!
 aType =
 
-	"[" listOf(#vTypeP. ','):ps "]" -> [{#nvType}, ps]
-|	"[" listOf(#aType. ','):ts "]" -> [{#vType}, ts]
+	"(" listOf(#tTypeP. ','):ps ")" -> [{#ntType}, ps]
+|	"(" listOf(#aType. ','):ts ")" -> [{#tType}, ts]
 |	ident:t -> [{#nType. t}]! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 12:31'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 13:37'!
 block =
 
-	indented(#stmts)! !
+	indented(#stmts)
+|	empty -> [{#compound}]! !
 
 !NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 16:17'!
 body =
@@ -1853,84 +2054,85 @@ computing =
 
 	indent(nil) "∀" pat:p eol block:b epilogue:e -> [{#forAll. p. b. e}]! !
 
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/10/2010 16:12'!
+condExpr =
+
+	expr:x "if" expr:c "," condExpr:y -> [{#condExpr. c. x. y}]
+|	expr! !
+
 !NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 15:18'!
 epilogue =
 
 	stmts:ss -> [{#epilogue. ss}]! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/3/2009 12:19'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/10/2010 14:45'!
 expr =
 
-	expr8! !
+	expr7! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/3/2009 11:28'!
-expr1 =
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/16/2010 15:59'!
+expr0 =
 
-	expr1:e "." ident:f -> [{#fieldAccess. e. f}]
-|	expr1:e "[" expr:i "]" -> [{#index. e. i}]
-|	primExpr:e ":" ident:t -> [{#typedExpr. e. t}]
+	"√" 			expr0:e -> [{#unOp. '√_'. e}]
+|	"-"			expr0:e -> [{#unOp. '-_'. e}]
+|	prefixOp:op	expr0:e -> [{#unOp. op, '_'. e}]
 |	primExpr! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 02:36'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/22/2010 13:46'!
+expr1 =
+
+	expr1:e "." ident:f    -> [{#fieldAccess. e. f}]
+|	expr1:e "[" expr:i "]" -> [{#index. e. i}]
+|	expr0:e ":" aType:t    -> [{#typedExpr. e. t}]
+|	expr0! !
+
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/16/2010 15:15'!
 expr2 =
 
-	expr2:x "∙" expr1:y -> [{#binOp. x. '∙'. y}]
-|	expr2:x "×" expr1:y -> [{#binOp. x. '×'. y}]
-|	expr2:x "⊗" expr1:y -> [{#binOp. x. '⊗'. y}]
+	expr2:x "×" expr1:y -> [{#binOp. x. '×'. y}]
+|	expr2:x "/" expr1:y -> [{#binOp. x. '/'. y}]
 |	expr1! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/3/2009 11:30'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 13:22'!
 expr3 =
 
-	expr3:x "+" expr2:y -> [{#binOp. x. '+'. y}]
-|	expr3:x "-" expr2:y -> [{#binOp. x. '-'. y}]
+	expr3:x "+"        expr2:y -> [{#binOp. x. '+'. y}]
+|	expr3:x "-"        expr2:y -> [{#binOp. x. '-'. y}]
+|	expr3:x infixOp:op expr2:y -> [{#binOp. x. op.  y}]
 |	expr2! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/8/2009 23:47'!
-expr3ud =
-
-	expr3ud:x "⋗"  expr3:y -> [{#binOp. x. '⋗'. y}]
-|	expr3ud:x "⋖"  expr3:y -> [{#binOp. x. '⋖'. y}]
-|	expr3ud:x "~" expr3:y -> [{#binOp. x. '~'. y}]
-|	expr3! !
-
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/3/2009 12:17'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/16/2010 15:05'!
 expr4 =
 
 	expr3:x "<" expr3:y -> [{#binOp. x. '<'. y}]
 |	expr3:x "≤" expr3:y -> [{#binOp. x. '≤'. y}]
 |	expr3:x ">" expr3:y -> [{#binOp. x. '>'. y}]
-|	expr3ud! !
+|	expr3:x "≥" expr3:y -> [{#binOp. x. '≥'. y}]
+|	expr3! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/3/2009 12:17'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/10/2010 16:09'!
 expr5 =
 
 	expr4:x "=" expr4:y -> [{#binOp. x. '='. y}]
 |	expr4:x "≠" expr4:y -> [{#binOp. x. '≠'. y}]
 |	expr4! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/3/2009 12:18'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/10/2010 16:09'!
 expr6 =
 
 	expr6:x "∧" expr5:y -> [{#binOp. x. '∧'. y}]
 |	expr5! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/3/2009 12:18'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/10/2010 16:09'!
 expr7 =
 
 	expr7:x "∨" expr6:y -> [{#binOp. x. '∨'. y}]
 |	expr6! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/3/2009 12:19'!
-expr8 =
-
-	expr8:x "?" primExpr:c "?" expr7:y -> [{#condExpr. c. x. y}]
-|	expr7! !
-
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/8/2009 11:47'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/19/2010 13:20'!
 exprs =
 
-	listOf(#expr. ',')! !
+	expr:x ("," optEol expr)+:xs -> [xs addFirst: x; yourself]! !
 
 !NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 16:25'!
 forwarding =
@@ -1953,25 +2155,31 @@ ifStmt =
 		):e
 		-> [{#if. c. t. e}]! !
 
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 13:21'!
+infixOp = spaces <[self trieMatch: infixOps]>! !
+
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/16/2010 15:16'!
+initialize
+
+	super initialize.
+	builtInOps := Set withAll: #(× / + - < ≤ < = ≠ ∧ ∨ √ > >>).
+	infixOps := nil -> Dictionary new.
+	prefixes := nil -> Dictionary new.! !
+
 !NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/3/2009 11:11'!
 kasPart =
 
 	listOf(#ident. ','):ns ":"  ident:t -> [{t. ns}]! !
-
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 13:23'!
-kernArgs =
-
-	"(" kasPart:p ("," optEol kasPart)*:ps ")" -> [{p}, ps]! !
 
 !NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 16:11'!
 kernel =
 
 	ident:n (akType | ":" kType):t eol indented(#body):b -> [{#kernel. n. t. b first. b second}]! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 07:40'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/19/2010 13:25'!
 ki =
 
-	ident:k "(" listOf(#kisOrExpr. ','):as ")" -> [{#kApp. k}, as]
+	ident:k 	"(" kisOrExpr:a ("," optEol kisOrExpr)*:as ")" -> [{#kApp. k. a}, as]
 |	ident:k -> [{#var. k}]
 |	"(" "→" ")" -> [{#pipeline}]! !
 
@@ -1998,30 +2206,64 @@ nsIdent =
 
 	letter:x letterOrDigit*:xs ($' -> ['_'] | empty -> ['']):p -> [String withAll: {x}, xs, p]! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/3/2009 11:07'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/16/2010 15:23'!
+op = spaces ~pref <opChar+>:x ?[(builtInOps includes: x) not] -> [x]! !
+
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/10/2010 18:08'!
+opChar =
+
+	~(space | nl | $( | $) | ${ | $} | $, | $: | $@ | $_ | letter | digit) char! !
+
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 16:07'!
+opDef =
+
+	"(" ident:n1 ":" aType:t1 ")" op:op "(" ident:n2 ":" aType:t2 ")" ":" aType:t eol opDefBody:body
+		[self trie: infixOps at: op put: true]
+		-> [{#typedMacro. op. n1. t1. n2. t2. t. body}]
+|	op:p "(" ident:n1 ":" aType:t1 ")" op:s ":" aType:t eol opDefBody:body
+		[self trie: prefixes at: p put: s]
+		-> [{#typedMacro. p, '_', s. n1. t1. nil. nil. t. body}]
+|	op:p "(" ident:n1 ":" aType:t1 ")" ":" aType:t eol opDefBody:body
+		[self trie: prefixes at: p put: true]
+		-> [{#typedMacro. p, '_'. n1. t1. nil. nil. t. body}]! !
+
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/10/2010 11:03'!
+opDefBody =
+
+	indent(nil)	expr:b eol -> [b]! !
+
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/19/2010 13:18'!
 optEol =
 
-	eol | empty! !
+	spaces eol | empty! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/11/2009 01:38'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/16/2010 14:40'!
 pat =
 
-	ident:x -> [{#var. x}] 
-|	"[" listOf(#pat. ','):ps "]" -> [{#vector}, ps]! !
+	ident:x -> [{#var. x}]
+|	"_" -> [{#wildcard}]
+|	"(" listOf(#pat. ','):ps ")" -> [{#tuple}, ps]! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/13/2009 18:48'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 16:03'!
+pref = spaces <[self trieMatch: prefixes]>:p ?[(self trie: prefixes at: p) isString] -> [p]! !
+
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 16:05'!
+prefixOp = spaces <[self trieMatch: prefixes]>:p ?[(self trie: prefixes at: p) == true] -> [p]! !
+
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 13:25'!
 primExpr =
 
 	ident:x -> [{#var. x}]
 |	scalar:s -> [{#scalar. s}]
+|	"{" condExpr:x "}" -> [x]
 |	"∧[" expr:x "]" -> [{#reduce. '∧'. x}]
 |	"∨[" expr:x "]" -> [{#reduce. '∨'. x}]
-|	"[" exprs:xs "]" -> [{#vector}, xs]
+|	"[" exprs:xs "]" -> [{#tuple}, xs]
+|	"(" exprs:xs ")" -> [{#tuple}, xs]
 |	"(" expr:x ")" -> [x]
-|	"|" expr:x "|" -> [{#unOp. '||'. x}]
-|	"‖" expr:x "‖" -> [{#unOp. '‖‖'. x}]
-|	"⌊" expr:x "⌋" -> [{#unOp. '⌊⌋'. x}]
-|	"⌈" expr:x "⌉" -> [{#unOp. '⌈⌉'. x}]
+|	"⌊" expr:x "⌋" -> [{#unOp. '⌊_⌋'. x}]
+|	"⌈" expr:x "⌉" -> [{#unOp. '⌈_⌉'. x}]
+|	pref:p expr:x suff(p):s -> [{#unOp. p, '_', s. x}]
 |	"@" nsIdent:x -> [{#offset. x}]! !
 
 !NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 15:18'!
@@ -2029,33 +2271,37 @@ prologue =
 
 	stmts:ss -> [{#prologue. ss}]! !
 
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/10/2010 17:05'!
+restOfInput = <anything*>! !
+
 !NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/2/2009 12:10'!
 scalar =
 
 	spaces digit+:is $. digit+:fs -> [(String withAll: is, '.', fs) asNumber]
 |	spaces digit+:is -> [(String withAll: is) asNumber]! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/8/2009 17:18'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/10/2010 17:24'!
 space =
 
 	^space
-|	``/*'' (~``*/'' char)* ``*/''
-|	``//'' (~nl char:c)* nl! !
+|	``{-'' (~``-}'' char)* ``-}'' (eol | empty)! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/8/2009 23:49'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/10/2010 17:21'!
 start =
 
-	((space | nl)* topLevel:t -> [t])*:ans /*[ans inspect]*/ (space | nl)* end -> [ans]! !
+	((space | nl)* topLevel)*:ans (space | nl)* end -> [ans]! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/15/2009 09:19'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/19/2010 13:32'!
 stmt :dummy =
 
 	indent(nil)	( ">>" expr:e -> [{#out. e}]
 					| ">" primExpr:n $> expr:e -> [{#nOut. n. e}]
 					)+:outs eol -> [{#compound}, outs]
 |	indent(nil) ("<<" expr)*:es eol -> [{#in}, es]
-|	indent(nil) ident:x ?[(x endsWith: '_') not] "=" expr:e eol -> [{#decl. x. e}]
+|	indent(nil) ident:x ?[(x endsWith: '_') not] "=" expr:e eol -> [{#decl. x. {#nType. 'Any'}. e}]
+|	indent(nil) ident:x ?[(x endsWith: '_') not] ":" aType:t "=" expr:e eol -> [{#decl. x. t. e}]
 |	indent(nil) ident:x ?[x endsWith: '_'] "=" expr:e eol -> [{#assign. x allButLast. e}]
+|	indent(nil) "&" pat:p eol -> [{#peekStmt. p}]
 |	indent(nil) ifStmt! !
 
 !NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 12:32'!
@@ -2063,34 +2309,79 @@ stmts =
 
 	stmt(nil)*:xs -> [{#compound}, xs]! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 22:44'!
-testStmt = stmt(nil)! !
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 13:23'!
+suff :p = [self trie: prefixes at: p]:s spaces seq(s)! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/3/2009 12:20'!
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/9/2010 16:15'!
 topLevel =
 
-	kernel | typeDef! !
+	kernel | typeDef | opDef! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/8/2009 11:29'!
-typeDef =
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 13:16'!
+trieMatch: trie
 
-	ident:n ("<:" aType | "::" (akType | kType)):t -> [{#typeDef. n. t}]! !
+	^ self ometaOr: {
+		[self trieMatch: (trie value at: (self apply: #anything) ifAbsent: [OM2Fail signal])].
+		[self pred: trie key notNil]
+	}! !
 
-!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 10:56'!
-vTypeP =
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 13:17'!
+trie: origTrie at: p
+
+	| trie |
+	trie := origTrie.
+	p doWithIndex: [:c :i |
+		trie := trie value at: c ifAbsent: [OMeta2Fail signal].
+		i == p size ifTrue: [
+			trie key ifNil: [OMeta2Fail signal].
+			^ trie key
+		].
+	].! !
+
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 16:06'!
+trie: origTrie at: p put: s
+
+	| trie |
+	trie := origTrie.
+	p withIndexDo: [:c :i |
+		trie := trie value at: c ifAbsentPut: [nil -> Dictionary new].
+		i == p size ifTrue: [
+			trie key ifNotNil: [self error: 'more than one store into same key (', p, ') in a trie'].
+			trie key: s.
+		].
+	].! !
+
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/8/2010 15:20'!
+tTypeP =
 
 	listOf(#ident. ','):ns ":" aType:t -> [{t. ns}]! !
+
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/10/2010 17:35'!
+typeDef =
+
+	ident:n ("<:" aType:t -> [t] | "::" (akType | kType)):t -> [{#typeDef. n. t}]! !
+
+!NileParser methodsFor: 'as yet unclassified' stamp: 'aw 2/11/2010 16:53'!
+xstmt = stmt(nil)! !
 
 "-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- "!
 
 NileParser class
 	instanceVariableNames: ''!
 
-!NileParser class methodsFor: 'as yet unclassified' stamp: 'aw 12/10/2009 14:24'!
+!NileParser class methodsFor: 'as yet unclassified' stamp: 'aw 2/10/2010 18:00'!
+debugParse: fileName
+
+	| stream |
+	stream := FileStream readOnlyFileNamed: '/Users/awarth/prog/dan/gezira/', fileName.
+	stream wantsLineEndConversion: true.
+	^ NileParser debugMatchAll: stream with: #start! !
+
+!NileParser class methodsFor: 'as yet unclassified' stamp: 'aw 2/10/2010 17:42'!
 parse: fileName
 
 	| stream |
-	stream := FileStream readOnlyFileNamed: '/Users/awarth/prog/dan-new/gezira/', fileName.
+	stream := FileStream readOnlyFileNamed: '/Users/awarth/prog/dan/gezira/', fileName.
 	stream wantsLineEndConversion: true.
 	^ NileParser matchAll: stream with: #start! !
 
