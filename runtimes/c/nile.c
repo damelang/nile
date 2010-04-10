@@ -509,9 +509,9 @@ nile_Kernel_exec (nile_t *nl, nile_Kernel_t *k)
         if (!in)
             break;
         in->next = NULL;
-        eos = in->eos;
 
         response = k->process (nl, k, &in, &out);
+        eos = in ? in->eos : 0;
         switch (response) {
             case NILE_INPUT_CONSUMED:
                 nile_Buffer_free (nl, in);
@@ -628,8 +628,7 @@ nile_Mix_clone (nile_t *nl, nile_Kernel_t *k_)
 
 typedef struct {
     nile_Kernel_t base;
-    uint32_t lock;
-    int done;
+    int eos_seen;
 } nile_MixChild_t;
 
 static int
@@ -638,7 +637,6 @@ nile_MixChild_process (nile_t *nl, nile_Kernel_t *k_,
 {
     nile_MixChild_t *k = (nile_MixChild_t *) k_;
     nile_Buffer_t *in = *in_;
-    int done;
 
     k_->initialized = 1;
     if (*out_) {
@@ -646,19 +644,12 @@ nile_MixChild_process (nile_t *nl, nile_Kernel_t *k_,
         *out_ = NULL;
     }
 
-    if (in->eos) {
-        nile_lock (&k->lock);
-            in->eos = done = k->done;
-            k->done = 1;
-            nile_Kernel_inbox_append (nl, k_->downstream, in);
-        nile_unlock (&k->lock);
-        *in_ = NULL;
-        if (done)
-            nile_Kernel_free (nl, k_);
-        return NILE_INPUT_SUSPEND;
+    if (in->eos && !k->eos_seen) {
+        k->eos_seen = 1;
+        in->eos = 0;
     }
-    else
-        return NILE_INPUT_FORWARD;
+
+    return NILE_INPUT_FORWARD;
 }
 
 static nile_MixChild_t *
@@ -666,8 +657,7 @@ nile_MixChild (nile_t *nl)
 {
     nile_MixChild_t *k = (nile_MixChild_t *)
         nile_Kernel_new (nl, nile_MixChild_process, NULL);
-    k->lock = 0;
-    k->done = 0;
+    k->eos_seen = 0;
     return k;
 }
 
