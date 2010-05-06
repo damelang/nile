@@ -15,7 +15,8 @@ char *
 nile_free (nile_t *nl);
 
 void
-nile_feed (nile_t *nl, nile_Kernel_t *k, nile_Real_t *data, int n, int eos);
+nile_feed (nile_t *nl, nile_Kernel_t *k, nile_Real_t *data,
+           int quantum, int n, int eos);
 
 void
 nile_sync (nile_t *nl);

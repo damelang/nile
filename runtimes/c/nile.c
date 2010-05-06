@@ -319,11 +319,13 @@ nile_free (nile_t *nl)
 /* External stream data */
 
 void
-nile_feed (nile_t *nl, nile_Kernel_t *k, nile_Real_t *data, int n, int eos)
+nile_feed (nile_t *nl, nile_Kernel_t *k, nile_Real_t *data,
+           int quantum, int n, int eos)
 {
     nile_Buffer_t *in;
     int i = 0;
     int ready_q_length;
+    int m = (NILE_BUFFER_SIZE / quantum) * quantum;
 
     nile_lock (&nl->ready_q_lock);
         ready_q_length = nl->ready_q_length;
@@ -336,12 +338,11 @@ nile_feed (nile_t *nl, nile_Kernel_t *k, nile_Real_t *data, int n, int eos)
         nile_unlock (&nl->ready_q_lock);
     }
 
-    while (n) {
+    while (i < n) {
         in = nile_Buffer_new (nl);
-        while (i < n && in->n < NILE_BUFFER_SIZE)
+        while (i < n && in->n < m)
             in->data[in->n++] = data[i++];
-        n -= in->n;
-        if (n == 0)
+        if (i == n)
             in->eos = eos;
         nile_Kernel_inbox_append (nl, k, in);
     }
