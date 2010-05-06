@@ -338,14 +338,17 @@ nile_feed (nile_t *nl, nile_Kernel_t *k, nile_Real_t *data,
         nile_unlock (&nl->ready_q_lock);
     }
 
+    in = nile_Buffer_new (nl);
     while (i < n) {
-        in = nile_Buffer_new (nl);
         while (i < n && in->n < m)
             in->data[in->n++] = data[i++];
-        if (i == n)
-            in->eos = eos;
-        nile_Kernel_inbox_append (nl, k, in);
+        if (i < n) {
+            nile_Kernel_inbox_append (nl, k, in);
+            in = nile_Buffer_new (nl);
+        }
     }
+    in->eos = eos;
+    nile_Kernel_inbox_append (nl, k, in);
 
 #ifndef NILE_MULTI_THREADED
     nl->nthreads_active++;
