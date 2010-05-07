@@ -1,3 +1,10 @@
+- create thread-specific mailboxes?
+- schedule kernels smarter
+    - put "later" kernels on the end of the ready_q
+    - put "soon" kernels on the front or second
+      to the front?
+    - we want threads to process the next kernel
+      in the pipeline next, not put it on the end
 - change semaphores to signals
   
   nile_main()
@@ -43,10 +50,6 @@
 - on uniprocessors, we should make nile_pause relinquish the processor?
   what other things should we be avoiding/skipping on uniprocessors?
   make things work even for nthreads = 0?
-- optimize SortBy for when the input stream is wholly contained
-  in the first input buffer. Do an in-place sort and
-  just forward the modified input buffer downstream
-  Does this matter?
 - rename "initialized" field to something related to first_time
   or prologue or something?
 - what if they give us an input buffer that isn't a multiple of in_quantum?

@@ -1,10 +1,10 @@
+- change "negation" to use prefix, superscript and make it user defined.
+  And get rid of old, build-it negation from grammar, runtime.
 - rethink all the syntax
 - rethink tuple type naming syntax
 - think about syntax like 2b + 0.5c
     - introduce a math mode? (single letter variables, etc.?)
       perhaps only in the body of ∀ blocks?
-- get rid of tuple reduction?
-- introduce _ vars back into the language?
 - support what's needed for png.nl and zlib.nl
     - binary data processing
     - other kernel control
@@ -21,4 +21,5 @@
     - document the kernel clone rules (when a kernel is referenced more that
       once in a pipeline expression)
     - document that kernel parameters are immutable
+    - etc.
 - fix font problem on windows (add missing chars to DejaVu Sans Mono and/or Inconsolata)
