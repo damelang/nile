@@ -38,15 +38,14 @@ typedef unsigned __int32 uint32_t;
 
 #define real nile_Real_t
 
-static inline nile_Real_t nile_Real        (float a) { return       a; }
-static inline int         nile_Real_to_int (real  a) { return (int) a; }
+static inline real nile_Real        (float a) { return       a; }
+static inline int  nile_Real_to_int (real  a) { return (int) a; }
 static inline real nile_Real_flr (real a)
     { real b = (int) a; return b > a ? b - 1 : b; }
 static inline real nile_Real_clg (real a)
     { real b = (int) a; return b < a ? b + 1 : b; }
-static inline real nile_Real_abs (real a) { return fabsf (a); }
 static inline real nile_Real_sqr (real a) { return sqrtf (a); }
-static inline real nile_Real_neg (real a) { return -a; }
+static inline real nile_Real_neg (real a) { return        -a; }
 static inline real nile_Real_add (real a, real b) { return a + b; }
 static inline real nile_Real_sub (real a, real b) { return a - b; }
 static inline real nile_Real_mul (real a, real b) { return a * b; }
@@ -59,10 +58,6 @@ static inline real nile_Real_leq (real a, real b) { return a <= b; }
 static inline real nile_Real_geq (real a, real b) { return a >= b; }
 static inline real nile_Real_or  (real a, real b) { return a || b; }
 static inline real nile_Real_and (real a, real b) { return a && b; }
-static inline real nile_Real_min (real a, real b) { return a < b ? a : b; }
-static inline real nile_Real_max (real a, real b) { return a > b ? a : b; }
-static inline real nile_Real_ave (real a, real b) { return (a + b) / 2; }
-static inline real nile_Real_sel (real a, real b, real c) { return b ? a : c; }
 
 /* Kernels */
 
