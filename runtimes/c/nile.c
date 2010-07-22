@@ -568,11 +568,9 @@ nile_Pipeline_clone (nile_t *nl, nile_Kernel_t *k_)
     nile_Pipeline_t *k = (nile_Pipeline_t *) k_;
     nile_Pipeline_t *clone =
         (nile_Pipeline_t *) nile_Kernel_clone (nl, k_);
-    int i;
 
-    clone->n = k->n;
-    for (i = 0; i < k->n; i++)
-        clone->ks[i] = k->ks[i]->clone (nl, k->ks[i]);
+    for (clone->n = 0; clone->n < k->n; clone->n++)
+        clone->ks[clone->n] = k->ks[clone->n]->clone (nl, k->ks[clone->n]);
 
     return (nile_Kernel_t *) clone;
 }
