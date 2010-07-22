@@ -610,6 +610,16 @@ nile_Pipeline (nile_t *nl, ...)
     return (nile_Kernel_t *) k;
 }
 
+nile_Kernel_t *
+nile_Pipeline_v (nile_t *nl, nile_Kernel_t **ks, int n)
+{
+    nile_Pipeline_t *k = NILE_KERNEL_NEW (nl, nile_Pipeline);
+    for (k->n = 0; k->n < n; k->n++)
+        k->ks[k->n] = ks[k->n];
+
+    return (nile_Kernel_t *) k;
+}
+
 /* Mix kernel */
 
 typedef struct {

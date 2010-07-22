@@ -24,6 +24,9 @@ nile_sync (nile_t *nl);
 nile_Kernel_t *
 nile_Pipeline (nile_t *nl, ...);
 
+nile_Kernel_t *
+nile_Pipeline_v (nile_t *nl, nile_Kernel_t **ks, int n)
+
 /* INTERNAL API */
 
 #if defined( _MSC_VER)
