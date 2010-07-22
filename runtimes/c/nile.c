@@ -580,10 +580,10 @@ nile_Pipeline_process (nile_t *nl, nile_Kernel_t *k_,
                        nile_Buffer_t **in_, nile_Buffer_t **out_)
 {
     nile_Pipeline_t *k = (nile_Pipeline_t *) k_;
+    int i;
 
     if (!k_->initialized) {
         k_->initialized = 1;
-        int i;
         for (i = k->n - 1; i >= 0; i--) {
             k->ks[i]->downstream = k_->downstream;
             k_->downstream = k->ks[i];
