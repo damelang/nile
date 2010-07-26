@@ -445,7 +445,19 @@ nile_Kernel_clone (nile_t *nl, nile_Kernel_t *k)
 }
 
 static void
-nile_Kernel_ready (nile_t *nl, nile_Kernel_t *k)
+nile_Kernel_ready_now (nile_t *nl, nile_Kernel_t *k)
+{
+    nile_lock (&nl->ready_q_lock);
+        k->next = nl->ready_q;
+        nl->ready_q = k;
+        nl->ready_q_length++;
+    nile_unlock (&nl->ready_q_lock);
+
+    nile_Sem_signal (&nl->ready_q_has_kernel);
+}
+
+static void
+nile_Kernel_ready_later (nile_t *nl, nile_Kernel_t *k)
 {
     nile_lock (&nl->ready_q_lock);
         nile_Kernel_t *ready_q = nl->ready_q;
@@ -483,7 +495,7 @@ nile_Kernel_inbox_append (nile_t *nl, nile_Kernel_t *k, nile_Buffer_t *b)
     nile_unlock (&k->lock); 
 
     if (must_activate)
-        nile_Kernel_ready (nl, k);
+        nile_Kernel_ready_now (nl, k);
 }
 
 void
@@ -777,7 +789,7 @@ nile_InterleaveChild_process (nile_t *nl, nile_Kernel_t *k_,
             out = k_->downstream->inbox = nile_Buffer_new (nl);
             j = k->j = k->j0;
             k->sibling->j = k->sibling->j0;
-            nile_Kernel_ready (nl, &k->sibling->base);
+            nile_Kernel_ready_now (nl, &k->sibling->base);
         }
         else break;
     }
@@ -836,10 +848,10 @@ nile_Interleave_process (nile_t *nl, nile_Kernel_t *k_,
         child2->sibling = child1;
         k->v_k1->downstream = &child1->base;
         k->v_k2->downstream = &child2->base;
-        k_->downstream = k->v_k2;
+        k_->downstream = k->v_k1;
     }
 
-    nile_Kernel_inbox_append (nl, k->v_k1, nile_Buffer_clone (nl, *in_));
+    nile_Kernel_inbox_append (nl, k->v_k2, nile_Buffer_clone (nl, *in_));
     return NILE_INPUT_FORWARD;
 }
 
@@ -898,7 +910,7 @@ nile_GroupBy_process (nile_t *nl, nile_Kernel_t *k_,
             nile_Kernel_inbox_append (nl, k_->downstream, out);
             k_->downstream = clone;
             nile_Kernel_inbox_prepend (nl, k_, in);
-            nile_Kernel_ready (nl, k_);
+            nile_Kernel_ready_later (nl, k_);
             *in_ = *out_ = NULL;
             return NILE_INPUT_SUSPEND;
         }
