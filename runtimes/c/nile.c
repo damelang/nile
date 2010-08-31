@@ -632,6 +632,53 @@ nile_Pipeline_v (nile_t *nl, nile_Kernel_t **ks, int n)
     return (nile_Kernel_t *) k;
 }
 
+/* Capture kernel */
+
+typedef struct {
+    nile_Kernel_t base;
+    nile_Real_t *sink;
+    int size;
+    int *n;
+} nile_Capture_t;
+
+static nile_Kernel_t *
+nile_Capture_clone (nile_t *nl, nile_Kernel_t *k_)
+{
+    nile_Capture_t *k = (nile_Capture_t *) k_;
+    nile_Capture_t *clone =
+        (nile_Capture_t *) nile_Kernel_clone (nl, k_);
+    clone->sink = k->sink;
+    clone->size = k->size;
+    clone->n    = k->n;
+    return (nile_Kernel_t *) clone;
+}
+
+static int
+nile_Capture_process (nile_t *nl, nile_Kernel_t *k_,
+                      nile_Buffer_t **in_, nile_Buffer_t **out_)
+{
+    nile_Capture_t *k = (nile_Capture_t *) k_;
+    nile_Buffer_t *in = *in_;
+
+    while (in->i < in->n) {
+        if (*k->n < k->size)
+            k->sink[*k->n] = nile_Buffer_shift (in);
+        (*k->n)++;
+    }
+
+    return NILE_INPUT_CONSUMED;
+}
+
+nile_Kernel_t *
+nile_Capture (nile_t *nl, nile_Real_t *sink, int size, int *n)
+{
+    nile_Capture_t *k = NILE_KERNEL_NEW (nl, nile_Capture);
+    k->sink = sink;
+    k->size = size;
+    k->n    = n;
+    return (nile_Kernel_t *) k;
+}
+
 /* Mix kernel */
 
 typedef struct {
