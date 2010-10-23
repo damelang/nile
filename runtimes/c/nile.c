@@ -1052,9 +1052,7 @@ nile_SortBy_process (nile_t *nl, nile_Kernel_t *k_,
 
         /* insert new element */
         int j = out->n - k->quantum;
-        while (j >= 0) {
-            if (key >= out->data[j + k->index])
-                break;
+        while (j >= 0 && key < out->data[j + k->index]) {
             int jj = j + k->quantum;
             int q = k->quantum;
             while (q--)
