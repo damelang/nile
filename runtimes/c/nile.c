@@ -1030,7 +1030,7 @@ nile_SortBy_process (nile_t *nl, nile_Kernel_t *k_,
         real key = in->data[in->i + k->index];
 
         /* find the right buffer */
-        while (out->next != NULL && key > out->next->data[k->index])
+        while (out->next != NULL && key >= out->next->data[k->index])
             out = out->next;
 
         /* split the buffer if it's full */
@@ -1046,7 +1046,7 @@ nile_SortBy_process (nile_t *nl, nile_Kernel_t *k_,
                 next->data[next->n++] = out->data[j++];
             out->n -= next->n;
 
-            if (key > next->data[k->index])
+            if (key >= next->data[k->index])
                 out = next;
         }
 
