@@ -481,6 +481,11 @@ nile_Kernel_inbox_append (nile_t *nl, nile_Kernel_t *k, nile_Buffer_t *b)
 {
     int must_activate = 0;
 
+    if (!k) {
+        nile_Buffer_free (nl, b);
+        return;
+    }
+
     nile_lock (&k->lock); 
         nile_Buffer_t *inbox = k->inbox;
         if (inbox) {
