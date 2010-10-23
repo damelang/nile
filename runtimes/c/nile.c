@@ -666,8 +666,9 @@ nile_Capture_process (nile_t *nl, nile_Kernel_t *k_,
     nile_Buffer_t *in = *in_;
 
     while (in->i < in->n) {
+        nile_Real_t r = nile_Buffer_shift (in);
         if (*k->n < k->size)
-            k->sink[*k->n] = nile_Buffer_shift (in);
+            k->sink[*k->n] = r;
         (*k->n)++;
     }
 
