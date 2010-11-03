@@ -195,6 +195,9 @@ struct nile_ {
 
 /* Main thread loop */
 
+static nile_Kernel_t * nile_NULL_KERNEL_clone (nile_t *nl, nile_Kernel_t *k_) { return k_; }
+static nile_Kernel_t NULL_KERNEL = {0, 0, nile_NULL_KERNEL_clone, 0};
+
 static int
 nile_Kernel_exec (nile_t *nl, nile_Kernel_t *k);
 
@@ -481,7 +484,7 @@ nile_Kernel_inbox_append (nile_t *nl, nile_Kernel_t *k, nile_Buffer_t *b)
 {
     int must_activate = 0;
 
-    if (!k) {
+    if (k == &NULL_KERNEL) {
         nile_Buffer_free (nl, b);
         return;
     }
@@ -601,6 +604,7 @@ nile_Pipeline_process (nile_t *nl, nile_Kernel_t *k_,
 
     if (!k_->initialized) {
         k_->initialized = 1;
+        k_->downstream = k_->downstream ? k_->downstream : &NULL_KERNEL;
         for (i = k->n - 1; i >= 0; i--) {
             k->ks[i]->downstream = k_->downstream;
             k_->downstream = k->ks[i];
