@@ -249,7 +249,7 @@ nile_main (nile_t *nl)
 
         for (;;) {
             nile_lock (&k->lock);
-                active = k->active = (k->inbox != NULL);
+                active = k->active = k->inbox_n > 0;
             nile_unlock (&k->lock);
             if (!active)
                 break;
@@ -433,6 +433,7 @@ nile_Kernel_new (nile_t *nl, nile_Kernel_process_t process,
     k->downstream = NULL;
     k->lock = 0;
     k->inbox = NULL;
+    k->inbox_n = 0;
     k->initialized = 0;
     k->active = 0;
     return k;
@@ -486,24 +487,29 @@ nile_Kernel_ready_later (nile_t *nl, nile_Kernel_t *k)
 void
 nile_Kernel_inbox_append (nile_t *nl, nile_Kernel_t *k, nile_Buffer_t *b)
 {
+    int n = 1;
     int must_activate = 0;
+    nile_Buffer_t *inbox, *b_;
 
     if (k == &NULL_KERNEL) {
         nile_Buffer_free (nl, b);
         return;
     }
 
+    for (b_ = b; b_->next; b_ = b_->next)
+        n++;
+
     nile_lock (&k->lock); 
-        nile_Buffer_t *inbox = k->inbox;
-        if (inbox) {
-            while (inbox->next)
-                inbox = inbox->next;
+        if (k->inbox_n) {
+            for (inbox = k->inbox; inbox->next; inbox = inbox->next)
+                ;
             inbox->next = b;
         }
         else {
             k->inbox = b;
             must_activate = !k->active;
         }
+        k->inbox_n += n;
     nile_unlock (&k->lock); 
 
     if (must_activate)
@@ -516,6 +522,7 @@ nile_Kernel_inbox_prepend (nile_t *nl, nile_Kernel_t *k, nile_Buffer_t *b)
     nile_lock (&k->lock);
         b->next = k->inbox;
         k->inbox = b;
+        k->inbox_n++;
     nile_unlock (&k->lock);
 }
 
@@ -524,22 +531,28 @@ nile_Kernel_inbox_prepend (nile_t *nl, nile_Kernel_t *k, nile_Buffer_t *b)
 static int
 nile_Kernel_exec (nile_t *nl, nile_Kernel_t *k)
 {
-    int response = NILE_INPUT_FORWARD;
+    nile_Buffer_t *in, *out;
     int eos = 0;
-    nile_Buffer_t *out = nile_Buffer_new (nl);
-    nile_Buffer_t *in;
+    int response = NILE_INPUT_FORWARD;
 
-    for (;;) { 
+    if (k->downstream && k->downstream->inbox_n >= NILE_INBOX_LIMIT) {
+        nile_Kernel_ready_later (nl, k);
+        return NILE_INPUT_SUSPEND;
+    }
+
+    out = nile_Buffer_new (nl);
+    while (k->inbox_n) {
         nile_lock (&k->lock);
+            k->inbox_n--;
             in = k->inbox;
-            k->inbox = in ? in->next : in;
+            k->inbox = in->next;
         nile_unlock (&k->lock);
-        if (!in)
-            break;
         in->next = NULL;
 
         response = k->process (nl, k, &in, &out);
         eos = in ? in->eos : 0;
+        if (response == NILE_INPUT_CONSUMED && in->i < in->n)
+            response = NILE_INPUT_SUSPEND;
         switch (response) {
             case NILE_INPUT_CONSUMED:
                 nile_Buffer_free (nl, in);
@@ -550,6 +563,8 @@ nile_Kernel_exec (nile_t *nl, nile_Kernel_t *k)
                     out = NULL;
                 }
                 nile_Kernel_inbox_append (nl, k->downstream, in);
+                if (!eos && k->downstream->inbox_n >= NILE_INBOX_LIMIT)
+                    response = NILE_INPUT_SUSPEND;
                 break;
             case NILE_INPUT_SUSPEND:
                 if (in)
@@ -568,6 +583,9 @@ nile_Kernel_exec (nile_t *nl, nile_Kernel_t *k)
         else
             nile_Buffer_free (nl, out);
     }
+
+    if (response == NILE_INPUT_SUSPEND && k->downstream->inbox_n >= NILE_INBOX_LIMIT)
+        nile_Kernel_ready_later (nl, k);
 
     if (eos) {
         nile_Kernel_free (nl, k);

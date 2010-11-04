@@ -72,6 +72,8 @@ static inline real nile_Real_and (real a, real b) { return a && b; }
 #define NILE_INPUT_SUSPEND  2
 #define NILE_INPUT_EOS      3
 
+#define NILE_INBOX_LIMIT   10
+
 typedef int
 (*nile_Kernel_process_t) (nile_t *nl, nile_Kernel_t *k,
                           nile_Buffer_t **in, nile_Buffer_t **out);
@@ -86,6 +88,7 @@ struct nile_Kernel_ {
     nile_Kernel_t *downstream;
     uint32_t lock;
     nile_Buffer_t *inbox;
+    int inbox_n;
     int initialized;
     int active;
 };
