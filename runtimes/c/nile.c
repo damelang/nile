@@ -547,7 +547,7 @@ nile_Kernel_exec (nile_t *nl, nile_Kernel_t *k)
             case NILE_INPUT_FORWARD:
                 if (out && out->n) {
                     nile_Kernel_inbox_append (nl, k->downstream, out);
-                    out = nile_Buffer_new (nl);
+                    out = NULL;
                 }
                 nile_Kernel_inbox_append (nl, k->downstream, in);
                 break;
