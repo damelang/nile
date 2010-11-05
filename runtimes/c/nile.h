@@ -187,10 +187,6 @@ static inline real
 nile_Buffer_shift (nile_Buffer_t *b)
 { return b->data[b->i++]; }
 
-static inline real
-nile_Buffer_peek (nile_Buffer_t *b, int i)
-{ return b->data[b->i + i]; }
-
 /* Primitive kernels */
 
 nile_Kernel_t *
