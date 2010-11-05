@@ -195,8 +195,7 @@ struct nile_ {
 
 /* Main thread loop */
 
-static nile_Kernel_t * nile_NULL_KERNEL_clone (nile_t *nl, nile_Kernel_t *k_) { return k_; }
-static nile_Kernel_t NULL_KERNEL = {0, 0, nile_NULL_KERNEL_clone, 0};
+static nile_Kernel_t NULL_KERNEL = {0};
 
 static int
 nile_Kernel_exec (nile_t *nl, nile_Kernel_t *k);
@@ -423,13 +422,11 @@ nile_Buffer_clone (nile_t *nl, nile_Buffer_t *b)
 /* Kernels */
 
 nile_Kernel_t *
-nile_Kernel_new (nile_t *nl, nile_Kernel_process_t process,
-                             nile_Kernel_clone_t clone)
+nile_Kernel_new (nile_t *nl, nile_Kernel_process_t process)
 {
     nile_Kernel_t *k = (nile_Kernel_t *) nile_Buffer_new (nl);
     k->next = NULL;
     k->process = process;
-    k->clone = clone;
     k->downstream = NULL;
     k->lock = 0;
     k->inbox = NULL;
@@ -443,13 +440,6 @@ void
 nile_Kernel_free (nile_t *nl, nile_Kernel_t *k)
 {
     nile_Buffer_free (nl, (nile_Buffer_t *) k);
-}
-
-nile_Kernel_t *
-nile_Kernel_clone (nile_t *nl, nile_Kernel_t *k)
-{
-    nile_Kernel_t *clone = nile_Kernel_new (nl, k->process, k->clone);
-    return clone;
 }
 
 static void
@@ -603,19 +593,6 @@ typedef struct {
     nile_Kernel_t *ks[20];
 } nile_Pipeline_t;
 
-static nile_Kernel_t *
-nile_Pipeline_clone (nile_t *nl, nile_Kernel_t *k_)
-{
-    nile_Pipeline_t *k = (nile_Pipeline_t *) k_;
-    nile_Pipeline_t *clone =
-        (nile_Pipeline_t *) nile_Kernel_clone (nl, k_);
-
-    for (clone->n = 0; clone->n < k->n; clone->n++)
-        clone->ks[clone->n] = k->ks[clone->n]->clone (nl, k->ks[clone->n]);
-
-    return (nile_Kernel_t *) clone;
-}
-
 static int
 nile_Pipeline_process (nile_t *nl, nile_Kernel_t *k_,
                        nile_Buffer_t **in_, nile_Buffer_t **out_)
@@ -671,18 +648,6 @@ typedef struct {
     int *n;
 } nile_Capture_t;
 
-static nile_Kernel_t *
-nile_Capture_clone (nile_t *nl, nile_Kernel_t *k_)
-{
-    nile_Capture_t *k = (nile_Capture_t *) k_;
-    nile_Capture_t *clone =
-        (nile_Capture_t *) nile_Kernel_clone (nl, k_);
-    clone->sink = k->sink;
-    clone->size = k->size;
-    clone->n    = k->n;
-    return (nile_Kernel_t *) clone;
-}
-
 static int
 nile_Capture_process (nile_t *nl, nile_Kernel_t *k_,
                       nile_Buffer_t **in_, nile_Buffer_t **out_)
@@ -718,16 +683,6 @@ typedef struct {
     nile_Kernel_t *v_k2;
 } nile_Mix_t;
 
-static nile_Kernel_t *
-nile_Mix_clone (nile_t *nl, nile_Kernel_t *k_)
-{
-    nile_Mix_t *k = (nile_Mix_t *) k_;
-    nile_Mix_t *clone = (nile_Mix_t *) nile_Kernel_clone (nl, k_);
-    clone->v_k1 = k->v_k1->clone (nl, k->v_k1);
-    clone->v_k2 = k->v_k2->clone (nl, k->v_k2);
-    return (nile_Kernel_t *) clone;
-}
-
 typedef struct {
     nile_Kernel_t base;
     int eos_seen;
@@ -758,7 +713,7 @@ static nile_MixChild_t *
 nile_MixChild (nile_t *nl)
 {
     nile_MixChild_t *k = (nile_MixChild_t *)
-        nile_Kernel_new (nl, nile_MixChild_process, NULL);
+        nile_Kernel_new (nl, nile_MixChild_process);
     k->eos_seen = 0;
     return k;
 }
@@ -800,19 +755,6 @@ typedef struct {
     nile_Kernel_t *v_k2;
     int quantum2;
 } nile_Interleave_t;
-
-static nile_Kernel_t *
-nile_Interleave_clone (nile_t *nl, nile_Kernel_t *k_)
-{
-    nile_Interleave_t *k = (nile_Interleave_t *) k_;
-    nile_Interleave_t *clone =
-        (nile_Interleave_t *) nile_Kernel_clone (nl, k_);
-    clone->v_k1 = k->v_k1->clone (nl, k->v_k1);
-    clone->quantum1 = k->quantum1; 
-    clone->v_k2 = k->v_k2->clone (nl, k->v_k2); 
-    clone->quantum2 = k->quantum2; 
-    return (nile_Kernel_t *) clone;
-}
 
 typedef struct nile_InterleaveChild nile_InterleaveChild_t;
 struct nile_InterleaveChild {
@@ -896,7 +838,7 @@ static nile_InterleaveChild_t *
 nile_InterleaveChild (nile_t *nl, int quantum, int j0, int n)
 {
     nile_InterleaveChild_t *k = (nile_InterleaveChild_t *)
-        nile_Kernel_new (nl, nile_InterleaveChild_process, NULL);
+        nile_Kernel_new (nl, nile_InterleaveChild_process);
     k->quantum = quantum;
     k->j0 = j0;
     k->n = n;
@@ -912,7 +854,7 @@ nile_Interleave_process (nile_t *nl, nile_Kernel_t *k_,
 
     if (!k_->initialized) {
         k_->initialized = 1;
-        nile_Kernel_t *gchild = nile_Kernel_new (nl, NULL, NULL);
+        nile_Kernel_t *gchild = nile_Kernel_new (nl, NULL);
         gchild->inbox = nile_Buffer_new (nl);
         int eob = NILE_BUFFER_SIZE - (k->quantum1 + k->quantum2) + 1;
         nile_InterleaveChild_t *child1 =
@@ -945,72 +887,6 @@ nile_Interleave (nile_t *nl, nile_Kernel_t *v_k1, int quantum1,
     return (nile_Kernel_t *) k;
 }
 
-/* GroupBy kernel */
-
-typedef struct {
-    nile_Kernel_t base;
-    int index;
-    int quantum;
-    real key;
-} nile_GroupBy_t;
-
-static nile_Kernel_t *
-nile_GroupBy_clone (nile_t *nl, nile_Kernel_t *k_)
-{
-    nile_GroupBy_t *k = (nile_GroupBy_t *) k_;
-    nile_GroupBy_t *clone =
-        (nile_GroupBy_t *) nile_Kernel_clone (nl, k_);
-    clone->index = k->index;
-    clone->quantum = k->quantum;
-    return (nile_Kernel_t *) clone;
-}
-
-static int
-nile_GroupBy_process (nile_t *nl, nile_Kernel_t *k_,
-                      nile_Buffer_t **in_, nile_Buffer_t **out_)
-{
-    nile_GroupBy_t *k = (nile_GroupBy_t *) k_;
-    nile_Kernel_t *clone;
-    nile_Buffer_t *in = *in_;
-    nile_Buffer_t *out = *out_;
-
-    if (!k_->initialized) {
-        k_->initialized = 1;
-        k->key = in->data[k->index];
-    }
-    
-    while (in->i < in->n) {
-        real key = in->data[in->i + k->index];
-        if (key != k->key) {
-            k->key = key;
-            clone = k_->downstream->clone (nl, k_->downstream);
-            out->eos = 1;
-            nile_Kernel_inbox_append (nl, k_->downstream, out);
-            k_->downstream = clone;
-            nile_Kernel_inbox_prepend (nl, k_, in);
-            nile_Kernel_ready_later (nl, k_);
-            *in_ = *out_ = NULL;
-            return NILE_INPUT_SUSPEND;
-        }
-        out = nile_Buffer_prepare_to_append (nl, out, k->quantum, k_);
-        int q = k->quantum;
-        while (q--)
-            out->data[out->n++] = in->data[in->i++];
-    }
-
-    *out_ = out;
-    return NILE_INPUT_CONSUMED;
-}
-
-nile_Kernel_t *
-nile_GroupBy (nile_t *nl, int index, int quantum)
-{
-    nile_GroupBy_t *k = NILE_KERNEL_NEW (nl, nile_GroupBy);
-    k->index = index;
-    k->quantum = quantum;
-    return nile_Pipeline (nl, nile_SortBy (nl, index, quantum), &k->base, NULL);
-}
-
 /* SortBy kernel */
 
 typedef struct {
@@ -1019,17 +895,6 @@ typedef struct {
     int quantum;
     nile_Buffer_t *out;
 } nile_SortBy_t;
-
-static nile_Kernel_t *
-nile_SortBy_clone (nile_t *nl, nile_Kernel_t *k_)
-{
-    nile_SortBy_t *k = (nile_SortBy_t *) k_;
-    nile_SortBy_t *clone =
-        (nile_SortBy_t *) nile_Kernel_clone (nl, k_);
-    clone->index = k->index;
-    clone->quantum = k->quantum;
-    return (nile_Kernel_t *) clone;
-}
 
 static int
 nile_SortBy_process (nile_t *nl, nile_Kernel_t *k_,

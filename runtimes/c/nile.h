@@ -78,13 +78,9 @@ typedef int
 (*nile_Kernel_process_t) (nile_t *nl, nile_Kernel_t *k,
                           nile_Buffer_t **in, nile_Buffer_t **out);
 
-typedef nile_Kernel_t *
-(*nile_Kernel_clone_t) (nile_t *nl, nile_Kernel_t *k);
-
 struct nile_Kernel_ {
     nile_Kernel_t *next;
     nile_Kernel_process_t process;
-    nile_Kernel_clone_t clone;
     nile_Kernel_t *downstream;
     uint32_t lock;
     nile_Buffer_t *inbox;
@@ -94,17 +90,13 @@ struct nile_Kernel_ {
 };
 
 nile_Kernel_t *
-nile_Kernel_new (nile_t *nl, nile_Kernel_process_t process,
-                             nile_Kernel_clone_t clone);
+nile_Kernel_new (nile_t *nl, nile_Kernel_process_t process);
 
 #define NILE_KERNEL_NEW(nl, name) \
-    ((name##_t *) nile_Kernel_new ((nl), name##_process, name##_clone))
+    ((name##_t *) nile_Kernel_new ((nl), name##_process))
 
 void
 nile_Kernel_free (nile_t *nl, nile_Kernel_t *k);
-
-nile_Kernel_t *
-nile_Kernel_clone (nile_t *nl, nile_Kernel_t *k);
 
 void
 nile_Kernel_inbox_append (nile_t *nl, nile_Kernel_t *k, nile_Buffer_t *b);
@@ -179,9 +171,6 @@ nile_Mix (nile_t *nl, nile_Kernel_t *k1, nile_Kernel_t *k2);
 nile_Kernel_t *
 nile_Interleave (nile_t *nl, nile_Kernel_t *k1, int quantum1,
                              nile_Kernel_t *k2, int quantum2);
-
-nile_Kernel_t *
-nile_GroupBy (nile_t *nl, int index, int quantum);
 
 nile_Kernel_t *
 nile_SortBy (nile_t *nl, int index, int quantum);
