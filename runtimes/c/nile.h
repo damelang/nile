@@ -149,22 +149,6 @@ nile_Buffer_append (nile_Buffer_t *b, real v)
 { b->data[b->n++] = v; }
 
 static inline nile_Buffer_t *
-nile_Buffer_append_repeat (nile_t *nl, nile_Buffer_t *b, real v,
-                           int times, nile_Kernel_t *k)
-{
-    int room, n;
-    while (times) {
-        b = nile_Buffer_prepare_to_append (nl, b, 1, k);
-        room = NILE_BUFFER_SIZE - b->n;
-        n = times < room ? times : room;
-        times -= n;
-        while (n--)
-            nile_Buffer_append (b, v);
-    }
-    return b;
-}
-
-static inline nile_Buffer_t *
 nile_Buffer_prepare_to_prepend (nile_t *nl, nile_Buffer_t *b, int quantum,
                                 nile_Kernel_t *k)
 {
