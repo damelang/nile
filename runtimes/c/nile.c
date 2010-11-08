@@ -201,7 +201,7 @@ static int
 nile_Process_exec (nile_t *nl, nile_Process_t *p);
 
 static void * 
-nile_main (nile_t *nl)
+nile_Thread_main (nile_t *nl)
 {
     nile_Process_t *p;
     int shutdown;
@@ -291,7 +291,7 @@ nile_new (int nthreads, char *mem, int memsize)
     nile_Sem_new (&nl->idle_sem, 0);
 
     for (i = 0; i < nl->nthreads; i++)
-        nile_Thread_new (nl, &(nl->threads[i]), nile_main);
+        nile_Thread_new (nl, &(nl->threads[i]), nile_Thread_main);
 
     return nl;
 }
@@ -354,7 +354,7 @@ nile_feed (nile_t *nl, nile_Process_t *p, nile_Real_t *data,
 
 #ifndef NILE_MULTI_THREADED
     nl->nthreads_active++;
-    nile_main (nl);
+    nile_Thread_main (nl);
 #endif
 }
 
