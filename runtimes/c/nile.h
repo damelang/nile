@@ -25,9 +25,6 @@ nile_Process_t *
 nile_Pipeline (nile_t *nl, ...);
 
 nile_Process_t *
-nile_Pipeline_v (nile_t *nl, nile_Process_t **ps, int n);
-
-nile_Process_t *
 nile_Capture (nile_t *nl, nile_Real_t *sink, int size, int *n);
 
 /* INTERNAL API */

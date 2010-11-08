@@ -628,17 +628,6 @@ nile_Pipeline (nile_t *nl, ...)
     return (nile_Process_t *) p;
 }
 
-nile_Process_t *
-nile_Pipeline_v (nile_t *nl, nile_Process_t **ps, int n)
-{
-    nile_Pipeline_t *p = (nile_Pipeline_t *)
-        nile_Process_new (nl, nile_Pipeline_work);
-    for (p->n = 0; p->n < n; p->n++)
-        p->ps[p->n] = ps[p->n];
-
-    return (nile_Process_t *) p;
-}
-
 /* Capture process */
 
 typedef struct {
