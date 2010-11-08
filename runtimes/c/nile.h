@@ -15,8 +15,7 @@ char *
 nile_free (nile_t *nl);
 
 void
-nile_feed (nile_t *nl, nile_Process_t *p, nile_Real_t *data,
-           int quantum, int n, int eos);
+nile_feed (nile_Process_t *p, nile_Real_t *data, int quantum, int n, int eos);
 
 void
 nile_sync (nile_t *nl);
@@ -71,11 +70,11 @@ static inline real nile_Real_and (real a, real b) { return a && b; }
 
 #define NILE_INBOX_LIMIT   10
 
-typedef int
-(*nile_Process_work_t) (nile_t *nl, nile_Process_t *p,
-                        nile_Buffer_t **in, nile_Buffer_t **out);
+typedef int (*nile_Process_work_t)
+    (nile_Process_t *p, nile_Buffer_t **in, nile_Buffer_t **out);
 
 struct nile_Process_ {
+    nile_t *nl;
     nile_Process_t *next;
     nile_Process_work_t work;
     nile_Process_t *downstream;
@@ -90,19 +89,20 @@ nile_Process_t *
 nile_Process_new (nile_t *nl, nile_Process_work_t work);
 
 void
-nile_Process_free (nile_t *nl, nile_Process_t *p);
+nile_Process_free (nile_Process_t *p);
 
 void
-nile_Process_inbox_append (nile_t *nl, nile_Process_t *p, nile_Buffer_t *b);
+nile_Process_inbox_append (nile_Process_t *p, nile_Buffer_t *b);
 
 void
-nile_Process_inbox_prepend (nile_t *nl, nile_Process_t *p, nile_Buffer_t *b);
+nile_Process_inbox_prepend (nile_Process_t *p, nile_Buffer_t *b);
 
 /* Stream buffers */
 
 #define NILE_BUFFER_SIZE 128
 
 struct nile_Buffer_ {
+    nile_t *nl;
     nile_Buffer_t *next;
     int i;
     int n;
@@ -114,18 +114,17 @@ nile_Buffer_t *
 nile_Buffer_new (nile_t *nl);
 
 void
-nile_Buffer_free (nile_t *nl, nile_Buffer_t *b);
+nile_Buffer_free (nile_Buffer_t *b);
 
 nile_Buffer_t *
-nile_Buffer_clone (nile_t *nl, nile_Buffer_t *b);
+nile_Buffer_clone (nile_Buffer_t *b);
 
 static inline nile_Buffer_t *
-nile_Buffer_prepare_to_append (nile_t *nl, nile_Buffer_t *b, int quantum,
-                               nile_Process_t *p)
+nile_Buffer_prepare_to_append (nile_Buffer_t *b, int quantum, nile_Process_t *p)
 {
     if (b->n > NILE_BUFFER_SIZE - quantum) {
-        nile_Process_inbox_append (nl, p->downstream, b);
-        b = nile_Buffer_new (nl);
+        nile_Process_inbox_append (p->downstream, b);
+        b = nile_Buffer_new (p->nl);
     }
     return b;
 }
@@ -135,14 +134,13 @@ nile_Buffer_append (nile_Buffer_t *b, real v)
 { b->data[b->n++] = v; }
 
 static inline nile_Buffer_t *
-nile_Buffer_prepare_to_prepend (nile_t *nl, nile_Buffer_t *b, int quantum,
-                                nile_Process_t *p)
+nile_Buffer_prepare_to_prepend (nile_Buffer_t *b, int quantum, nile_Process_t *p)
 {
     b->i -= quantum;
     if (b->i < 0) {
         b->i += quantum;
-        nile_Process_inbox_prepend (nl, p, b);
-        b = nile_Buffer_new (nl);
+        nile_Process_inbox_prepend (p, b);
+        b = nile_Buffer_new (p->nl);
         b->n = NILE_BUFFER_SIZE;
         b->i = NILE_BUFFER_SIZE - quantum;
     }
