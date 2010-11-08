@@ -198,7 +198,7 @@ struct nile_ {
 static nile_Process_t NULL_PROCESS = {0};
 
 static int
-nile_Process_exec (nile_t *nl, nile_Process_t *p);
+nile_Process_run (nile_t *nl, nile_Process_t *p);
 
 static void * 
 nile_Thread_main (nile_t *nl)
@@ -252,7 +252,7 @@ nile_Thread_main (nile_t *nl)
             nile_unlock (&p->lock);
             if (!active)
                 break;
-            response = nile_Process_exec (nl, p);
+            response = nile_Process_run (nl, p);
             if (response == NILE_INPUT_SUSPEND || response == NILE_INPUT_EOS)
                 break;
         }
@@ -519,7 +519,7 @@ nile_Process_inbox_prepend (nile_t *nl, nile_Process_t *p, nile_Buffer_t *b)
 /* Process execution */
 
 static int
-nile_Process_exec (nile_t *nl, nile_Process_t *p)
+nile_Process_run (nile_t *nl, nile_Process_t *p)
 {
     nile_Buffer_t *in, *out;
     int eos = 0;
