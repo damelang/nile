@@ -4,7 +4,7 @@
 /* EXTERNAL API */
 
 typedef float nile_Real_t;
-typedef struct nile_Kernel_ nile_Kernel_t;
+typedef struct nile_Process_ nile_Process_t;
 typedef struct nile_Buffer_ nile_Buffer_t;
 typedef struct nile_ nile_t;
 
@@ -15,19 +15,19 @@ char *
 nile_free (nile_t *nl);
 
 void
-nile_feed (nile_t *nl, nile_Kernel_t *k, nile_Real_t *data,
+nile_feed (nile_t *nl, nile_Process_t *p, nile_Real_t *data,
            int quantum, int n, int eos);
 
 void
 nile_sync (nile_t *nl);
 
-nile_Kernel_t *
+nile_Process_t *
 nile_Pipeline (nile_t *nl, ...);
 
-nile_Kernel_t *
-nile_Pipeline_v (nile_t *nl, nile_Kernel_t **ks, int n);
+nile_Process_t *
+nile_Pipeline_v (nile_t *nl, nile_Process_t **ps, int n);
 
-nile_Kernel_t *
+nile_Process_t *
 nile_Capture (nile_t *nl, nile_Real_t *sink, int size, int *n);
 
 /* INTERNAL API */
@@ -65,7 +65,7 @@ static inline real nile_Real_geq (real a, real b) { return a >= b; }
 static inline real nile_Real_or  (real a, real b) { return a || b; }
 static inline real nile_Real_and (real a, real b) { return a && b; }
 
-/* Kernels */
+/* Process */
 
 #define NILE_INPUT_CONSUMED 0
 #define NILE_INPUT_FORWARD  1
@@ -75,13 +75,13 @@ static inline real nile_Real_and (real a, real b) { return a && b; }
 #define NILE_INBOX_LIMIT   10
 
 typedef int
-(*nile_Kernel_process_t) (nile_t *nl, nile_Kernel_t *k,
-                          nile_Buffer_t **in, nile_Buffer_t **out);
+(*nile_Process_work_t) (nile_t *nl, nile_Process_t *p,
+                        nile_Buffer_t **in, nile_Buffer_t **out);
 
-struct nile_Kernel_ {
-    nile_Kernel_t *next;
-    nile_Kernel_process_t process;
-    nile_Kernel_t *downstream;
+struct nile_Process_ {
+    nile_Process_t *next;
+    nile_Process_work_t work;
+    nile_Process_t *downstream;
     uint32_t lock;
     nile_Buffer_t *inbox;
     int inbox_n;
@@ -89,20 +89,17 @@ struct nile_Kernel_ {
     int active;
 };
 
-nile_Kernel_t *
-nile_Kernel_new (nile_t *nl, nile_Kernel_process_t process);
-
-#define NILE_KERNEL_NEW(nl, name) \
-    ((name##_t *) nile_Kernel_new ((nl), name##_process))
+nile_Process_t *
+nile_Process_new (nile_t *nl, nile_Process_work_t work);
 
 void
-nile_Kernel_free (nile_t *nl, nile_Kernel_t *k);
+nile_Process_free (nile_t *nl, nile_Process_t *p);
 
 void
-nile_Kernel_inbox_append (nile_t *nl, nile_Kernel_t *k, nile_Buffer_t *b);
+nile_Process_inbox_append (nile_t *nl, nile_Process_t *p, nile_Buffer_t *b);
 
 void
-nile_Kernel_inbox_prepend (nile_t *nl, nile_Kernel_t *k, nile_Buffer_t *b);
+nile_Process_inbox_prepend (nile_t *nl, nile_Process_t *p, nile_Buffer_t *b);
 
 /* Stream buffers */
 
@@ -127,10 +124,10 @@ nile_Buffer_clone (nile_t *nl, nile_Buffer_t *b);
 
 static inline nile_Buffer_t *
 nile_Buffer_prepare_to_append (nile_t *nl, nile_Buffer_t *b, int quantum,
-                               nile_Kernel_t *k)
+                               nile_Process_t *p)
 {
     if (b->n > NILE_BUFFER_SIZE - quantum) {
-        nile_Kernel_inbox_append (nl, k->downstream, b);
+        nile_Process_inbox_append (nl, p->downstream, b);
         b = nile_Buffer_new (nl);
     }
     return b;
@@ -142,12 +139,12 @@ nile_Buffer_append (nile_Buffer_t *b, real v)
 
 static inline nile_Buffer_t *
 nile_Buffer_prepare_to_prepend (nile_t *nl, nile_Buffer_t *b, int quantum,
-                                nile_Kernel_t *k)
+                                nile_Process_t *p)
 {
     b->i -= quantum;
     if (b->i < 0) {
         b->i += quantum;
-        nile_Kernel_inbox_prepend (nl, k, b);
+        nile_Process_inbox_prepend (nl, p, b);
         b = nile_Buffer_new (nl);
         b->n = NILE_BUFFER_SIZE;
         b->i = NILE_BUFFER_SIZE - quantum;
@@ -163,16 +160,16 @@ static inline real
 nile_Buffer_shift (nile_Buffer_t *b)
 { return b->data[b->i++]; }
 
-/* Primitive kernels */
+/* Primitive Processs */
 
-nile_Kernel_t *
-nile_Mix (nile_t *nl, nile_Kernel_t *k1, nile_Kernel_t *k2);
+nile_Process_t *
+nile_Mix (nile_t *nl, nile_Process_t *p1, nile_Process_t *p2);
 
-nile_Kernel_t *
-nile_Interleave (nile_t *nl, nile_Kernel_t *k1, int quantum1,
-                             nile_Kernel_t *k2, int quantum2);
+nile_Process_t *
+nile_Interleave (nile_t *nl, nile_Process_t *p1, int quantum1,
+                             nile_Process_t *p2, int quantum2);
 
-nile_Kernel_t *
+nile_Process_t *
 nile_SortBy (nile_t *nl, int index, int quantum);
 
 #undef real
