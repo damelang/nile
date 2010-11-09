@@ -3,7 +3,6 @@
 
 /* EXTERNAL API */
 
-typedef float nile_Real_t;
 typedef struct nile_Process_ nile_Process_t;
 typedef struct nile_Buffer_ nile_Buffer_t;
 typedef struct nile_ nile_t;
@@ -15,7 +14,7 @@ char *
 nile_free (nile_t *nl);
 
 void
-nile_feed (nile_Process_t *p, nile_Real_t *data, int quantum, int n, int eos);
+nile_feed (nile_Process_t *p, float *data, int quantum, int n, int eos);
 
 void
 nile_sync (nile_t *nl);
@@ -24,7 +23,7 @@ nile_Process_t *
 nile_Pipeline (nile_t *nl, ...);
 
 nile_Process_t *
-nile_Capture (nile_t *nl, nile_Real_t *sink, int size, int *n);
+nile_Capture (nile_t *nl, float *sink, int size, int *n);
 
 /* INTERNAL API */
 
@@ -37,29 +36,33 @@ typedef unsigned __int32 uint32_t;
 /* Real numbers */
 
 #include <math.h>
-
+typedef struct { float f; } nile_Real_t;
 #define real nile_Real_t
 
-static inline real nile_Real        (float a) { return       a; }
-static inline int  nile_Real_to_int (real  a) { return (int) a; }
-static inline real nile_Real_flr (real a)
-    { real b = (int) a; return b > a ? b - 1 : b; }
-static inline real nile_Real_clg (real a)
-    { real b = (int) a; return b < a ? b + 1 : b; }
-static inline real nile_Real_sqr (real a) { return sqrtf (a); }
-static inline real nile_Real_neg (real a) { return        -a; }
-static inline real nile_Real_add (real a, real b) { return a + b; }
-static inline real nile_Real_sub (real a, real b) { return a - b; }
-static inline real nile_Real_mul (real a, real b) { return a * b; }
-static inline real nile_Real_div (real a, real b) { return a / b; }
-static inline real nile_Real_eq  (real a, real b) { return a == b; }
-static inline real nile_Real_neq (real a, real b) { return a != b; }
-static inline real nile_Real_lt  (real a, real b) { return a < b; }
-static inline real nile_Real_gt  (real a, real b) { return a > b; }
-static inline real nile_Real_leq (real a, real b) { return a <= b; }
-static inline real nile_Real_geq (real a, real b) { return a >= b; }
-static inline real nile_Real_or  (real a, real b) { return a || b; }
-static inline real nile_Real_and (real a, real b) { return a && b; }
+static inline real  nile_Real     (float f)        { real r = {f}; return r;        }
+static inline int   nile_Real_nz  (real a)         { return  a.f != 0;              }
+static inline int   nile_Real_toi (real a)         { return (int) a.f;              }
+static inline float nile_Real_tof (real a)         { return       a.f;              }
+static inline real  nile_Real_neg (real a)         { return nile_Real (-a.f);       }
+static inline real  nile_Real_sqr (real a)         { return nile_Real (sqrtf(a.f)); }
+static inline real  nile_Real_add (real a, real b) { return nile_Real (a.f +  b.f); }
+static inline real  nile_Real_sub (real a, real b) { return nile_Real (a.f -  b.f); }
+static inline real  nile_Real_mul (real a, real b) { return nile_Real (a.f *  b.f); }
+static inline real  nile_Real_div (real a, real b) { return nile_Real (a.f /  b.f); }
+static inline real  nile_Real_eq  (real a, real b) { return nile_Real (a.f == b.f); }
+static inline real  nile_Real_neq (real a, real b) { return nile_Real (a.f != b.f); }
+static inline real  nile_Real_lt  (real a, real b) { return nile_Real (a.f <  b.f); }
+static inline real  nile_Real_gt  (real a, real b) { return nile_Real (a.f >  b.f); }
+static inline real  nile_Real_leq (real a, real b) { return nile_Real (a.f <= b.f); }
+static inline real  nile_Real_geq (real a, real b) { return nile_Real (a.f >= b.f); }
+static inline real  nile_Real_or  (real a, real b) { return nile_Real (a.f || b.f); }
+static inline real  nile_Real_and (real a, real b) { return nile_Real (a.f && b.f); }
+static inline real  nile_Real_flr (real a)         { real b = nile_Real ((int)a.f);
+                                                     return nile_Real
+                                                       (b.f > a.f ? b.f - 1 : b.f); }
+static inline real  nile_Real_clg (real a)         { real b = nile_Real ((int)a.f);
+                                                     return nile_Real
+                                                       (b.f < a.f ? b.f + 1 : b.f); }
 
 /* Process */
 

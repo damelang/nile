@@ -321,7 +321,7 @@ nile_free (nile_t *nl)
 /* External stream data */
 
 void
-nile_feed (nile_Process_t *p, nile_Real_t *data, int quantum, int n, int eos)
+nile_feed (nile_Process_t *p, float *data, int quantum, int n, int eos)
 {
     nile_t *nl = p->nl;
     nile_Buffer_t *in;
@@ -343,7 +343,7 @@ nile_feed (nile_Process_t *p, nile_Real_t *data, int quantum, int n, int eos)
     in = nile_Buffer_new (nl);
     while (i < n) {
         while (i < n && in->n < m)
-            in->data[in->n++] = data[i++];
+            in->data[in->n++] = nile_Real (data[i++]);
         if (i < n) {
             nile_Process_inbox_append (p, in);
             in = nile_Buffer_new (nl);
@@ -636,7 +636,7 @@ nile_Pipeline (nile_t *nl, ...)
 
 typedef struct {
     nile_Process_t base;
-    nile_Real_t *sink;
+    float *sink;
     int size;
     int *n;
 } nile_Capture_t;
@@ -648,9 +648,9 @@ nile_Capture_work (nile_Process_t *p_, nile_Buffer_t **in_, nile_Buffer_t **out_
     nile_Buffer_t *in = *in_;
 
     while (in->i < in->n) {
-        nile_Real_t r = nile_Buffer_shift (in);
+        real r = nile_Buffer_shift (in);
         if (*p->n < p->size)
-            p->sink[*p->n] = r;
+            p->sink[*p->n] = nile_Real_tof (r);
         (*p->n)++;
     }
 
@@ -658,7 +658,7 @@ nile_Capture_work (nile_Process_t *p_, nile_Buffer_t **in_, nile_Buffer_t **out_
 }
 
 nile_Process_t *
-nile_Capture (nile_t *nl, nile_Real_t *sink, int size, int *n)
+nile_Capture (nile_t *nl, float *sink, int size, int *n)
 {
     nile_Capture_t *p = (nile_Capture_t *)
         nile_Process_new (nl, nile_Capture_work);
@@ -910,7 +910,8 @@ nile_SortBy_work (nile_Process_t *p_, nile_Buffer_t **in_, nile_Buffer_t **out_)
         real key = in->data[in->i + p->index];
 
         /* find the right buffer */
-        while (out->next != NULL && key >= out->next->data[p->index])
+        while (out->next != NULL &&
+               nile_Real_nz (nile_Real_geq (key, out->next->data[p->index])))
             out = out->next;
 
         /* split the buffer if it's full */
@@ -926,13 +927,13 @@ nile_SortBy_work (nile_Process_t *p_, nile_Buffer_t **in_, nile_Buffer_t **out_)
                 next->data[next->n++] = out->data[j++];
             out->n -= next->n;
 
-            if (key >= next->data[p->index])
+            if (nile_Real_nz (nile_Real_geq (key, next->data[p->index])))
                 out = next;
         }
 
         /* insert new element */
         int j = out->n - p->quantum;
-        while (j >= 0 && key < out->data[j + p->index]) {
+        while (j >= 0 && nile_Real_nz (nile_Real_lt (key, out->data[j + p->index]))) {
             int jj = j + p->quantum;
             int q = p->quantum;
             while (q--)
