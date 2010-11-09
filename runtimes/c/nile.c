@@ -397,8 +397,8 @@ nile_Buffer_new (nile_t *nl)
 void
 nile_Buffer_free (nile_Buffer_t *b)
 {
-    nile_t *nl = b->nl;
     if (b) {
+        nile_t *nl = b->nl;
         nile_Buffer_t *next = b->next;
         nile_lock (&nl->freelist_lock);
             b->next = nl->freelist;
