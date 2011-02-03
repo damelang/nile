@@ -1,0 +1,9 @@
+CFLAGS := -pipe -Wall -Werror -m64 -march=nocona -msse2 -mfpmath=sse -ffast-math -O3 #-g #-DNILE_DISABLE_THREADS -Wno-unused
+
+libnile.a: nile.o
+	ar rcs $@ nile.o
+
+nile.o: *.h
+
+clean:
+	$(RM) *.o *.a *.gch

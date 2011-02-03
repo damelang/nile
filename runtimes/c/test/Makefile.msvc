@@ -1,0 +1,12 @@
+CFLAGS = /MT /nologo /W3 /wd4244 /fp:fast /O2 /arch:SSE2 /EHsc /I.. ..\libnile.lib #/Zi
+
+default: 1-test
+
+1-test: 1-test.c
+	cl $(CFLAGS) 1-test.c
+
+3-test: 3-test.c
+	cl $(CFLAGS) 3-test.c
+
+clean:
+	del *-test
