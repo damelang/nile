@@ -1,4 +1,4 @@
-CFLAGS :=  -I.. -pipe -Wall -Werror -m64 -march=nocona -msse2 -mfpmath=sse -ffast-math -O3 #-g
+CFLAGS  := -I.. -pipe -Wall -Werror -m64 -march=nocona -msse2 -mfpmath=sse -ffast-math -O3 #-g
 LDFLAGS := -L.. -lnile -lpthread
 
 %-test: %-test.c

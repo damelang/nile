@@ -1,7 +1,7 @@
-CFLAGS := -pipe -Wall -Werror -m64 -march=nocona -msse2 -mfpmath=sse -ffast-math -O3 #-g #-DNILE_DISABLE_THREADS -Wno-unused
+CFLAGS := -pipe -Wall -Werror -march=nocona -msse2 -mfpmath=sse -ffast-math -O3 #-g #-DNILE_DISABLE_THREADS -Wno-unused -m64
 
 libnile.a: nile.o
-	ar rcs $@ nile.o
+	ar rcs $@ $^
 
 nile.o: *.h
 
