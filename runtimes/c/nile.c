@@ -819,9 +819,9 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
         return;
     liaison = p->thread;
     init = *(nile_Process_t **) nile_Process_vars (p);
-    p->heap = init->heap;
     if (liaison->q.n > 4 * liaison->nthreads)
-        p->heap = nile_Thread_work_until_below (liaison, p->heap, &liaison->q.n, 2 * liaison->nthreads);
+        init->heap = nile_Thread_work_until_below (liaison, init->heap, &liaison->q.n, 2 * liaison->nthreads);
+    p->heap = init->heap;
     out = nile_Process_append_output (p, &b);
     i = 0;
     m = (out->capacity / p->quantum) * p->quantum;
@@ -876,16 +876,16 @@ typedef struct {
 } nile_SortBy_vars_t;
 
 nile_Buffer_t *
-nile_SortBy_prologue (nile_Process_t *p, nile_Buffer_t *unused)
+nile_SortBy_prologue (nile_Process_t *p, nile_Buffer_t *out)
 {
     nile_SortBy_vars_t *vars = nile_Process_vars (p); 
     vars->bs = nile_Buffer (nile_Process_alloc_block (p));
     vars->n = 1;
     if (!vars->bs)
-        unused->tag = NILE_TAG_OOM;
+        out->tag = NILE_TAG_OOM;
     else
         BUFFER_TO_NODE (vars->bs)->next = NULL;
-    return unused;
+    return out;
 }
 
 nile_Buffer_t *
@@ -975,4 +975,13 @@ nile_SortBy (nile_Process_t *p, int quantum, int index)
         vars->index = index;
     }
     return p;
+}
+
+nile_Process_t *
+nile_DupZip (nile_Process_t *p,
+             nile_Process_t *p1, int quantum1,
+             nile_Process_t *p2, int quantum2)
+{
+    // TODO
+    return nile_Identity (p, 1);
 }
