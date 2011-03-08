@@ -626,7 +626,7 @@ nile_Process_out_of_input (nile_Process_t *p, nile_Buffer_t *out)
             if (!out)
                 return nile_Process_finish_swap (p);
             if (out->tag == NILE_TAG_OOM)
-                return 0;
+                return NULL;
             nile_Process_enqueue_output (p, out);
         }
         return nile_Process_remove (p, p->thread, p->heap);
