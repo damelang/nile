@@ -366,7 +366,8 @@ nile_Process (nile_Process_t *p, int quantum, int sizeof_vars,
         q->body = body ? body : nile_Process_default_body;
         q->epilogue = epilogue;
         q->state = NILE_BLOCKED_ON_PRODUCER;
-        q->producer = q->consumer = q->gatee = NULL;
+        q->producer = q;
+        q->consumer = q->gatee = NULL;
     }
     return q;
 }
