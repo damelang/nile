@@ -850,13 +850,15 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
     if (!EOS)
         return;
     consumer = p->consumer;
-    nile_Process_free_block (init, p);
-    if (!consumer)
+    if (!consumer) {
+        nile_Process_free_block (init, p);
         return;
+    }
     nile_Lock_acq (&consumer->lock);
-        consumer->producer = 0;
+        consumer->producer = NULL;
         cstate = consumer->state;
     nile_Lock_rel (&consumer->lock);
+    nile_Process_free_block (init, p);
     if (cstate == NILE_SWAPPED)
         init->heap = nile_Process_remove (consumer, liaison, init->heap);
     else if (cstate == NILE_BLOCKED_ON_PRODUCER) {
