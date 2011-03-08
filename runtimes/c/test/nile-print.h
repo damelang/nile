@@ -9,7 +9,7 @@ nile_PrintToFile_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
 {
     FILE *f = *(FILE **) nile_Process_vars (p);
     while (!nile_Buffer_is_empty (in))
-        fprintf (f, "%.2f ", nile_Real_tof (nile_Buffer_pop_head (in)));
+        fprintf (f, "%.2f\n", nile_Real_tof (nile_Buffer_pop_head (in)));
     return out;
 }
 
