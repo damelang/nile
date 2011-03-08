@@ -267,7 +267,7 @@ nile_Thread_work_until_below (nile_Thread_t *liaison, nile_Heap_t h, int *var, i
        if ((p = nile_Thread_steal (worker, nile_Thread_steal_from_q)))
             h = nile_Thread_work (worker, p, h);
        else
-           nile_Sleep_doze (10000); 
+           nile_Sleep_doze (1000);
 
     nile_Lock_acq (&worker->lock);
         liaison->heap = worker->heap;
