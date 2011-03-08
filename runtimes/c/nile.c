@@ -455,21 +455,23 @@ nile_Process_remove (nile_Process_t *p, nile_Thread_t *thread, nile_Heap_t heap)
             nile_Process_free_block (p, nile_Deque_pop_head (&input));
         heap = p->heap;
     }
-    if (nile_Heap_push (&heap, p))
-        nile_Thread_free_chunk (thread, nile_Heap_pop_chunk (&heap));
-    if (producer) {
+    if (producer)
         producer->consumer = consumer;
-        if (producer->state == NILE_BLOCKED_ON_CONSUMER && !consumer)
+    if (!consumer) {
+        if (nile_Heap_push (&heap, p))
+            nile_Thread_free_chunk (thread, nile_Heap_pop_chunk (&heap));
+        if (producer && producer->state == NILE_BLOCKED_ON_CONSUMER)
             return nile_Process_run (producer, thread, heap);
-    }
-    if (!consumer)
         return heap;
+    }
     nile_Lock_acq (&consumer->lock);
         consumer->producer = producer;
         while (input.n)
             nile_Deque_push_tail (&consumer->input, nile_Deque_pop_head (&input));
         cstate = consumer->state;
     nile_Lock_rel (&consumer->lock);
+    if (nile_Heap_push (&heap, p))
+        nile_Thread_free_chunk (thread, nile_Heap_pop_chunk (&heap));
     if (cstate == NILE_SWAPPED)
         return nile_Process_remove (consumer, thread, heap);
     if (cstate == NILE_BLOCKED_ON_PRODUCER &&
