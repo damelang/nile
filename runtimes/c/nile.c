@@ -557,14 +557,14 @@ static nile_Heap_t
 nile_Process_finish_swap (nile_Process_t *p)
 {
     nile_Heap_t heap = p->heap;
-    int pstate = NILE_BLOCKED_ON_CONSUMER;
+    int pstate = -1;
 
     nile_Lock_acq (&p->lock);
         pstate = p->producer ? p->producer->state : pstate;
         p->state = NILE_SWAPPED;
     nile_Lock_rel (&p->lock);
 
-    if (pstate == NILE_BLOCKED_ON_CONSUMER)
+    if (pstate == -1 || pstate == NILE_BLOCKED_ON_CONSUMER)
         return nile_Process_remove (p, p->thread, p->heap);
     return heap;
 }
