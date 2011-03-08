@@ -1,9 +1,9 @@
 #ifndef NILE_DEQUE_H
 #define NILE_DEQUE_H
 
-typedef struct nile_Node_ {
+typedef ALIGNED (SIMD_SIZE) struct nile_Node_ {
     struct nile_Node_ *next;
-} nile_Node_t;
+} ALIGNED (SIMD_SIZE) nile_Node_t;
 
 typedef struct {
     nile_Node_t *head;

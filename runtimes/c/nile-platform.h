@@ -2,6 +2,7 @@
 #define NILE_PLATFORM_H
 
 #define CACHE_LINE_SIZE 64
+#define SIMD_SIZE 16
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
