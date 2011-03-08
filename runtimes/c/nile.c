@@ -330,7 +330,7 @@ nile_Process_alloc_block (nile_Process_t *p)
         return v;
     c = nile_Thread_alloc_chunk (p->thread);
     if (!c)
-        return c;
+        return NULL;
     nile_Heap_push_chunk (&p->heap, c);
     return nile_Heap_pop (&p->heap);
 }
