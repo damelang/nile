@@ -22,6 +22,9 @@ nile_Process_t *
 nile_Process_pipe (nile_Process_t *p1, ...);
 
 nile_Process_t *
+nile_Process_pipe_v (nile_Process_t **ps, int n);
+
+nile_Process_t *
 nile_Process_gate (nile_Process_t *gater, nile_Process_t *gatee);
 
 /* Built-in processes */
