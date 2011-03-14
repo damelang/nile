@@ -419,13 +419,17 @@ nile_Process_ungate (nile_Process_t *gatee, nile_Thread_t *thread)
 nile_Process_t *
 nile_Process_pipe_v (nile_Process_t **ps, int n)
 {
-    int i;
+    int j;
     nile_Process_t *pi, *pj;
     if (!n)
         return NILE_NULL;
     pi = ps[0];
-    for (i = 1; i < n; i++) {
-        pj = ps[i];
+    if (!pi)
+        return NILE_NULL;
+    for (j = 1; j < n; j++) {
+        pj = ps[j];
+        if (!pj)
+            return NILE_NULL;
         pi->consumer = pj;
         pj->producer = pi;
         while (pj->consumer)
