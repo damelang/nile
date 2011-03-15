@@ -1,6 +1,8 @@
 #ifndef NILE_H
 #define NILE_H
 
+#include <stdio.h>
+
 /* Runtime maintenance */
 
 typedef struct nile_Process_ nile_Process_t;
@@ -10,6 +12,9 @@ nile_startup (char *memory, int nbytes, int nthreads);
 
 int
 nile_sync (nile_Process_t *init);
+
+void
+nile_print_leaks (nile_Process_t *init, FILE *f);
 
 char *
 nile_shutdown (nile_Process_t *init);

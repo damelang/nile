@@ -108,6 +108,7 @@ CACHE_ALIGNED struct nile_Thread_ {
     int              sync;
     int              abort;
     nile_OSThread_t  osthread;
+    int              nbytes;
 } CACHE_ALIGNED;
 
 static void
@@ -282,12 +283,15 @@ nile_Thread_work_until_below (nile_Thread_t *liaison, nile_Heap_t h, int *var, i
 #define BUFFER_TO_NODE(b) (((nile_Node_t   *)  b) - 1)
 #define NODE_TO_BUFFER(n) ( (nile_Buffer_t *) (n + 1))
 
+const static char *BUFFER = "BUFFER";
+
 INLINE nile_Buffer_t *
 nile_Buffer (nile_Node_t *nd)
 {
     nile_Buffer_t *b = NODE_TO_BUFFER (nd);
     if (!nd)
         return NULL;
+    nd->type = BUFFER;
     b->head = b->tail = b->tag = 0;
     b->capacity = (sizeof (nile_Block_t) - sizeof (*nd) - sizeof (*b)) / sizeof (Real) + 1;
     return b;
@@ -346,6 +350,8 @@ static nile_Buffer_t *
 nile_Process_default_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
     { return nile_Process_swap (p, 0, out); }
 
+static const char *PROCESS = "PROCESS";
+
 nile_Process_t *
 nile_Process (nile_Process_t *p, int quantum, int sizeof_vars,
               nile_Process_logue_t prologue,
@@ -354,6 +360,7 @@ nile_Process (nile_Process_t *p, int quantum, int sizeof_vars,
 {
     nile_Process_t *q = nile_Process_alloc_block (p);
     if (q) {
+        q->node.type = PROCESS;
         q->node.next = NULL;
         q->thread = p->thread;
         q->lock = 0;
@@ -758,10 +765,25 @@ nile_startup (char *memory, int nbytes, int nthreads)
 
     boot.heap = NULL;
     boot.thread = &threads[nthreads];
+    boot.thread->nbytes = nbytes;
     init = nile_Process (&boot, 0, 0, 0, 0, 0);
     if (init)
         init->heap = boot.heap;
     return init;
+}
+
+void
+nile_print_leaks (nile_Process_t *init, FILE *f)
+{
+    nile_Thread_t *t = init->thread;
+    nile_Block_t *block = (nile_Block_t *) (t->threads + t->nthreads + 1);
+    nile_Block_t *EOB   = (nile_Block_t *) (t->memory + t->nbytes - sizeof (*block) + 1);
+    while (block < EOB) {
+        nile_Node_t *nd = (nile_Node_t *) block;
+        if ((nd->type == BUFFER || nd->type == PROCESS) && nd != &init->node)
+            fprintf (f, "LEAKED: %s (%p)\n", nd->type, nd);
+        block++;
+    }
 }
 
 int
