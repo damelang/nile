@@ -1,28 +1,38 @@
-- finish Tap
+- random jump address (probably from corrupt process block) does this only
+  happen when we've run out of memory? (in which case maybe I'm not checking
+  for NULL somewhere?)
+- do we need to set the 'tail' in the consumer's inbox in SortBy_epilogue?
+- SortBy epilogue has a needless check for v.n == 0
 - DupZip
+    - allow for NULL process args (to avoid having to passing Identity)
+- finish Tap
 - figure out a replacement for how I did pen stroking before
+- funnel shouldn't need to take quantum, it should just look downstream
 
 - optimizations
+      - why is sortby so slow? where is the hot spot? Is the .data array
+        approach complicating things?
+    - in SortBy, perform the shifting in a single pass rather than
+      one at a time (in the insertion sort)
     - only lock when needed. Do a simple check before locking.
     - prefetch
-    - data parallel
+    - data parallel cloning
     - (for multiprocessors) use thread affinity. visit other threads
       in local processor, then check shared q, then the rest of the threads.
     - The Zip part of DupZip could be faster if we had specialized
       versions for each quantum (eliminating the inner loop, so the compiler
       can unroll)
     - make prefix_input split the buffer
-    - make SortBy use (a) jump pointer(s) to move around faster
-
-- ideas
+    - make SortBy use (a) jump pointer(s) to move around faster during
+      the first phase of the search
     - we may have too much stealing.
       should we look in the shared q first instead of our peer qs (like
       traditional work stealing)?
       or perhaps only steal from peer if peer's q has more than one process
       in it? (but what about future data parallel plans?)
-    - for very light workloads
+    - for very light workloads:
         - maybe the threads are just ping-ponging cache lines?
-        - might we be losing time on just moving things between the two threads
+        - might we be losing time on just moving chunks between the two threads
           heaps?
         - everything takes longer because we're not working in the L1 cache very well?
         - if we spend a large part of our time issuing atomic instructions,
@@ -30,8 +40,8 @@
           since it just makes the atomic instructions take longer? do we
           spend more time contending for locks? do we issue more atomic
           instructions per pipeline when there is more than one thread?
-          might the hardware optimize atomic instructions if there is only
-          one thread in the address space (unlikely)?
+          might the hardware optimize atomic instructions/reads/writes if there is only
+          one thread in the address space?
         - skinny benchmarks may also be affected by the spin locks,
             because _remove and _enqueue show up high on the profile,
             yet they don't do much
@@ -41,8 +51,6 @@
           single thread version? This makes no sense
         - long pipelines with little workload can't get past speedup of 1.8 (for
           two threads), why?
-        - would it be cleaner if we had an loop "allowance" to keep processes from
-          running too long w/out checking in with the outer loop?
 
 - tests
     - time threads disabled vs. 1 thread
@@ -68,17 +76,21 @@
     - input quota
     - input quota max
     - input quota max for leading process
-    - shared q quota
+    - shared q quota (max/min)
     - exponential backoff in Thread_main
 
 - what about unused process references (which means they won't be freed).
   process body might contain a swap that uses parameters, but
-  we never reach the swap!, also the epilogue. Should be generate an epilogue
+  we never reach the swap!, also the epilogue. Should we generate an epilogue
   that frees the references? We don't reach (invisible bottom of) the epilogue
   if the swap is successful....What about different branches in the body
-  that use different arguments?
+  that use different process arguments (of type process)?
+
+- would it be cleaner if we had a loop "allowance" to keep processes from
+  running too long w/out checking in with the outer loop?
 
 - naming
+    - I still don't like the term "process"
     - swap/swapped is a poor choice because of what a swapped out process means
       in OS land
     - _enqueue_output and _append_output are have names that are too similar
@@ -97,7 +109,7 @@
             - replace(ment)
             - swap (switch)
             - input forwarding
-            - similar to tail call (elimination/optimization)
+            - similar to tail call (elimination)
     - reached/hit/within/met/at limit/quota
 
 - we can calculate approx. how many blocks we'll need (discounting
