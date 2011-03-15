@@ -643,9 +643,10 @@ nile_Process_out_of_input (nile_Process_t *p, nile_Buffer_t *out)
         return nile_Process_run (p, p->thread, p->heap);
     if (pstate == -1) {
         if (p->epilogue) {
-            nile_Buffer_t b;
-            b.tag = NILE_TAG_OOM;
-            out = p->epilogue (p, nile_Process_append_output (p, &b));
+            out = nile_Buffer (nile_Process_alloc_block (p));
+            if (!out)
+                return NULL;
+            out = p->epilogue (p, out);
             if (!out)
                 return nile_Process_finish_swap (p);
             if (out->tag == NILE_TAG_OOM)
