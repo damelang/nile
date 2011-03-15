@@ -704,7 +704,7 @@ nile_Process_run (nile_Process_t *p, nile_Thread_t *thread, nile_Heap_t heap)
 
     head = p->input.head;
     while (head) {
-        if (nile_Buffer_quota_hit (out))
+        if (out->tag == NILE_TAG_QUOTA_HIT)
             return nile_Process_backpressure (p, out);
         out = p->body (p, NODE_TO_BUFFER (head), out);
         if (!out)
