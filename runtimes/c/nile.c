@@ -690,11 +690,15 @@ nile_Process_run (nile_Process_t *p, nile_Thread_t *thread, nile_Heap_t heap)
     p->state = NILE_RUNNING;
     b.tag = NILE_TAG_OOM;
     out = nile_Process_append_output (p, &b);
+    if (out->tag == NILE_TAG_OOM)
+        return NULL;
 
     if (p->prologue) {
         out = p->prologue (p, out);
         if (!out)
             return nile_Process_finish_swap (p);
+        if (out->tag == NILE_TAG_OOM)
+            return NULL;
         p->prologue = NULL;
     }
 
