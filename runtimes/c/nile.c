@@ -279,12 +279,16 @@ nile_Thread_work_until_below (nile_Thread_t *liaison, nile_Heap_t h, int *var, i
 
 /* Stream buffers */
 
+static void *
+nile_Process_alloc_block (nile_Process_t *p);
+
 #define BUFFER_TO_NODE(b) (((nile_Node_t   *)  b) - 1)
 #define NODE_TO_BUFFER(n) ( (nile_Buffer_t *) (n + 1))
 
 INLINE nile_Buffer_t *
-nile_Buffer (nile_Node_t *nd)
+nile_Buffer (nile_Process_t *p)
 {
+    nile_Node_t *nd = nile_Process_alloc_block (p);
     nile_Buffer_t *b = NODE_TO_BUFFER (nd);
     if (!nd)
         return NULL;
@@ -520,7 +524,7 @@ nile_Process_enqueue_output (nile_Process_t *producer, nile_Buffer_t *out)
 nile_Buffer_t *
 nile_Process_append_output (nile_Process_t *producer, nile_Buffer_t *out)
 {
-    nile_Buffer_t *b = nile_Buffer (nile_Process_alloc_block (producer));
+    nile_Buffer_t *b = nile_Buffer (producer);
     if (!b) {
         out->tag = NILE_TAG_OOM;
         out->head = out->tail = 0;
@@ -541,7 +545,7 @@ nile_Process_append_output (nile_Process_t *producer, nile_Buffer_t *out)
 nile_Buffer_t *
 nile_Process_prefix_input (nile_Process_t *producer, nile_Buffer_t *in)
 {
-    nile_Buffer_t *b = nile_Buffer (nile_Process_alloc_block (producer));
+    nile_Buffer_t *b = nile_Buffer (producer);
     if (b) {
         nile_Lock_acq (&producer->lock);
             nile_Deque_push_head (&producer->input, BUFFER_TO_NODE (b));
@@ -643,7 +647,7 @@ nile_Process_out_of_input (nile_Process_t *p, nile_Buffer_t *out)
         return nile_Process_run (p, p->thread, p->heap);
     if (pstate == -1) {
         if (p->epilogue) {
-            out = nile_Buffer (nile_Process_alloc_block (p));
+            out = nile_Buffer (p);
             if (!out)
                 return NULL;
             out = p->epilogue (p, out);
@@ -906,7 +910,7 @@ nile_Buffer_t *
 nile_SortBy_prologue (nile_Process_t *p, nile_Buffer_t *out)
 {
     nile_SortBy_vars_t *vars = (nile_SortBy_vars_t *) nile_Process_vars (p);
-    nile_Buffer_t *b = nile_Buffer (nile_Process_alloc_block (p));
+    nile_Buffer_t *b = nile_Buffer (p);
     if (b) {
         vars->output.n = 0;
         vars->output.head = vars->output.tail = NULL;
@@ -938,7 +942,7 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
         /* split the buffer if it's full */
         b = NODE_TO_BUFFER (nd);
         if (b->tail > b->capacity - quantum) {
-            nile_Buffer_t *b2 = nile_Buffer (nile_Process_alloc_block (p));
+            nile_Buffer_t *b2 = nile_Buffer (p);
             nile_Node_t *nd2 = BUFFER_TO_NODE (b2);
             if (!b2) {
                 unused->tag = NILE_TAG_OOM;

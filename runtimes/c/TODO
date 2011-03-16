@@ -1,4 +1,3 @@
-- change nile_Buffer to take a process instead of a node
 - random jump address (probably from corrupt process block) does this only
   happen when we've run out of memory? (in which case maybe I'm not checking
   for NULL somewhere?)
