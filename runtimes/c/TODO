@@ -1,8 +1,7 @@
+- change nile_Buffer to take a process instead of a node
 - random jump address (probably from corrupt process block) does this only
   happen when we've run out of memory? (in which case maybe I'm not checking
   for NULL somewhere?)
-- do we need to set the 'tail' in the consumer's inbox in SortBy_epilogue?
-- SortBy epilogue has a needless check for v.n == 0
 - DupZip
     - allow for NULL process args (to avoid having to passing Identity)
 - finish Tap

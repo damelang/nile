@@ -898,21 +898,22 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
 /* SortBy process */
 
 typedef struct {
-    int            index;
-    nile_Buffer_t *bs;
-    int            n;
+    int          index;
+    nile_Deque_t output;
 } nile_SortBy_vars_t;
 
 nile_Buffer_t *
 nile_SortBy_prologue (nile_Process_t *p, nile_Buffer_t *out)
 {
-    nile_SortBy_vars_t *vars = nile_Process_vars (p); 
-    vars->bs = nile_Buffer (nile_Process_alloc_block (p));
-    vars->n = 1;
-    if (!vars->bs)
-        out->tag = NILE_TAG_OOM;
+    nile_SortBy_vars_t *vars = (nile_SortBy_vars_t *) nile_Process_vars (p);
+    nile_Buffer_t *b = nile_Buffer (nile_Process_alloc_block (p));
+    if (b) {
+        vars->output.n = 0;
+        vars->output.head = vars->output.tail = NULL;
+        nile_Deque_push_head (&vars->output, BUFFER_TO_NODE (b));
+    }
     else
-        BUFFER_TO_NODE (vars->bs)->next = NULL;
+        out->tag = NILE_TAG_OOM;
     return out;
 }
 
@@ -926,7 +927,7 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
     while (!nile_Buffer_is_empty (in)) {
         int q, j;
         nile_Buffer_t *b;
-        nile_Node_t *nd = BUFFER_TO_NODE (v.bs);
+        nile_Node_t *nd = v.output.head;
         Real key = BAT (in, in->head + v.index);
 
         /* find the right buffer */
@@ -938,16 +939,19 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
         b = NODE_TO_BUFFER (nd);
         if (b->tail > b->capacity - quantum) {
             nile_Buffer_t *b2 = nile_Buffer (nile_Process_alloc_block (p));
+            nile_Node_t *nd2 = BUFFER_TO_NODE (b2);
             if (!b2) {
                 unused->tag = NILE_TAG_OOM;
                 return unused;
             }
-            BUFFER_TO_NODE (b2)->next = nd->next;
-            nd->next = BUFFER_TO_NODE (b2);
-            v.n++;
+            nd2->next = nd->next;
+            nd->next = nd2;
+            if (!nd2->next)
+                v.output.tail = nd2;
+            v.output.n++;
             j = b->tail / quantum / 2 * quantum;
             while (j < b->tail)
-                BAT (b2, b2->tail++) = BAT (b, j++);
+                nile_Buffer_push_tail (b2, BAT (b, j++));
             b->tail -= b2->tail;
             if (nile_Real_nz (nile_Real_geq (key, BAT (b2, v.index))))
                 b = b2;
@@ -966,7 +970,7 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
         j += quantum;
         q = quantum;
         while (q--)
-            BAT (b, j++) = BAT (in, in->head++);
+            BAT (b, j++) = nile_Buffer_pop_head (in);
         b->tail += quantum;
     }
 
@@ -978,14 +982,11 @@ nile_Buffer_t *
 nile_SortBy_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
 {
     nile_SortBy_vars_t v = *(nile_SortBy_vars_t *) nile_Process_vars (p);
-    nile_Node_t *head = v.n ? BUFFER_TO_NODE (v.bs) : NULL;
-    if (p->consumer) {
-        p->consumer->input.head = head;
-        p->consumer->input.n = v.n;
-    }
+    if (p->consumer && !nile_Buffer_is_empty (NODE_TO_BUFFER (v.output.head)))
+        p->consumer->input = v.output;
     else {
-        nile_Node_t *next;
-        for (; head; head = next) {
+        nile_Node_t *head, *next;
+        for (head = v.output.head; head; head = next) {
             next = head->next;
             nile_Process_free_block (p, head);
         }
