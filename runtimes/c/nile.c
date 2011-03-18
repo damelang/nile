@@ -549,8 +549,7 @@ nile_Process_append_output (nile_Process_t *producer, nile_Buffer_t *out)
         out->head = out->tail = 0;
         return out;
     }
-    if (out->tag != NILE_TAG_OOM)
-        nile_Process_enqueue_output (producer, out);
+    nile_Process_enqueue_output (producer, out);
     if (producer->consumer) {
         int n = producer->consumer->input.n;
         int cstate = producer->consumer->state;
@@ -707,14 +706,12 @@ nile_Process_run (nile_Process_t *p, nile_Thread_t *thread, nile_Heap_t heap)
 {
     nile_Node_t *head;
     nile_Buffer_t *out;
-    nile_Buffer_t b;
 
     p->thread = thread;
     p->heap = heap;
     p->state = NILE_RUNNING;
-    b.tag = NILE_TAG_OOM;
-    out = nile_Process_append_output (p, &b);
-    if (out->tag == NILE_TAG_OOM)
+    out = nile_Buffer (p);
+    if (!out)
         return NULL;
 
     if (p->prologue) {
@@ -865,8 +862,6 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
     nile_Process_t *init, *consumer;
     nile_Thread_t *liaison;
     nile_Buffer_t *out;
-    nile_Buffer_t b;
-    b.tag = NILE_TAG_OOM;
     if (!p)
         return;
     liaison = p->thread;
@@ -874,7 +869,9 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
     if (liaison->q.n > 4 * liaison->nthreads)
         init->heap = nile_Thread_work_until_below (liaison, init->heap, &liaison->q.n, 2 * liaison->nthreads);
     p->heap = init->heap;
-    out = nile_Process_append_output (p, &b);
+    out = nile_Buffer (p);
+    if (!out)
+        return;
     i = 0;
     m = (out->capacity / p->quantum) * p->quantum;
     for (;;) {
