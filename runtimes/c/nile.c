@@ -845,9 +845,9 @@ nile_Identity (nile_Process_t *p, int quantum)
 /* Funnel process */
 
 nile_Process_t *
-nile_Funnel (nile_Process_t *init, int quantum)
+nile_Funnel (nile_Process_t *init)
 {
-    nile_Process_t *p = nile_Process (init, quantum, 0, NULL, NULL, NULL);
+    nile_Process_t *p = nile_Process (init, 1, 0, NULL, NULL, NULL);
     if (p) {
         nile_Process_t **init_ = nile_Process_vars (p);
         *init_ = init;
@@ -858,7 +858,7 @@ nile_Funnel (nile_Process_t *init, int quantum)
 void
 nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
 {
-    int i, m, q, cstate;
+    int i, m, q, quantum, cstate;
     nile_Process_t *init, *consumer;
     nile_Thread_t *liaison;
     nile_Buffer_t *out;
@@ -873,7 +873,8 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
     if (!out)
         return;
     i = 0;
-    m = (out->capacity / p->quantum) * p->quantum;
+    quantum = p->consumer ? p->consumer->quantum : 1;
+    m = (out->capacity / quantum) * quantum;
     for (;;) {
         q = (m < n - i) ? m : n - i;
         while (q--)
