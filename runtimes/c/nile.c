@@ -807,7 +807,7 @@ nile_sync (nile_Process_t *init)
 
     while (!worker->abort &&
            (p = nile_Thread_steal (worker, nile_Thread_steal_from_q)))
-            init->heap = nile_Thread_work (worker, p, init->heap);
+        init->heap = nile_Thread_work (worker, p, init->heap);
 
     nile_Lock_acq (&worker->lock);
         liaison->heap = worker->heap;
