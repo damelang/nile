@@ -875,6 +875,12 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
     i = 0;
     m = (out->capacity / p->quantum) * p->quantum;
     for (;;) {
+        q = (m < n - i) ? m : n - i;
+        while (q--)
+            nile_Buffer_push_tail (out, nile_Real (data[i++]));
+        if (i == n || !p->consumer)
+            break;
+        out = nile_Process_append_output (p, out);
         if (out->tag == NILE_TAG_OOM)
             return;
         if (out->tag == NILE_TAG_QUOTA_HIT) {
@@ -887,12 +893,6 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
             else if (p->consumer->input.n > 4 * INPUT_QUOTA)
                 p->heap = nile_Thread_work_until_below (liaison, p->heap, &p->consumer->input.n, 4 * INPUT_QUOTA);
         }
-        q = (m < n - i) ? m : n - i;
-        while (q--)
-            nile_Buffer_push_tail (out, nile_Real (data[i++]));
-        if (i == n || !p->consumer)
-            break;
-        out = nile_Process_append_output (p, out);
     }
     nile_Process_enqueue_output (p, out);
     init->heap = p->heap;
