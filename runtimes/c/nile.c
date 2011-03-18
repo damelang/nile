@@ -553,8 +553,8 @@ nile_Process_append_output (nile_Process_t *producer, nile_Buffer_t *out)
     if (producer->consumer) {
         int n = producer->consumer->input.n;
         int cstate = producer->consumer->state;
-        if ((n >= INPUT_QUOTA - 1 && cstate == NILE_BLOCKED_ON_PRODUCER) ||
-            n > 2 * INPUT_QUOTA)
+        int blocked_on_us = (cstate == NILE_BLOCKED_ON_PRODUCER || cstate == NILE_SWAPPED);
+        if ((n >= INPUT_QUOTA - 1 && blocked_on_us) || n > 2 * INPUT_QUOTA)
             b->tag = NILE_TAG_QUOTA_HIT;
     }
     return b;
