@@ -308,6 +308,8 @@ typedef enum {
     NILE_SWAPPED
 } nile_ProcessState_t;
 
+typedef nile_Heap_t (*nile_Process_jump_t) (nile_Process_t *p);
+
 struct nile_Process_ {
     nile_Node_t           node;
     nile_Thread_t        *thread;
@@ -319,6 +321,7 @@ struct nile_Process_ {
     nile_Process_logue_t  prologue;
     nile_Process_body_t   body;
     nile_Process_logue_t  epilogue;
+    nile_Process_jump_t   jumpout;
     nile_ProcessState_t   state;
     nile_Process_t       *producer;
     nile_Process_t       *consumer;
@@ -369,6 +372,7 @@ nile_Process (nile_Process_t *p, int quantum, int sizeof_vars,
         q->prologue = prologue;
         q->body = body ? body : nile_Process_default_body;
         q->epilogue = epilogue;
+        q->jumpout = NULL;
         q->state = NILE_BLOCKED_ON_PRODUCER;
         q->producer = q;
         q->consumer = q->gatee = NULL;
@@ -571,6 +575,22 @@ nile_Process_prefix_input (nile_Process_t *producer, nile_Buffer_t *in)
     return b;
 }
 
+static nile_Heap_t
+nile_Process_finish_swap (nile_Process_t *p)
+{
+    nile_Heap_t heap = p->heap;
+    int pstate = -1;
+
+    nile_Lock_acq (&p->lock);
+        pstate = p->producer ? p->producer->state : pstate;
+        p->state = NILE_SWAPPED;
+    nile_Lock_rel (&p->lock);
+
+    if (pstate == -1 || pstate == NILE_BLOCKED_ON_CONSUMER)
+        return nile_Process_remove (p, p->thread, p->heap);
+    return heap;
+}
+
 nile_Buffer_t *
 nile_Process_swap (nile_Process_t *p, nile_Process_t *sub, nile_Buffer_t *out)
 {
@@ -591,23 +611,8 @@ nile_Process_swap (nile_Process_t *p, nile_Process_t *sub, nile_Buffer_t *out)
     else if (p->gatee)
         nile_Process_ungate (p->gatee, p->thread);
     p->gatee = NULL;
+    p->jumpout = nile_Process_finish_swap;
     return NULL;
-}
-
-static nile_Heap_t
-nile_Process_finish_swap (nile_Process_t *p)
-{
-    nile_Heap_t heap = p->heap;
-    int pstate = -1;
-
-    nile_Lock_acq (&p->lock);
-        pstate = p->producer ? p->producer->state : pstate;
-        p->state = NILE_SWAPPED;
-    nile_Lock_rel (&p->lock);
-
-    if (pstate == -1 || pstate == NILE_BLOCKED_ON_CONSUMER)
-        return nile_Process_remove (p, p->thread, p->heap);
-    return heap;
 }
 
 static nile_Heap_t
@@ -666,7 +671,7 @@ nile_Process_out_of_input (nile_Process_t *p, nile_Buffer_t *out)
                 return NULL;
             out = p->epilogue (p, out);
             if (!out)
-                return nile_Process_finish_swap (p);
+                return p->jumpout (p);
             if (out->tag == NILE_TAG_OOM)
                 return NULL;
             nile_Process_enqueue_output (p, out);
@@ -714,7 +719,7 @@ nile_Process_run (nile_Process_t *p, nile_Thread_t *thread, nile_Heap_t heap)
     if (p->prologue) {
         out = p->prologue (p, out);
         if (!out)
-            return nile_Process_finish_swap (p);
+            return p->jumpout (p);
         if (out->tag == NILE_TAG_OOM)
             return NULL;
         p->prologue = NULL;
@@ -722,13 +727,9 @@ nile_Process_run (nile_Process_t *p, nile_Thread_t *thread, nile_Heap_t heap)
 
     head = p->input.head;
     while (head) {
-        if (out->tag == NILE_TAG_QUOTA_HIT)
-            return nile_Process_backpressure (p, out);
         out = p->body (p, NODE_TO_BUFFER (head), out);
         if (!out)
-            return nile_Process_finish_swap (p);
-        if (out->tag == NILE_TAG_OOM)
-            return NULL;
+            return p->jumpout (p);
         if (nile_Buffer_is_empty (NODE_TO_BUFFER (p->input.head))) {
             if (p->input.n == INPUT_QUOTA)
                 nile_Process_check_on_producer (p);
@@ -737,6 +738,10 @@ nile_Process_run (nile_Process_t *p, nile_Thread_t *thread, nile_Heap_t heap)
             nile_Lock_rel (&p->lock);
             nile_Process_free_block (p, head);
         }
+        if (out->tag == NILE_TAG_OOM)
+            return NULL;
+        if (out->tag == NILE_TAG_QUOTA_HIT)
+            return nile_Process_backpressure (p, out);
         head = p->input.head;
     }
     return nile_Process_out_of_input (p, out);
