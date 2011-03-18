@@ -135,7 +135,7 @@ nile_Thread_steal (nile_Thread_t *t, void *(*action) (nile_Thread_t *, nile_Thre
     void *v;
     nile_Thread_t *victim;
     if (t->abort)
-        return 0;
+        return NULL;
     for (i = 1; i < t->nthreads; i++) {
         j += ((i % 2) ^ (t->id % 2) ? i : -i);
         victim = &t->threads[j % t->nthreads];
@@ -348,7 +348,7 @@ nile_Process_free_block (nile_Process_t *p, void *v)
 
 static nile_Buffer_t *
 nile_Process_default_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
-    { return nile_Process_swap (p, 0, out); }
+    { return nile_Process_swap (p, NULL, out); }
 
 nile_Process_t *
 nile_Process (nile_Process_t *p, int quantum, int sizeof_vars,
@@ -420,20 +420,34 @@ nile_Process_ungate (nile_Process_t *gatee, nile_Thread_t *thread)
         nile_Thread_prefix_to_q (thread, gatee);
 }
 
+static void
+nile_Process_ungate_append (nile_Process_t *gatee, nile_Thread_t *thread)
+{
+    int state = NILE_BLOCKED_ON_GATE;
+    nile_Lock_acq (&gatee->lock);
+        if (gatee->input.n < INPUT_QUOTA && gatee->producer)
+            state = gatee->state = NILE_BLOCKED_ON_PRODUCER;
+        else
+            state = gatee->state = NILE_READY;
+    nile_Lock_rel (&gatee->lock);
+    if (state == NILE_READY)
+        nile_Thread_append_to_q (thread, gatee);
+}
+
 nile_Process_t *
 nile_Process_pipe_v (nile_Process_t **ps, int n)
 {
     int j;
     nile_Process_t *pi, *pj;
     if (!n)
-        return NILE_NULL;
+        return NULL;
     pi = ps[0];
     if (!pi)
-        return NILE_NULL;
+        return NULL;
     for (j = 1; j < n; j++) {
         pj = ps[j];
         if (!pj)
-            return NILE_NULL;
+            return NULL;
         pi->consumer = pj;
         pj->producer = pi;
         while (pj->consumer)
@@ -766,7 +780,7 @@ nile_startup (char *memory, int nbytes, int nthreads)
 
     boot.heap = NULL;
     boot.thread = &threads[nthreads];
-    init = nile_Process (&boot, 0, 0, 0, 0, 0);
+    init = nile_Process (&boot, 0, 0, NULL, NULL, NULL);
     if (init)
         init->heap = boot.heap;
     return init;
@@ -823,14 +837,14 @@ nile_shutdown (nile_Process_t *init)
 
 nile_Process_t *
 nile_Identity (nile_Process_t *p, int quantum)
-    { return nile_Process (p, quantum, 0, 0, 0, 0); }
+    { return nile_Process (p, quantum, 0, NULL, NULL, NULL); }
 
 /* Funnel process */
 
 nile_Process_t *
 nile_Funnel (nile_Process_t *init, int quantum)
 {
-    nile_Process_t *p = nile_Process (init, quantum, 0, 0, 0, 0);
+    nile_Process_t *p = nile_Process (init, quantum, 0, NULL, NULL, NULL);
     if (p) {
         nile_Process_t **init_ = nile_Process_vars (p);
         *init_ = init;
