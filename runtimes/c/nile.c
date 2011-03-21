@@ -917,6 +917,85 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
     }
 }
 
+/* Tap process */
+
+typedef struct {
+    nile_Process_t *init;
+    float          *data;
+    int            *n;
+    int             capacity;
+    int            *EOS;
+} nile_Tap_vars_t;
+
+static nile_Heap_t
+nile_Tap_jumpout (nile_Process_t *p)
+{
+    return p->heap;
+}
+
+static nile_Buffer_t *
+nile_Tap_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
+{
+    nile_Tap_vars_t *vars = (nile_Tap_vars_t *) nile_Process_vars (p);
+    nile_Tap_vars_t v = *vars;
+    int quantum = p->quantum;
+
+    int m = in->tail - in->head;
+    int o = (v.capacity - *v.n) / quantum * quantum;
+    m = m < o ? m : o;
+    while (m--)
+        v.data[(*v.n)++] = nile_Real_tof (nile_Buffer_pop_head (in));
+
+    if (!nile_Buffer_is_empty (in) || (p->input.n == 1 && p->producer)) {
+        p->jumpout = nile_Tap_jumpout;
+        nile_Process_free_block (p, BUFFER_TO_NODE (out));
+        return NULL;
+    }
+    return out;
+}
+
+static nile_Buffer_t *
+nile_Tap_epilogue (nile_Process_t *p, nile_Buffer_t *out)
+{
+    nile_Tap_vars_t *vars = nile_Process_vars (p);
+    *vars->EOS = 1;
+    p->consumer = NULL;
+    return out;
+}
+
+nile_Process_t *
+nile_Tap (nile_Process_t *init, int quantum)
+{
+    nile_Process_t *p = nile_Process (init, quantum, sizeof (nile_Tap_vars_t),
+                                      NULL, nile_Tap_body, nile_Tap_epilogue);
+    if (p) {
+        nile_Tap_vars_t *vars = nile_Process_vars (p);
+        vars->init = init;
+        p->state = NILE_BLOCKED_ON_CONSUMER;
+    }
+    return p;
+}
+
+int
+nile_Tap_open (nile_Process_t *p, float *data, int *n, int capacity)
+{
+    int EOS = 0;
+    nile_Tap_vars_t *vars;
+    nile_Process_t *init;
+    if (!p)
+        return 1;
+    if (!p->input.n && p->producer)
+        return 0;
+    vars = nile_Process_vars (p);
+    vars->data = data;
+    vars->n = n;
+    vars->capacity = capacity;
+    vars->EOS = &EOS;
+    init = vars->init;
+    init->heap = nile_Process_run (p, init->thread, init->heap);
+    return EOS;
+}
+
 /* SortBy process */
 
 typedef struct {

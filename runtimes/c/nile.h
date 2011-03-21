@@ -38,6 +38,12 @@ nile_Funnel (nile_Process_t *init);
 void
 nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS);
 
+nile_Process_t *
+nile_Tap (nile_Process_t *init, int quantum);
+
+int
+nile_Tap_open (nile_Process_t *p, float *data, int *n, int capacity);
+
 /* Process definition API */
 
 #ifdef NILE_INCLUDE_PROCESS_API
