@@ -33,7 +33,7 @@ nile_Process_t *
 nile_Identity (nile_Process_t *p, int quantum);
 
 nile_Process_t *
-nile_Funnel (nile_Process_t *init, int quantum);
+nile_Funnel (nile_Process_t *init);
 
 void
 nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS);
