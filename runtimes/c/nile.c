@@ -939,9 +939,9 @@ nile_Tap_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
     nile_Tap_vars_t *vars = (nile_Tap_vars_t *) nile_Process_vars (p);
     nile_Tap_vars_t v = *vars;
     int quantum = p->quantum;
-
     int m = in->tail - in->head;
     int o = (v.capacity - *v.n) / quantum * quantum;
+
     m = m < o ? m : o;
     while (m--)
         v.data[(*v.n)++] = nile_Real_tof (nile_Buffer_pop_head (in));
