@@ -1,7 +1,93 @@
-- change "negation" to use prefix, superscript and make it user defined.
-  And get rid of old, build-it negation from grammar, runtime.
+- allow for empty swap statements? (right now we have to give the identity/pass through)
+
+- types
+
+    K :: (Real, Real) >> Point
+        ∀ (a, b)
+            b = (1, 2) :: Point
+            a = (1, 2)
+            c = a + (3, 4) + 2
+            c = a + (3, 4) + 2
+            (f, g) = (2, 4)
+            >> (34, 34) :: Point
+
+
+
+
+
+    (a :: Real) + (b :: Real)
+
+    (a :: Color) + (b :: Color)
+            
+    (C :: Color) + (1, 1)
+
+    operator overloading only
+
+    Scalar op Scalar = die of Scalar op Scalar is not defined
+    Tuple  op Scalar = promote Scalar to Tuple, apply Scalar op Scalar pairwise
+    Scalar op Tuple  = promote Scalar to Tuple, apply Scalar op Scalar pairwise
+    Tuple  op Tuple  = die if tuple shapes don't match, otherwise apply Scalar op Scalar pairwise
+
+    Record op Record =
+        die if Record op Record is not defined, apply Record op Record
+
+    Record op Tuple =
+        die if tuple shape doesn't match Record shape
+
+    Record op Scalar =
+        if Record op Scalar is defined, apply Record op Scalar
+        if Record op Record is defined, promote Scalar to Record, apply Record op Record
+        else apply 
+
+    Scalar op Record
+
+    Record op Tuple = promote Tuple (if Tuple is right shape)
+
+    choose any
+        Scalar op Scalar
+        Scalar op Tuple
+            if Tuple is not same shape as in def.
+        Tuple  op Scalar
+            if Tuple is not same shape as in def.
+        Tuple  op Tuple
+            if Tuples are not same shape as in def.
+        Record op Scalar
+        Scalar op Record
+        Record op Tuple
+            if Tuple is not same shape as in def.
+        Tuple  op Record
+            if Tuple is not same shape as in def.
+        Record op Record
+
+    if op defined on a Record, choose one
+        Record op Scalar
+        Record op Tuple
+        Record op Record
+
+
+    compatibility:
+        Record A is comp. Record B if A === B
+        Tuple A is comp. Tuple B if A sameShape B
+        Scalar is comp. Scalar always
+
+    promotions:
+        Scalar can be ?Record A is comp. Scalar always
+
+
+    (s :: Real) ^ (C :: Color) ::
+    (C :: Color) ^ (s :: Real) ::
+
+
+    (a :: Real, b :: Real) & (c :: Real) :: (Real, Real)
+        ...
+
+
+- change "negation" to use prefix, (maybe superscript unicode?) and make it user defined?
+  The get rid of old, build-it negation from grammar, runtime?
 - rethink all the syntax
 - rethink tuple type naming syntax
+- how to designate that a kernel is "public", or "internal" (meant
+  to be used outside of the scope of the file). Or maybe just meant for binding to?
 - think about syntax like 2b + 0.5c
     - introduce a math mode? (single letter variables, etc.?)
       perhaps only in the body of ∀ blocks?
@@ -19,7 +105,7 @@
 - write documentation
     - update PDF doc
     - document the kernel clone rules (when a kernel is referenced more that
-      once in a pipeline expression)
+      once in a pipeline expression), and implement them in the compiler
     - document that kernel parameters are immutable
     - etc.
 - fix font problem on windows (add missing chars to DejaVu Sans Mono and/or Inconsolata)

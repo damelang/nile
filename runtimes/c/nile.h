@@ -38,10 +38,16 @@ nile_Process_t *
 nile_Identity (nile_Process_t *p, int quantum);
 
 nile_Process_t *
-nile_Funnel (nile_Process_t *init, int quantum);
+nile_Funnel (nile_Process_t *init);
 
 void
 nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS);
+
+nile_Process_t *
+nile_Tap (nile_Process_t *init, int quantum);
+
+int
+nile_Tap_open (nile_Process_t *p, float *data, int *n, int capacity);
 
 /* Process definition API */
 
@@ -139,12 +145,12 @@ nile_Process_swap (nile_Process_t *p, nile_Process_t *sub, nile_Buffer_t *out);
 /* Built-in processes */
 
 nile_Process_t *
+nile_SortBy (nile_Process_t *p, int quantum, int index);
+
+nile_Process_t *
 nile_DupZip (nile_Process_t *p,
              nile_Process_t *p1, int quantum1,
              nile_Process_t *p2, int quantum2);
-
-nile_Process_t *
-nile_SortBy (nile_Process_t *p, int quantum, int index);
 
 #undef INLINE
 #undef Real

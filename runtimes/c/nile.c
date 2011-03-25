@@ -136,7 +136,7 @@ nile_Thread_steal (nile_Thread_t *t, void *(*action) (nile_Thread_t *, nile_Thre
     void *v;
     nile_Thread_t *victim;
     if (t->abort)
-        return 0;
+        return NULL;
     for (i = 1; i < t->nthreads; i++) {
         j += ((i % 2) ^ (t->id % 2) ? i : -i);
         victim = &t->threads[j % t->nthreads];
@@ -280,14 +280,18 @@ nile_Thread_work_until_below (nile_Thread_t *liaison, nile_Heap_t h, int *var, i
 
 /* Stream buffers */
 
+static void *
+nile_Process_alloc_block (nile_Process_t *p);
+
 #define BUFFER_TO_NODE(b) (((nile_Node_t   *)  b) - 1)
 #define NODE_TO_BUFFER(n) ( (nile_Buffer_t *) (n + 1))
 
 const static char *BUFFER = "BUFFER";
 
 INLINE nile_Buffer_t *
-nile_Buffer (nile_Node_t *nd)
+nile_Buffer (nile_Process_t *p)
 {
+    nile_Node_t *nd = nile_Process_alloc_block (p);
     nile_Buffer_t *b = NODE_TO_BUFFER (nd);
     if (!nd)
         return NULL;
@@ -308,6 +312,8 @@ typedef enum {
     NILE_SWAPPED
 } nile_ProcessState_t;
 
+typedef nile_Heap_t (*nile_Process_jump_t) (nile_Process_t *p);
+
 struct nile_Process_ {
     nile_Node_t           node;
     nile_Thread_t        *thread;
@@ -319,6 +325,7 @@ struct nile_Process_ {
     nile_Process_logue_t  prologue;
     nile_Process_body_t   body;
     nile_Process_logue_t  epilogue;
+    nile_Process_jump_t   jumpout;
     nile_ProcessState_t   state;
     nile_Process_t       *producer;
     nile_Process_t       *consumer;
@@ -333,10 +340,11 @@ nile_Process_alloc_block (nile_Process_t *p)
     if (v)
         return v;
     c = nile_Thread_alloc_chunk (p->thread);
-    if (!c)
-        return NULL;
-    nile_Heap_push_chunk (&p->heap, c);
-    return nile_Heap_pop (&p->heap);
+    if (c) {
+        nile_Heap_push_chunk (&p->heap, c);
+        return nile_Heap_pop (&p->heap);
+    }
+    return NULL;
 }
 
 static void
@@ -348,7 +356,7 @@ nile_Process_free_block (nile_Process_t *p, void *v)
 
 static nile_Buffer_t *
 nile_Process_default_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
-    { return nile_Process_swap (p, 0, out); }
+    { return nile_Process_swap (p, NULL, out); }
 
 static const char *PROCESS = "PROCESS";
 
@@ -372,6 +380,7 @@ nile_Process (nile_Process_t *p, int quantum, int sizeof_vars,
         q->prologue = prologue;
         q->body = body ? body : nile_Process_default_body;
         q->epilogue = epilogue;
+        q->jumpout = NULL;
         q->state = NILE_BLOCKED_ON_PRODUCER;
         q->producer = q;
         q->consumer = q->gatee = NULL;
@@ -423,20 +432,34 @@ nile_Process_ungate (nile_Process_t *gatee, nile_Thread_t *thread)
         nile_Thread_prefix_to_q (thread, gatee);
 }
 
+static void
+nile_Process_ungate_append (nile_Process_t *gatee, nile_Thread_t *thread)
+{
+    int state = NILE_BLOCKED_ON_GATE;
+    nile_Lock_acq (&gatee->lock);
+        if (gatee->input.n < INPUT_QUOTA && gatee->producer)
+            state = gatee->state = NILE_BLOCKED_ON_PRODUCER;
+        else
+            state = gatee->state = NILE_READY;
+    nile_Lock_rel (&gatee->lock);
+    if (state == NILE_READY)
+        nile_Thread_append_to_q (thread, gatee);
+}
+
 nile_Process_t *
 nile_Process_pipe_v (nile_Process_t **ps, int n)
 {
     int j;
     nile_Process_t *pi, *pj;
     if (!n)
-        return NILE_NULL;
+        return NULL;
     pi = ps[0];
     if (!pi)
-        return NILE_NULL;
+        return NULL;
     for (j = 1; j < n; j++) {
         pj = ps[j];
         if (!pj)
-            return NILE_NULL;
+            return NULL;
         pi->consumer = pj;
         pj->producer = pi;
         while (pj->consumer)
@@ -527,19 +550,18 @@ nile_Process_enqueue_output (nile_Process_t *producer, nile_Buffer_t *out)
 nile_Buffer_t *
 nile_Process_append_output (nile_Process_t *producer, nile_Buffer_t *out)
 {
-    nile_Buffer_t *b = nile_Buffer (nile_Process_alloc_block (producer));
+    nile_Buffer_t *b = nile_Buffer (producer);
     if (!b) {
         out->tag = NILE_TAG_OOM;
         out->head = out->tail = 0;
         return out;
     }
-    if (out->tag != NILE_TAG_OOM)
-        nile_Process_enqueue_output (producer, out);
+    nile_Process_enqueue_output (producer, out);
     if (producer->consumer) {
         int n = producer->consumer->input.n;
         int cstate = producer->consumer->state;
-        if ((n >= INPUT_QUOTA - 1 && cstate == NILE_BLOCKED_ON_PRODUCER) ||
-            n > 2 * INPUT_QUOTA)
+        int blocked_on_us = (cstate == NILE_BLOCKED_ON_PRODUCER || cstate == NILE_SWAPPED);
+        if ((n >= INPUT_QUOTA - 1 && blocked_on_us) || n > 2 * INPUT_QUOTA)
             b->tag = NILE_TAG_QUOTA_HIT;
     }
     return b;
@@ -548,7 +570,7 @@ nile_Process_append_output (nile_Process_t *producer, nile_Buffer_t *out)
 nile_Buffer_t *
 nile_Process_prefix_input (nile_Process_t *producer, nile_Buffer_t *in)
 {
-    nile_Buffer_t *b = nile_Buffer (nile_Process_alloc_block (producer));
+    nile_Buffer_t *b = nile_Buffer (producer);
     if (b) {
         nile_Lock_acq (&producer->lock);
             nile_Deque_push_head (&producer->input, BUFFER_TO_NODE (b));
@@ -558,6 +580,22 @@ nile_Process_prefix_input (nile_Process_t *producer, nile_Buffer_t *in)
         b = in;
     b->head = b->tail = b->capacity;
     return b;
+}
+
+static nile_Heap_t
+nile_Process_finish_swap (nile_Process_t *p)
+{
+    nile_Heap_t heap = p->heap;
+    int pstate = -1;
+
+    nile_Lock_acq (&p->lock);
+        pstate = p->producer ? p->producer->state : pstate;
+        p->state = NILE_SWAPPED;
+    nile_Lock_rel (&p->lock);
+
+    if (pstate == -1 || pstate == NILE_BLOCKED_ON_CONSUMER)
+        return nile_Process_remove (p, p->thread, p->heap);
+    return heap;
 }
 
 nile_Buffer_t *
@@ -580,23 +618,8 @@ nile_Process_swap (nile_Process_t *p, nile_Process_t *sub, nile_Buffer_t *out)
     else if (p->gatee)
         nile_Process_ungate (p->gatee, p->thread);
     p->gatee = NULL;
+    p->jumpout = nile_Process_finish_swap;
     return NULL;
-}
-
-static nile_Heap_t
-nile_Process_finish_swap (nile_Process_t *p)
-{
-    nile_Heap_t heap = p->heap;
-    int pstate = -1;
-
-    nile_Lock_acq (&p->lock);
-        pstate = p->producer ? p->producer->state : pstate;
-        p->state = NILE_SWAPPED;
-    nile_Lock_rel (&p->lock);
-
-    if (pstate == -1 || pstate == NILE_BLOCKED_ON_CONSUMER)
-        return nile_Process_remove (p, p->thread, p->heap);
-    return heap;
 }
 
 static nile_Heap_t
@@ -650,12 +673,12 @@ nile_Process_out_of_input (nile_Process_t *p, nile_Buffer_t *out)
         return nile_Process_run (p, p->thread, p->heap);
     if (pstate == -1) {
         if (p->epilogue) {
-            out = nile_Buffer (nile_Process_alloc_block (p));
+            out = nile_Buffer (p);
             if (!out)
                 return NULL;
             out = p->epilogue (p, out);
             if (!out)
-                return nile_Process_finish_swap (p);
+                return p->jumpout (p);
             if (out->tag == NILE_TAG_OOM)
                 return NULL;
             nile_Process_enqueue_output (p, out);
@@ -690,30 +713,28 @@ nile_Process_run (nile_Process_t *p, nile_Thread_t *thread, nile_Heap_t heap)
 {
     nile_Node_t *head;
     nile_Buffer_t *out;
-    nile_Buffer_t b;
 
     p->thread = thread;
     p->heap = heap;
     p->state = NILE_RUNNING;
-    b.tag = NILE_TAG_OOM;
-    out = nile_Process_append_output (p, &b);
+    out = nile_Buffer (p);
+    if (!out)
+        return NULL;
 
     if (p->prologue) {
         out = p->prologue (p, out);
         if (!out)
-            return nile_Process_finish_swap (p);
+            return p->jumpout (p);
+        if (out->tag == NILE_TAG_OOM)
+            return NULL;
         p->prologue = NULL;
     }
 
     head = p->input.head;
     while (head) {
-        if (nile_Buffer_quota_hit (out))
-            return nile_Process_backpressure (p, out);
         out = p->body (p, NODE_TO_BUFFER (head), out);
         if (!out)
-            return nile_Process_finish_swap (p);
-        if (out->tag == NILE_TAG_OOM)
-            return NULL;
+            return p->jumpout (p);
         if (nile_Buffer_is_empty (NODE_TO_BUFFER (p->input.head))) {
             if (p->input.n == INPUT_QUOTA)
                 nile_Process_check_on_producer (p);
@@ -722,6 +743,10 @@ nile_Process_run (nile_Process_t *p, nile_Thread_t *thread, nile_Heap_t heap)
             nile_Lock_rel (&p->lock);
             nile_Process_free_block (p, head);
         }
+        if (out->tag == NILE_TAG_OOM)
+            return NULL;
+        if (out->tag == NILE_TAG_QUOTA_HIT)
+            return nile_Process_backpressure (p, out);
         head = p->input.head;
     }
     return nile_Process_out_of_input (p, out);
@@ -766,7 +791,7 @@ nile_startup (char *memory, int nbytes, int nthreads)
     boot.heap = NULL;
     boot.thread = &threads[nthreads];
     boot.thread->nbytes = nbytes;
-    init = nile_Process (&boot, 0, 0, 0, 0, 0);
+    init = nile_Process (&boot, 0, 0, NULL, NULL, NULL);
     if (init)
         init->heap = boot.heap;
     return init;
@@ -804,7 +829,7 @@ nile_sync (nile_Process_t *init)
 
     while (!worker->abort &&
            (p = nile_Thread_steal (worker, nile_Thread_steal_from_q)))
-            init->heap = nile_Thread_work (worker, p, init->heap);
+        init->heap = nile_Thread_work (worker, p, init->heap);
 
     nile_Lock_acq (&worker->lock);
         liaison->heap = worker->heap;
@@ -837,14 +862,14 @@ nile_shutdown (nile_Process_t *init)
 
 nile_Process_t *
 nile_Identity (nile_Process_t *p, int quantum)
-    { return nile_Process (p, quantum, 0, 0, 0, 0); }
+    { return nile_Process (p, quantum, 0, NULL, NULL, NULL); }
 
 /* Funnel process */
 
 nile_Process_t *
-nile_Funnel (nile_Process_t *init, int quantum)
+nile_Funnel (nile_Process_t *init)
 {
-    nile_Process_t *p = nile_Process (init, quantum, 0, 0, 0, 0);
+    nile_Process_t *p = nile_Process (init, 1, 0, NULL, NULL, NULL);
     if (p) {
         nile_Process_t **init_ = nile_Process_vars (p);
         *init_ = init;
@@ -855,12 +880,10 @@ nile_Funnel (nile_Process_t *init, int quantum)
 void
 nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
 {
-    int i, m, q, cstate;
+    int i, m, q, quantum, cstate;
     nile_Process_t *init, *consumer;
     nile_Thread_t *liaison;
     nile_Buffer_t *out;
-    nile_Buffer_t b;
-    b.tag = NILE_TAG_OOM;
     if (!p)
         return;
     liaison = p->thread;
@@ -868,10 +891,19 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
     if (liaison->q.n > 4 * liaison->nthreads)
         init->heap = nile_Thread_work_until_below (liaison, init->heap, &liaison->q.n, 2 * liaison->nthreads);
     p->heap = init->heap;
-    out = nile_Process_append_output (p, &b);
+    out = nile_Buffer (p);
+    if (!out)
+        return;
     i = 0;
-    m = (out->capacity / p->quantum) * p->quantum;
+    quantum = p->consumer ? p->consumer->quantum : 1;
+    m = (out->capacity / quantum) * quantum;
     for (;;) {
+        q = (m < n - i) ? m : n - i;
+        while (q--)
+            nile_Buffer_push_tail (out, nile_Real (data[i++]));
+        if (i == n || !p->consumer)
+            break;
+        out = nile_Process_append_output (p, out);
         if (out->tag == NILE_TAG_OOM)
             return;
         if (out->tag == NILE_TAG_QUOTA_HIT) {
@@ -884,12 +916,6 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
             else if (p->consumer->input.n > 4 * INPUT_QUOTA)
                 p->heap = nile_Thread_work_until_below (liaison, p->heap, &p->consumer->input.n, 4 * INPUT_QUOTA);
         }
-        q = (m < n - i) ? m : n - i;
-        while (q--)
-            nile_Buffer_push_tail (out, nile_Real (data[i++]));
-        if (i == n || !p->consumer)
-            break;
-        out = nile_Process_append_output (p, out);
     }
     nile_Process_enqueue_output (p, out);
     init->heap = p->heap;
@@ -913,24 +939,104 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
     }
 }
 
+/* Tap process */
+
+typedef struct {
+    nile_Process_t *init;
+    float          *data;
+    int            *n;
+    int             capacity;
+    int            *EOS;
+} nile_Tap_vars_t;
+
+static nile_Heap_t
+nile_Tap_jumpout (nile_Process_t *p)
+{
+    return p->heap;
+}
+
+static nile_Buffer_t *
+nile_Tap_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
+{
+    nile_Tap_vars_t *vars = (nile_Tap_vars_t *) nile_Process_vars (p);
+    nile_Tap_vars_t v = *vars;
+    int quantum = p->quantum;
+    int m = in->tail - in->head;
+    int o = (v.capacity - *v.n) / quantum * quantum;
+
+    m = m < o ? m : o;
+    while (m--)
+        v.data[(*v.n)++] = nile_Real_tof (nile_Buffer_pop_head (in));
+
+    if (!nile_Buffer_is_empty (in) || (p->input.n == 1 && p->producer)) {
+        p->jumpout = nile_Tap_jumpout;
+        nile_Process_free_block (p, BUFFER_TO_NODE (out));
+        return NULL;
+    }
+    return out;
+}
+
+static nile_Buffer_t *
+nile_Tap_epilogue (nile_Process_t *p, nile_Buffer_t *out)
+{
+    nile_Tap_vars_t *vars = nile_Process_vars (p);
+    *vars->EOS = 1;
+    p->consumer = NULL;
+    return out;
+}
+
+nile_Process_t *
+nile_Tap (nile_Process_t *init, int quantum)
+{
+    nile_Process_t *p = nile_Process (init, quantum, sizeof (nile_Tap_vars_t),
+                                      NULL, nile_Tap_body, nile_Tap_epilogue);
+    if (p) {
+        nile_Tap_vars_t *vars = nile_Process_vars (p);
+        vars->init = init;
+        p->state = NILE_BLOCKED_ON_CONSUMER;
+    }
+    return p;
+}
+
+int
+nile_Tap_open (nile_Process_t *p, float *data, int *n, int capacity)
+{
+    int EOS = 0;
+    nile_Tap_vars_t *vars;
+    nile_Process_t *init;
+    if (!p)
+        return 1;
+    if (!p->input.n && p->producer)
+        return 0;
+    vars = nile_Process_vars (p);
+    vars->data = data;
+    vars->n = n;
+    vars->capacity = capacity;
+    vars->EOS = &EOS;
+    init = vars->init;
+    init->heap = nile_Process_run (p, init->thread, init->heap);
+    return EOS;
+}
+
 /* SortBy process */
 
 typedef struct {
-    int            index;
-    nile_Buffer_t *bs;
-    int            n;
+    int          index;
+    nile_Deque_t output;
 } nile_SortBy_vars_t;
 
 nile_Buffer_t *
 nile_SortBy_prologue (nile_Process_t *p, nile_Buffer_t *out)
 {
-    nile_SortBy_vars_t *vars = nile_Process_vars (p); 
-    vars->bs = nile_Buffer (nile_Process_alloc_block (p));
-    vars->n = 1;
-    if (!vars->bs)
-        out->tag = NILE_TAG_OOM;
+    nile_SortBy_vars_t *vars = (nile_SortBy_vars_t *) nile_Process_vars (p);
+    nile_Buffer_t *b = nile_Buffer (p);
+    if (b) {
+        vars->output.n = 0;
+        vars->output.head = vars->output.tail = NULL;
+        nile_Deque_push_head (&vars->output, BUFFER_TO_NODE (b));
+    }
     else
-        BUFFER_TO_NODE (vars->bs)->next = NULL;
+        out->tag = NILE_TAG_OOM;
     return out;
 }
 
@@ -944,7 +1050,7 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
     while (!nile_Buffer_is_empty (in)) {
         int q, j;
         nile_Buffer_t *b;
-        nile_Node_t *nd = BUFFER_TO_NODE (v.bs);
+        nile_Node_t *nd = v.output.head;
         Real key = BAT (in, in->head + v.index);
 
         /* find the right buffer */
@@ -955,17 +1061,20 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
         /* split the buffer if it's full */
         b = NODE_TO_BUFFER (nd);
         if (b->tail > b->capacity - quantum) {
-            nile_Buffer_t *b2 = nile_Buffer (nile_Process_alloc_block (p));
+            nile_Buffer_t *b2 = nile_Buffer (p);
+            nile_Node_t *nd2 = BUFFER_TO_NODE (b2);
             if (!b2) {
                 unused->tag = NILE_TAG_OOM;
                 return unused;
             }
-            BUFFER_TO_NODE (b2)->next = nd->next;
-            nd->next = BUFFER_TO_NODE (b2);
-            v.n++;
+            nd2->next = nd->next;
+            nd->next = nd2;
+            if (!nd2->next)
+                v.output.tail = nd2;
+            v.output.n++;
             j = b->tail / quantum / 2 * quantum;
             while (j < b->tail)
-                BAT (b2, b2->tail++) = BAT (b, j++);
+                nile_Buffer_push_tail (b2, BAT (b, j++));
             b->tail -= b2->tail;
             if (nile_Real_nz (nile_Real_geq (key, BAT (b2, v.index))))
                 b = b2;
@@ -984,7 +1093,7 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
         j += quantum;
         q = quantum;
         while (q--)
-            BAT (b, j++) = BAT (in, in->head++);
+            BAT (b, j++) = nile_Buffer_pop_head (in);
         b->tail += quantum;
     }
 
@@ -996,14 +1105,11 @@ nile_Buffer_t *
 nile_SortBy_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
 {
     nile_SortBy_vars_t v = *(nile_SortBy_vars_t *) nile_Process_vars (p);
-    nile_Node_t *head = v.n ? BUFFER_TO_NODE (v.bs) : NULL;
-    if (p->consumer) {
-        p->consumer->input.head = head;
-        p->consumer->input.n = v.n;
-    }
+    if (p->consumer && !nile_Buffer_is_empty (NODE_TO_BUFFER (v.output.head)))
+        p->consumer->input = v.output;
     else {
-        nile_Node_t *next;
-        for (; head; head = next) {
+        nile_Node_t *head, *next;
+        for (head = v.output.head; head; head = next) {
             next = head->next;
             nile_Process_free_block (p, head);
         }
@@ -1023,11 +1129,316 @@ nile_SortBy (nile_Process_t *p, int quantum, int index)
     return p;
 }
 
+static void
+nile_Buffer_copy (nile_Buffer_t *from, nile_Buffer_t *to)
+{
+    // FIXME this is for nile_Real_t == float
+    float *from_data = (float *) &from->data;
+    float *to_data = (float *) &to->data;
+    int head = to->head = from->head;
+    int tail = to->tail = from->tail;
+    for (; head < tail; head++)
+        to_data[head] = from_data[head];
+}
+
+/* DupZip process */
+
+typedef struct {
+    int squantum;
+    int j;
+    int j0;
+    int jn;
+    nile_Process_t *shared;
+} nile_Zip_vars_t;
+
+static nile_Heap_t
+nile_Zip_finish_switch (nile_Process_t *p)
+{
+    nile_Heap_t heap = p->heap;
+    if (p->consumer)
+        p->consumer->producer = p->gatee;
+    nile_Process_gate (p->gatee, p);
+    nile_Process_ungate_append (p->gatee, p->thread);
+    return heap;
+}
+
+nile_Buffer_t *
+nile_Zip_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
+{
+    nile_Zip_vars_t *vars = nile_Process_vars (p);
+    nile_Zip_vars_t v = *vars;
+    int quantum = p->quantum;
+    int squantum = v.squantum;
+    nile_Deque_t *output = &v.shared->input;
+    nile_Buffer_t *out = NODE_TO_BUFFER (output->head);
+
+    while (BUFFER_TO_NODE (in)) {
+        int i = in->head;
+        int j = v.j;
+        // FIXME this is for nile_Real_t == float
+        if (quantum == 4 && squantum == 4) {
+            float *idata = (float *) &in->data;
+            float *odata = (float *) &out->data;
+            int m = (in->tail - i) / 4;
+            int p = (v.jn - j) / 8;
+            m = m < p ? m : p;
+            while (m--) {
+                odata[j++] = idata[i++];
+                odata[j++] = idata[i++];
+                odata[j++] = idata[i++];
+                odata[j++] = idata[i++];
+                j += 4;
+            }
+        }
+        else {
+            nile_Real_t *idata = &in->data;
+            nile_Real_t *odata = &out->data;
+            int m = (in->tail - i) / quantum;
+            int p = (v.jn - j) / (quantum + squantum);
+            m = m < p ? m : p;
+            while (m--) {
+                int q = quantum;
+                while (q--)
+                    odata[j++] = idata[i++];
+                j += v.squantum;
+            }
+        }
+        in->head = i;
+        v.j = j;
+
+        if (v.j == v.jn) {
+            v.j = v.j0;
+            if (output->tail == BUFFER_TO_NODE (out)) {
+                out = nile_Buffer (p);
+                if (!out) {
+                    unused->tag = NILE_TAG_OOM;
+                    return unused;
+                }
+                nile_Deque_push_tail (output, BUFFER_TO_NODE (out));
+                if (output->n > 2 * INPUT_QUOTA)
+                    break;
+            }
+            else {
+                out->tail = v.jn - v.j0;
+                nile_Deque_pop_head (output);
+                nile_Process_enqueue_output (p, out);
+                if (p->consumer) {
+                    int n = p->consumer->input.n;
+                    int cstate = p->consumer->state;
+                    if ((n >= INPUT_QUOTA - 1 && cstate == NILE_BLOCKED_ON_PRODUCER) ||
+                        n > 2 * INPUT_QUOTA) {
+                        unused->tag = NILE_TAG_QUOTA_HIT;
+                        break;
+                    }
+                }
+                out = NODE_TO_BUFFER (output->head);
+            }
+        }
+
+        if (nile_Buffer_is_empty (NODE_TO_BUFFER (p->input.head))) {
+            if (p->input.n == INPUT_QUOTA)
+                nile_Process_check_on_producer (p);
+            nile_Lock_acq (&p->lock);
+                nile_Deque_pop_head (&p->input);
+            nile_Lock_rel (&p->lock);
+            nile_Process_free_block (p, BUFFER_TO_NODE (in));
+            in = NODE_TO_BUFFER (p->input.head);
+        }
+    }
+
+    *vars = v;
+    if (unused->tag == NILE_TAG_QUOTA_HIT)
+        return unused;
+    nile_Process_free_block (p, BUFFER_TO_NODE (unused));
+    p->jumpout = nile_Zip_finish_switch;
+    return NULL;
+}
+    
+nile_Buffer_t *
+nile_Zip_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
+{
+    nile_Zip_vars_t v = *(nile_Zip_vars_t *) nile_Process_vars (p);
+    nile_Buffer_t *out = NODE_TO_BUFFER (v.shared->input.head);
+    out->tail = v.j - v.j0;
+    nile_Process_enqueue_output (p, out);
+    nile_Process_free_block (p, v.shared);
+    nile_Process_free_block (p, p->gatee);
+    p->gatee = NULL;
+    return unused;
+}
+
+nile_Process_t *
+nile_Zip (nile_Process_t *p, int quantum, int squantum, int j0, int jn, nile_Process_t *shared)
+{
+    p = nile_Process (p, quantum, sizeof (nile_Zip_vars_t),
+                      NULL, nile_Zip_body, nile_Zip_epilogue);
+    if (p) {
+        nile_Zip_vars_t *vars = nile_Process_vars (p);
+        vars->squantum = squantum;
+        vars->j  = j0;
+        vars->j0 = j0;
+        vars->jn = jn;
+        vars->shared = shared;
+    }
+    return p;
+}
+
+typedef struct {
+    nile_Process_t *p1;
+    int quantum1;
+    nile_Process_t *p2;
+    int quantum2;
+} nile_DupZip_vars_t;
+
+nile_Buffer_t *
+nile_DupZip_prologue (nile_Process_t *p, nile_Buffer_t *out)
+{
+    nile_DupZip_vars_t *vars = nile_Process_vars (p);
+    nile_DupZip_vars_t v = *vars;
+    int jn = out->capacity / (v.quantum1 + v.quantum2) * (v.quantum1 + v.quantum2);
+    nile_Process_t *shared = nile_Process (p, 0, 0, NULL, NULL, NULL);
+    nile_Process_t *z1 =
+        nile_Zip (p, v.quantum1, v.quantum2, 0,          jn             , shared);
+    nile_Process_t *z2 =
+        nile_Zip (p, v.quantum2, v.quantum1, v.quantum1, jn + v.quantum1, shared);
+    nile_Buffer_t *b = nile_Buffer (p);
+
+    if (!shared || !z1 || !z2 || !b) {
+        out->tag = NILE_TAG_OOM;
+        return out;
+    }
+
+    nile_Deque_push_tail (&shared->input, BUFFER_TO_NODE (b));
+    nile_Process_gate (z1, z2);
+
+    if (v.p1) {
+        nile_Process_t *end = v.p1;
+        while (end->consumer)
+            end = end->consumer;
+        end->consumer = z1;
+        z1->producer = end;
+    }
+    else
+        v.p1 = z1;
+
+    if (v.p2) {
+        nile_Process_t *end = v.p2;
+        while (end->consumer)
+            end = end->consumer;
+        end->consumer = z2;
+        z2->producer = end;
+    }
+    else
+        v.p2 = z2;
+
+    z1->consumer = z2->consumer = p->consumer;
+    if (p->consumer)
+        p->consumer->producer = z1;
+    p->consumer = NULL;
+
+    *vars = v;
+    return out;
+}
+
+nile_Buffer_t *
+nile_DupZip_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
+{
+    int p1_quota_hit, p2_quota_hit;
+    nile_DupZip_vars_t *vars = nile_Process_vars (p);
+    nile_DupZip_vars_t v = *vars;
+
+    nile_Buffer_copy (in, out);
+    p->consumer = v.p1;
+    v.p1->producer = p;
+    out = nile_Process_append_output (p, out);
+    v.p1 = p->consumer;
+    v.p1->producer = v.p1;
+    p1_quota_hit = (out->tag == NILE_TAG_QUOTA_HIT && v.p1->input.n >= INPUT_QUOTA);
+
+    nile_Buffer_copy (in, out);
+    p->consumer = v.p2;
+    v.p2->producer = p;
+    out = nile_Process_append_output (p, out);
+    v.p2 = p->consumer;
+    v.p2->producer = v.p2;
+    p2_quota_hit = (out->tag == NILE_TAG_QUOTA_HIT && v.p2->input.n >= INPUT_QUOTA);
+
+    if (p1_quota_hit && v.p1->state == NILE_BLOCKED_ON_PRODUCER) {
+        out->tag = NILE_TAG_QUOTA_HIT;
+        p->consumer = v.p1;
+        v.p1->producer = p;
+    }
+    else if (p2_quota_hit && v.p2->state == NILE_BLOCKED_ON_PRODUCER) {
+        out->tag = NILE_TAG_QUOTA_HIT;
+        p->consumer = v.p2;
+        v.p2->producer = p;
+    }
+    else if (p1_quota_hit && p2_quota_hit) {
+        out->tag = NILE_TAG_QUOTA_HIT;
+        if (v.p2->state == NILE_BLOCKED_ON_GATE) {
+            p->consumer = v.p1;
+            v.p1->producer = p;
+        }
+        else {
+            p->consumer = v.p2;
+            v.p2->producer = p;
+        }
+    }
+    else {
+        out->tag = 0;
+        p->consumer = NULL;
+    }
+
+    in->head = in->tail;
+    *vars = v;
+    return out;
+}
+
+nile_Buffer_t *
+nile_DupZip_epilogue (nile_Process_t *p, nile_Buffer_t *out)
+{
+    nile_DupZip_vars_t v = *(nile_DupZip_vars_t *) nile_Process_vars (p);
+    int cstate;
+
+    nile_Lock_acq (&v.p1->lock);
+        v.p1->producer = NULL;
+        cstate = v.p1->state;
+    nile_Lock_rel (&v.p1->lock);
+    if (cstate == NILE_SWAPPED)
+        p->heap = nile_Process_remove (v.p1, p->thread, p->heap);
+    if (cstate == NILE_BLOCKED_ON_PRODUCER) {
+        v.p1->state = NILE_READY;
+        nile_Thread_append_to_q (p->thread, v.p1);
+    }
+
+    nile_Lock_acq (&v.p2->lock);
+        v.p2->producer = NULL;
+        cstate = v.p2->state;
+    nile_Lock_rel (&v.p2->lock);
+    if (cstate == NILE_SWAPPED)
+        p->heap = nile_Process_remove (v.p2, p->thread, p->heap);
+    if (cstate == NILE_BLOCKED_ON_PRODUCER) {
+        v.p2->state = NILE_READY;
+        nile_Thread_append_to_q (p->thread, v.p2);
+    }
+
+    p->consumer = NULL;
+    return out;
+}
+
 nile_Process_t *
 nile_DupZip (nile_Process_t *p,
              nile_Process_t *p1, int quantum1,
              nile_Process_t *p2, int quantum2)
 {
-    // TODO
-    return nile_Identity (p, 1);
+    p = nile_Process (p, 1, sizeof (nile_DupZip_vars_t),
+                      nile_DupZip_prologue, nile_DupZip_body, nile_DupZip_epilogue);
+    if (p) {
+        nile_DupZip_vars_t *vars = nile_Process_vars (p);
+        vars->p1 = p1;
+        vars->quantum1 = quantum1;
+        vars->p2 = p2;
+        vars->quantum2 = quantum2;
+    }
+    return p;
 }
