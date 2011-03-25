@@ -1,25 +1,33 @@
+- figure out a replacement for how I did pen stroking before
+- DupZip
+    - fix multithreading bug
+- clean up new jumpout feature. better name (break?), do we
+  detect using NULL out buffer? Or free/output the out buffer for the
+  process in the runtime? Set the 'jumpout' field to non-NULL as signal?
+- clean up _pour by moving shared code to functions
+  or just make it work in the normal _run loop (maybe
+  using new jumpout
+- replace all the int state with nile_ProcessState_t
+- change nile_Real_t to typedef to float (for vectorizing)
+    - and fix the places I cast to float
 - random jump address (probably from corrupt process block) does this only
   happen when we've run out of memory? (in which case maybe I'm not checking
-  for NULL somewhere?)
-- DupZip
-    - allow for NULL process args (to avoid having to passing Identity)
-- finish Tap
-- figure out a replacement for how I did pen stroking before
-- funnel shouldn't need to take quantum, it should just look downstream
+  for NULL somewhere?) Does Bert still experience this?
 
 - optimizations
-      - why is sortby so slow? where is the hot spot? Is the .data array
-        approach complicating things?
     - in SortBy, perform the shifting in a single pass rather than
       one at a time (in the insertion sort)
-    - only lock when needed. Do a simple check before locking.
+    - why is sortby so slow? where is the hot spot? Is the .data array
+      approach complicating things?
+    - only acquire locks when needed. Do a simple check before locking.
     - prefetch
     - data parallel cloning
     - (for multiprocessors) use thread affinity. visit other threads
       in local processor, then check shared q, then the rest of the threads.
-    - The Zip part of DupZip could be faster if we had specialized
-      versions for each quantum (eliminating the inner loop, so the compiler
-      can unroll)
+    - if Zip is taking too long, specialize the inner loop for certain
+      quantum combinations, and if not enough, hand vectorize the inner loop.
+      (or figure out how to get gcc to autovectorize it, since it
+      complains about interleaving access patterns)
     - make prefix_input split the buffer
     - make SortBy use (a) jump pointer(s) to move around faster during
       the first phase of the search
