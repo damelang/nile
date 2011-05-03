@@ -109,7 +109,7 @@ static void nile_Sem_wait   (nile_Sem_t *s)        { WaitForSingleObject (*s, IN
 
 /* OS Threads */
 
-#if defined(__unix__) || defined(__DARWIN_UNIX03)
+#if defined(__unix__) || defined(__APPLE__)
 
 #include <pthread.h>
 typedef pthread_t nile_OSThread_t;
