@@ -64,7 +64,7 @@ nile_xchg (nile_Lock_t *l, long v)
 #endif
 
 INLINE void nile_Lock_acq  (nile_Lock_t *l) { while (nile_xchg (l, 1)) nile_pause (); }
-INLINE void nile_Lock_rel  (nile_Lock_t *l) { _mm_mfence (); *l = 0;                   }
+INLINE void nile_Lock_rel  (nile_Lock_t *l) { _mm_mfence (); *l = 0;                  }
 
 #else
 #error Unsupported architecture!
