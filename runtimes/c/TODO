@@ -1,36 +1,53 @@
-- figure out a replacement for how I did pen stroking before
-- DupZip
-    - fix multithreading bug
-- clean up new jumpout feature. better name (break?), do we
-  detect using NULL out buffer? Or free/output the out buffer for the
-  process in the runtime? Set the 'jumpout' field to non-NULL as signal?
-- clean up _pour by moving shared code to functions
-  or just make it work in the normal _run loop (maybe
-  using new jumpout
-- replace all the int state with nile_ProcessState_t
+- make a nile_Process_pour
+  - hold onto the parent process in the constructor (nile_Process)
+- integrate type debugging well
+- get rid of Tap and introduce Capture again
+  (or rename Tap to this)
+- pass process_heap in as arg (because it is easy to forget to set it)
+  to nile_Process_run (and others?)
+  nile_Process_schedule?
+- same with work_until_below?
 - change nile_Real_t to typedef to float (for vectorizing)
     - and fix the places I cast to float
-- random jump address (probably from corrupt process block) does this only
-  happen when we've run out of memory? (in which case maybe I'm not checking
-  for NULL somewhere?) Does Bert still experience this?
+- why is snow-demo 10% faster when rendering 500/505 flakes or changing
+    _work_until_below to trigger when q.n > 28 (as opposed to 27)?
+- clean up TODO's in gezira-image.c
+
+- figure out a replacement for how I did pen stroking before
+
+- why don't I get a good speedup for 2 cores?
+    - print out when thread is dozing/sleeping
+    - try having _work jump out if worker (so it doesn't get caught
+      up working)
+        (already implemented)
+    - contention? go back to test-test-and-set?
+
+- when should we just fix block size in nile.h so that we don't have to
+  do the .data trick anymore? (then we can get rid of BAT)
+
+- clean up the three _work functions (try for more unification)
 
 - optimizations
     - in SortBy, perform the shifting in a single pass rather than
       one at a time (in the insertion sort)
+    - in SortBy, we can specialize on quantum (and index)
     - why is sortby so slow? where is the hot spot? Is the .data array
       approach complicating things?
-    - only acquire locks when needed. Do a simple check before locking.
-    - prefetch
-    - data parallel cloning
-    - (for multiprocessors) use thread affinity. visit other threads
-      in local processor, then check shared q, then the rest of the threads.
+    - only acquire locks when needed. Do a simple check before locking
+      (only for common locks)
     - if Zip is taking too long, specialize the inner loop for certain
       quantum combinations, and if not enough, hand vectorize the inner loop.
       (or figure out how to get gcc to autovectorize it, since it
       complains about interleaving access patterns)
+    - skip the q in some cases in nile_Process_schedule (just _run the process
+      straightaway)
+    - prefetch
+    - data parallel cloning
+    - (for multiprocessors) use thread affinity. visit other threads
+      in local processor, then check shared q, then the rest of the threads.
     - make prefix_input split the buffer
     - make SortBy use (a) jump pointer(s) to move around faster during
-      the first phase of the search
+      the first phase of the search (if that part of the function is hot)
     - we may have too much stealing.
       should we look in the shared q first instead of our peer qs (like
       traditional work stealing)?
@@ -104,6 +121,8 @@
         NILE_REMOVED,  NILE_SUBSTITUTED, supercede, supplant, yield, resign, retire,
             defer, delegate, forward, replace, finished
         process...
+            - substitution (substitute)
+            - swap (switch)
             - yielding
             - cession (cede)
             - supercede
@@ -111,9 +130,7 @@
             - replacement
             - resignation (resign)
             - retire
-            - substitution (substitute)
             - replace(ment)
-            - swap (switch)
             - input forwarding
             - similar to tail call (elimination)
     - reached/hit/within/met/at limit/quota
