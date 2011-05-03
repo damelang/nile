@@ -1,10 +1,12 @@
-CFLAGS := -pipe -Wall -Werror -march=native -m64 -msse2 -mfpmath=sse \
-          -fstrict-aliasing -ffast-math -O3 # -DNILE_DISABLE_THREADS
+CFLAGS := -pipe -Wall -Werror \
+          -O3 -ffast-math \
+          #-march=corei7 -mfpmath=sse -msse4.2 -mno-ssse3 \
+
+%.o: %.c *.h Makefile.gcc
+	$(CC) -c $(CFLAGS) $<
 
 libnile.a: nile.o
-	ar rcs $@ $^
-
-nile.o: *.h
+	$(AR) rcs $@ $^
 
 clean:
-	$(RM) *.o *.a *.gch
+	$(RM) *.o *.a
