@@ -42,6 +42,9 @@ nile_Process_t *
 nile_Identity (nile_Process_t *p, int quantum);
 
 nile_Process_t *
+nile_Capture (nile_Process_t *p, float *data, int *n, int size);
+
+nile_Process_t *
 nile_Funnel (nile_Process_t *init);
 
 void

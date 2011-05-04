@@ -1369,6 +1369,41 @@ nile_DupZip (nile_Process_t *p,
     return p;
 }
 
+/* Capture process */
+
+typedef struct {
+    float *data;
+    int   *n;
+    int    size;
+} nile_Capture_vars_t;
+
+nile_Buffer_t *
+nile_Capture_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
+{
+    nile_Capture_vars_t v = *(nile_Capture_vars_t *) nile_Process_vars (p);
+    while (!nile_Buffer_is_empty (in)) {
+        nile_Real_t r = nile_Buffer_pop_head (in);
+        if (*v.n < v.size)
+            v.data[*v.n] = nile_Real_tof (r);
+        (*v.n)++;
+    }
+    return out;
+}
+
+nile_Process_t *
+nile_Capture (nile_Process_t *p, float *data, int *n, int size)
+{
+    p = nile_Process (p, 1, sizeof (nile_Capture_vars_t),
+                      NULL, nile_Capture_body, NULL);
+    if (p) {
+        nile_Capture_vars_t *vars = nile_Process_vars (p);
+        vars->data = data;
+        vars->n = n;
+        vars->size = size;
+    }
+    return p;
+}
+
 /* Debugging */
 
 /*
