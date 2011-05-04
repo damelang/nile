@@ -7,11 +7,11 @@
 typedef ALIGNED (BLOCK_SIZE) struct nile_Block_ {
     struct nile_Block_ *next;
     struct nile_Block_ *eoc;
-    int                 n;
+    int                 i;
 } ALIGNED (BLOCK_SIZE) nile_Block_t;
 
-typedef nile_Block_t *nile_Heap_t;
 typedef nile_Block_t  nile_Chunk_t;
+typedef nile_Block_t *nile_Heap_t;
 
 static int
 nile_Heap_push (nile_Heap_t *h, void *v)
@@ -19,16 +19,16 @@ nile_Heap_push (nile_Heap_t *h, void *v)
     nile_Block_t *b = v;
     nile_Block_t *head = *h;
     b->next = head;
-    if (head && head->n < CHUNK_MAX_LEN) {
+    if (head && head->i < CHUNK_MAX_LEN) {
         b->eoc = head->eoc;
-        b->n = head->n + 1;
+        b->i = head->i + 1;
     }
     else {
         b->eoc = b;
-        b->n = 1;
+        b->i = 1;
     }
     *h = b;
-    return b->n == CHUNK_MAX_LEN && b->eoc->next;
+    return b->i == CHUNK_MAX_LEN && b->eoc->next;
 }
 
 static void
