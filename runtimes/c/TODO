@@ -1,19 +1,16 @@
-- make a nile_Process_pour
-  - hold onto the parent process in the constructor (nile_Process)
-- integrate type debugging well
+- look over dupzup
+    - see commented out lines in zip_body
+
 - get rid of Tap and introduce Capture again
   (or rename Tap to this)
-- pass process_heap in as arg (because it is easy to forget to set it)
-  to nile_Process_run (and others?)
-  nile_Process_schedule?
-- same with work_until_below?
-- change nile_Real_t to typedef to float (for vectorizing)
-    - and fix the places I cast to float
+- the _pipe functions could be simplified
+
 - why is snow-demo 10% faster when rendering 500/505 flakes or changing
     _work_until_below to trigger when q.n > 28 (as opposed to 27)?
-- clean up TODO's in gezira-image.c
 
 - figure out a replacement for how I did pen stroking before
+  - Reverse
+  - DupCat
 
 - why don't I get a good speedup for 2 cores?
     - print out when thread is dozing/sleeping
@@ -25,7 +22,8 @@
 - when should we just fix block size in nile.h so that we don't have to
   do the .data trick anymore? (then we can get rid of BAT)
 
-- clean up the three _work functions (try for more unification)
+- change nile_Real_t to typedef to float (for vectorizing)
+    - and fix the places I cast to float
 
 - optimizations
     - in SortBy, perform the shifting in a single pass rather than
