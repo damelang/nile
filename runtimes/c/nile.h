@@ -1,20 +1,21 @@
 #ifndef NILE_H
 #define NILE_H
 
-#include <stdio.h>
-
-/* Runtime maintenance */
+/* Runtime routines */
 
 typedef struct nile_Process_ nile_Process_t;
 
 nile_Process_t *
 nile_startup (char *memory, int nbytes, int nthreads);
 
-int
+void
 nile_sync (nile_Process_t *init);
 
+int
+nile_error (nile_Process_t *init);
+
 void
-nile_print_leaks (nile_Process_t *init, FILE *f);
+nile_print_leaks (nile_Process_t *init);
 
 char *
 nile_shutdown (nile_Process_t *init);
@@ -29,7 +30,10 @@ nile_Process_pipe (nile_Process_t *p1, ...);
 nile_Process_t *
 nile_Process_pipe_v (nile_Process_t **ps, int n);
 
-nile_Process_t *
+void
+nile_Process_feed (nile_Process_t *p, float *data, int n);
+
+void
 nile_Process_gate (nile_Process_t *gater, nile_Process_t *gatee);
 
 /* Built-in processes */
@@ -94,17 +98,18 @@ INLINE Real  nile_Real_clg (Real a)         { Real b = nile_Real ((int)a.f);
 
 /* Stream buffers */
 
-enum {
-    NILE_TAG_OOM = 1,
+typedef enum {
+    NILE_TAG_NONE,
     NILE_TAG_QUOTA_HIT,
-};
+    NILE_TAG_OOM,
+} nile_Tag_t;
 
 typedef struct {
-    int  head;
-    int  tail;
-    int  capacity;
-    int  tag;
-    Real data;
+    int        head;
+    int        tail;
+    int        capacity;
+    nile_Tag_t tag;
+    Real       data;
 } nile_Buffer_t;
 
 INLINE void nile_Buffer_push_head (nile_Buffer_t *b, Real r) { (&b->data)[--b->head] = r;    }
