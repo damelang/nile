@@ -1,9 +1,14 @@
 #ifndef NILE_DEQUE_H
 #define NILE_DEQUE_H
 
+typedef enum {
+    NILE_BUFFER_TYPE,
+    NILE_PROCESS_TYPE
+} nile_NodeType_t;
+
 typedef ALIGNED (SIMD_SIZE) struct nile_Node_ {
     struct nile_Node_ *next;
-    const char *type;
+    nile_NodeType_t    type;
 } ALIGNED (SIMD_SIZE) nile_Node_t;
 
 typedef struct {
