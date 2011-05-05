@@ -1,6 +1,23 @@
+NO_NATIVE   := $(shell $(CC) -E - </dev/null >/dev/null 2>&1 -march=native; echo $$?)
+NO_FPMATH   := $(shell $(CC) -E - </dev/null >/dev/null 2>&1 -mfpmath=sse;  echo $$?)
+NO_SSSE3    := $(shell $(CC) -E - </dev/null >/dev/null 2>&1 -mssse3;       echo $$?)
+NO_AVX_FLAG := $(shell $(CC) -E - </dev/null >/dev/null 2>&1 -mavx;         echo $$?)
+
 CFLAGS := -pipe -Wall -Werror \
-          -O3 -ffast-math \
-          #-march=corei7 -mfpmath=sse -msse4.2 -mno-ssse3 \
+          -O3 -ffast-math
+
+ifeq ($(NO_NATIVE), 0)
+  CFLAGS += -march=native
+endif
+ifeq ($(NO_FPMATH), 0)
+  CFLAGS += -mfpmath=sse
+endif
+ifeq ($(NO_SSSE3), 0)
+  CFLAGS += -mno-ssse3
+endif
+ifeq ($(NO_AVX_FLAG), 0)
+  CFLAGS += -mno-avx
+endif
 
 %.o: %.c *.h Makefile.gcc
 	$(CC) -c $(CFLAGS) $<
