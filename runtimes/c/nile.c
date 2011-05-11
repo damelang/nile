@@ -1166,6 +1166,9 @@ nile_Dup_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
     nile_Lock_acq (&p1->lock);
         nile_Deque_push_tail (&p1->input, BUFFER_TO_NODE (out));
     nile_Lock_rel (&p1->lock);
+    out = nile_Buffer (p);
+    if (!out)
+        return NULL;
 
     nile_Lock_acq (&p->lock);
         nile_Deque_pop_head (&p->input);
@@ -1178,9 +1181,6 @@ nile_Dup_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
     nile_Lock_acq (&p2->lock);
         nile_Deque_push_tail (&p2->input, BUFFER_TO_NODE (in));
     nile_Lock_rel (&p2->lock);
-    out = nile_Buffer (p);
-    if (!out)
-        return NULL;
 
     if (p1->input.n >= INPUT_QUOTA && nile_Process_quota_hit (p1)) {
         vars->p1 = NULL;
