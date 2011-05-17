@@ -284,7 +284,7 @@ nile_Thread_work_until_below (nile_Thread_t *liaison, int *var, int value)
 /* Stream buffers */
 
 static void *
-nile_Process_alloc_block (nile_Process_t *p);
+nile_Process_alloc_node (nile_Process_t *p);
 
 #define BUFFER_TO_NODE(b) (((nile_Node_t   *)  b) - 1)
 #define NODE_TO_BUFFER(n) ( (nile_Buffer_t *) (n + 1))
@@ -292,7 +292,7 @@ nile_Process_alloc_block (nile_Process_t *p);
 INLINE nile_Buffer_t *
 nile_Buffer (nile_Process_t *p)
 {
-    nile_Node_t *nd = nile_Process_alloc_block (p);
+    nile_Node_t *nd = nile_Process_alloc_node (p);
     nile_Buffer_t *b = NODE_TO_BUFFER (nd);
     if (!nd)
         return NULL;
@@ -343,7 +343,7 @@ struct nile_Process_ {
 };
 
 static void *
-nile_Process_alloc_block (nile_Process_t *p)
+nile_Process_alloc_node (nile_Process_t *p)
 {
     nile_Chunk_t *c;
     void *v = nile_Heap_pop (&p->heap);
@@ -356,9 +356,9 @@ nile_Process_alloc_block (nile_Process_t *p)
 }
 
 static void
-nile_Process_free_block (nile_Process_t *p, void *v)
+nile_Process_free_node (nile_Process_t *p, nile_Node_t *nd)
 {
-    if (nile_Heap_push (&p->heap, v))
+    if (nile_Heap_push (&p->heap, nd))
         nile_Thread_free_chunk (p->thread, nile_Heap_pop_chunk (&p->heap));
 }
 
@@ -375,7 +375,7 @@ nile_Process (nile_Process_t *p, int quantum, int sizeof_vars,
     nile_Process_t *parent = p;
     if (!parent)
         return NULL;
-    p = nile_Process_alloc_block (p);
+    p = nile_Process_alloc_node (p);
     if (!p)
         return NULL;
     p->node.type = NILE_PROCESS_TYPE;
@@ -543,7 +543,7 @@ nile_Process_remove (nile_Process_t *p, nile_Thread_t *thread, nile_Heap_t heap)
         p->thread = thread;
         p->heap = heap;
         while (input.n)
-            nile_Process_free_block (p, nile_Deque_pop_head (&input));
+            nile_Process_free_node (p, nile_Deque_pop_head (&input));
         heap = p->heap;
         nile_Heap_push (&heap, p);
         if (producer && producer->state == NILE_BLOCKED_ON_CONSUMER)
@@ -558,7 +558,7 @@ nile_Process_enqueue_output (nile_Process_t *producer, nile_Buffer_t *out)
     nile_Node_t *nd = BUFFER_TO_NODE (out);
     nile_Process_t *consumer = producer->consumer;
     if (!consumer || nile_Buffer_is_empty (out))
-        nile_Process_free_block (producer, nd);
+        nile_Process_free_node (producer, nd);
     else {
         nile_Lock_acq (&consumer->lock);
             nile_Deque_push_tail (&consumer->input, nd);
@@ -689,7 +689,7 @@ nile_Process_pop_input (nile_Process_t *p)
             pstate = p->producer->state;
     nile_Lock_rel (&p->lock);
 
-    nile_Process_free_block (p, head);
+    nile_Process_free_node (p, head);
     if (pstate == NILE_BLOCKED_ON_CONSUMER)
         p->heap = nile_Process_schedule (p->producer, p->thread, p->heap);
 }
@@ -981,7 +981,7 @@ nile_SortBy_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
 {
     nile_Deque_t output = ((nile_SortBy_vars_t *) nile_Process_vars (p))->output;
     if (nile_Buffer_is_empty (NODE_TO_BUFFER (output.head)))
-        nile_Process_free_block (p, nile_Deque_pop_head (&output));
+        nile_Process_free_node (p, nile_Deque_pop_head (&output));
     if (p->consumer)
         p->consumer->input = output;
     else
