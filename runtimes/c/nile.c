@@ -482,18 +482,10 @@ nile_Process_feed (nile_Process_t *p, float *data, int n)
     nile_Funnel_pour (nile_Process_pipe (nile_Funnel (p->parent), p, NILE_NULL), data, n, 1);
 }
 
-static nile_Buffer_t *
-nile_Zip_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out);
-
-static nile_Buffer_t *
-nile_Dup_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out);
-
 static int
 nile_Process_block_on_producer (nile_Process_t *p)
 {
     nile_ProcessState_t pstate = -1;
-    if (p->body == nile_Zip_body && p->state == NILE_BLOCKED_ON_CONSUMER)
-        return 0;
     nile_Lock_acq (&p->lock);
         p->state = NILE_BLOCKED_ON_PRODUCER;
         pstate = p->producer ? p->producer->state : pstate;
@@ -1006,7 +998,6 @@ nile_SortBy (nile_Process_t *p, int quantum, int index)
 /* Zip process */
 
 typedef struct {
-    int squantum;
     int j;
     int j0;
     int jn;
@@ -1019,19 +1010,18 @@ nile_Zip_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
 {
     nile_Zip_vars_t *vars = nile_Process_vars (p);
     nile_Zip_vars_t v = *vars;
+    nile_Process_t *sibling = p->gatee;
     int quantum = p->quantum;
-    //nile_Process_t *consumer = p->consumer;
+    int squantum = sibling->quantum;
     nile_Deque_t *output = &v.shared->input;
     nile_Buffer_t *out = v.out ? v.out : NODE_TO_BUFFER (output->head);
-    if (p->gatee)
-        p->gatee->consumer = p->consumer;
 
     while (!nile_Buffer_is_empty (in) && unused->tag == NILE_TAG_NONE) {
         int i = in->head;
         int j = v.j;
         nile_Real_t *idata = &in->data;
         nile_Real_t *odata = &out->data;
-        if (quantum == 4 && v.squantum == 4) {
+        if (quantum == 4 && squantum == 4) {
             int m = (in->tail - i) / 4;
             int o = (v.jn - j) / 8;
             m = m < o ? m : o;
@@ -1045,92 +1035,89 @@ nile_Zip_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
         }
         else {
             int m = (in->tail - i) / quantum;
-            int o = (v.jn - j) / (quantum + v.squantum);
+            int o = (v.jn - j) / (quantum + squantum);
             m = m < o ? m : o;
             while (m--) {
                 int q = quantum;
                 while (q--)
                     odata[j++] = idata[i++];
-                j += v.squantum;
+                j += squantum;
             }
         }
         in->head = i;
         v.j = j;
 
         if (v.j == v.jn) {
+            nile_Buffer_t *out_ = nile_Buffer (p);
+            if (!out_)
+                return NULL;
             v.j = v.j0;
-            if (output->tail == BUFFER_TO_NODE (out)) {
-                out = nile_Buffer (p);
-                if (!out)
-                    return NULL;
+            nile_Lock_acq (&v.shared->lock);
+                if (output->tail == BUFFER_TO_NODE (out)) {
+                    nile_Deque_push_tail (output, BUFFER_TO_NODE (out_));
+                    out = out_;
+                }
                 else
-                    nile_Deque_push_tail (output, BUFFER_TO_NODE (out));
-            }
-            else {
+                    nile_Deque_pop_head (output);
+            nile_Lock_rel (&v.shared->lock);
+            if (out != out_) {
+                nile_Process_free_node (p, BUFFER_TO_NODE (out_));
                 out->tail = v.jn - v.j0;
-                nile_Deque_pop_head (output);
+                p->consumer = p->consumer ? p->consumer : sibling->consumer;
                 nile_Process_enqueue_output (p, out);
-                /*
-                if (consumer && consumer->input.n >= INPUT_QUOTA && nile_Process_quota_hit (consumer))
-                    unused->tag = NILE_TAG_QUOTA_HIT;
-                    */
                 out = NODE_TO_BUFFER (output->head);
+                if (p->consumer && p->consumer->input.n >= INPUT_QUOTA &&
+                    nile_Process_quota_hit (p->consumer))
+                    unused->tag = NILE_TAG_QUOTA_HIT;
             }
         }
     }
 
+    if (unused->tag == NILE_TAG_QUOTA_HIT) {
+        p->consumer->producer = p;
+        sibling->consumer = NULL;
+    }
+
     v.out = out;
     *vars = v;
-    if (p->input.n == 1 && p->producer && p->gatee) {
-        nile_Thread_t *thread = nile_Process_halting (p, unused);
-        p->state = NILE_BLOCKED_ON_GATE;
-        if (p->consumer)
-            p->consumer->producer = p->gatee;
-        thread->private_heap = nile_Process_schedule (p->gatee, thread, thread->private_heap);
-        return NULL;
-    }
-    /*
-    if (unused->tag == NILE_TAG_QUOTA_HIT && p->gatee && p->gatee->input.n >= INPUT_QUOTA) {
-        p->state = NILE_BLOCKED_ON_GATE;
-        p->consumer->producer = p->gatee;
-        p->gatee->heap = p->heap;
-        p->gatee->thread = p->thread;
-        nile_Process_handle_backpressure (p->gatee, unused);
-        return NULL;
-    }
-    */
-
     return unused;
 }
     
 static nile_Buffer_t *
 nile_Zip_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
 {
-    if (p->gatee) {
-        p->gatee->consumer = p->consumer;
-        p->gatee->gatee = NULL;
-        if (p->consumer)
-            p->consumer->producer = p->gatee;
-        p->consumer = NULL;
-    }
-    else {
-        nile_Zip_vars_t v = *(nile_Zip_vars_t *) nile_Process_vars (p);
-        nile_Buffer_t *out = v.out;
-        out->tail = v.j - v.j0;
-        nile_Process_enqueue_output (p, out);
-        nile_Process_free_block (p, v.shared);
-    }
-    return unused;
+    nile_Zip_vars_t v = *(nile_Zip_vars_t *) nile_Process_vars (p);
+    nile_Buffer_t *out = v.out ? v.out : NODE_TO_BUFFER (v.shared->input.head);
+    nile_Process_t *sibling = p->gatee;
+    nile_Thread_t *thread = nile_Process_halting (p, unused);
+    int finished_first = 0;
+
+    nile_Lock_acq (&v.shared->lock);
+        finished_first = sibling->gatee ? 1 : finished_first;
+        p->gatee = NULL;
+    nile_Lock_rel (&v.shared->lock);
+
+    if (finished_first)
+        return NULL;
+    p->heap = thread->private_heap;
+    out->tail = v.j - v.j0;
+    p->consumer = p->consumer ? p->consumer : sibling->consumer;
+    nile_Process_enqueue_output (p, out);
+    if (p->consumer)
+        p->consumer->producer = p;
+    nile_Process_free_node (p, &sibling->node);
+    nile_Process_free_node (p, &v.shared->node);
+    thread->private_heap = nile_Process_remove (p, thread, p->heap);
+    return NULL;
 }
 
 static nile_Process_t *
-nile_Zip (nile_Process_t *p, int quantum, int squantum, int j0, int jn, nile_Process_t *shared)
+nile_Zip (nile_Process_t *p, int quantum, int j0, int jn, nile_Process_t *shared)
 {
     p = nile_Process (p, quantum, sizeof (nile_Zip_vars_t),
                       NULL, nile_Zip_body, nile_Zip_epilogue);
     if (p) {
         nile_Zip_vars_t *vars = nile_Process_vars (p);
-        vars->squantum = squantum;
         vars->j  = j0;
         vars->j0 = j0;
         vars->jn = jn;
@@ -1255,20 +1242,17 @@ nile_DupZip_prologue (nile_Process_t *p, nile_Buffer_t *out)
     int jn = (out->capacity / (v.quantum1 + v.quantum2)) * (v.quantum1 + v.quantum2);
     nile_Process_t *shared = nile_Process (p, 0, 0, NULL, NULL, NULL);
     nile_Process_t *z1 =
-        nile_Zip (p, v.quantum1, v.quantum2, 0,          jn             , shared);
+        nile_Zip (p, v.quantum1, 0,          jn             , shared);
     nile_Process_t *z2 =
-        nile_Zip (p, v.quantum2, v.quantum1, v.quantum1, jn + v.quantum1, shared);
+        nile_Zip (p, v.quantum2, v.quantum1, jn + v.quantum1, shared);
     nile_Process_t *dup = nile_Dup (p, v.p1 ? nile_Process_pipe (v.p1, z1, NILE_NULL) : z1,
                                        v.p2 ? nile_Process_pipe (v.p2, z2, NILE_NULL) : z2);
     nile_Buffer_t *b = nile_Buffer (p);
     if (!shared || !z1 || !z2 || !dup || !b)
         return NULL;
-
     nile_Deque_push_tail (&shared->input, BUFFER_TO_NODE (b));
-    nile_Process_gate (z1, z2);
-    nile_Process_gate (z2, z1);
-    z1->state = NILE_BLOCKED_ON_PRODUCER;
-    z2->consumer = p->consumer;
+    z1->gatee = z2;
+    z2->gatee = z1;
     return nile_Process_swap (p, dup, out);
 }
 
