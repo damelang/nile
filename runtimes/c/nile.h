@@ -39,7 +39,7 @@ nile_Process_gate (nile_Process_t *gater, nile_Process_t *gatee);
 /* Built-in processes */
 
 nile_Process_t *
-nile_Identity (nile_Process_t *p, int quantum);
+nile_Identity (nile_Process_t *p);
 
 nile_Process_t *
 nile_Capture (nile_Process_t *p, float *data, int *n, int size);

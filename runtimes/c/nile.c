@@ -805,8 +805,8 @@ nile_shutdown (nile_Process_t *init)
 /* Identity process */
 
 nile_Process_t *
-nile_Identity (nile_Process_t *p, int quantum)
-    { return nile_Process (p, quantum, 0, NULL, NULL, NULL); }
+nile_Identity (nile_Process_t *p)
+    { return nile_Process (p, 1, 0, NULL, NULL, NULL); }
 
 /* Funnel process */
 
