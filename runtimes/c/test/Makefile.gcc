@@ -1,8 +1,19 @@
-CFLAGS  := -I.. -pipe -Wall -Werror -m64 -march=nocona -msse2 -mfpmath=sse -ffast-math -O3 #-g
-LDFLAGS := -L.. -lnile -lpthread
+TARGET  := $(shell $(CC) -dumpmachine)
+LDFLAGS := -L.. -lnile
+CFLAGS  := -pipe -Wall -Werror -I.. \
+           -O3 -ffast-math
 
-%-test: %-test.c
-	$(CC) $(CFLAGS) $< $(LDFLAGS) -o $@
+ifneq (,$(findstring mingw,$(TARGET))$(findstring cygwin,$(TARGET)))
+  LDFLAGS += # TODO windows
+else
+  LDFLAGS += -lm -pthread
+endif
+
+%-test: %-test.c FORCE
+	$(MAKE) -C .. -f Makefile.gcc
+	$(CC) $< -o $@ $(CFLAGS) $(LDFLAGS)
 
 clean:
-	$(RM) -rf *-test *.dSYM
+	$(RM) -r *-test *.dSYM
+
+FORCE:
