@@ -147,12 +147,18 @@ nile_Process_swap (nile_Process_t *p, nile_Process_t *sub, nile_Buffer_t *out);
 /* Built-in processes */
 
 nile_Process_t *
+nile_Reverse (nile_Process_t *p);
+
+nile_Process_t *
 nile_SortBy (nile_Process_t *p, int quantum, int index);
 
 nile_Process_t *
 nile_DupZip (nile_Process_t *p,
              nile_Process_t *p1, int quantum1,
              nile_Process_t *p2, int quantum2);
+
+nile_Process_t *
+nile_DupCat (nile_Process_t *p, nile_Process_t *p1, nile_Process_t *p2);
 
 #undef INLINE
 #undef Real
