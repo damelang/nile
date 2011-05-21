@@ -10,6 +10,7 @@
 #include "test/nile-debug.h"
 
 #define INPUT_QUOTA 5
+#define INPUT_MAX (2 * INPUT_QUOTA)
 #define Real nile_Real_t
 #define BAT(b, i) ((&b->data)[i])
 
@@ -132,7 +133,7 @@ nile_Thread (int index, nile_Thread_t *threads, int nthreads,
 }
 
 static void *
-nile_Thread_steal (nile_Thread_t *t, void *(*action) (nile_Thread_t *, nile_Thread_t *))
+nile_Thread_steal (nile_Thread_t *t, void *(*action) (nile_Thread_t *))
 {
     int i;
     int j = t->index + t->nthreads;
@@ -144,14 +145,14 @@ nile_Thread_steal (nile_Thread_t *t, void *(*action) (nile_Thread_t *, nile_Thre
     for (i = 1; i < t->nthreads; i++) {
         j += ((i % 2) ^ (t->index % 2) ? i : -i);
         victim = &t->threads[j % t->nthreads];
-        if ((v = action (t, victim)))
+        if ((v = action (victim)))
             return v;
     }
-    return action (t, &t->threads[t->nthreads]);
+    return action (&t->threads[t->nthreads]);
 }
 
 static void *
-nile_Thread_steal_from_heap (nile_Thread_t *t, nile_Thread_t *victim)
+nile_Thread_steal_from_heap (nile_Thread_t *victim)
 {
     nile_Chunk_t *c = NULL;
     if (victim->public_heap) {
@@ -163,7 +164,7 @@ nile_Thread_steal_from_heap (nile_Thread_t *t, nile_Thread_t *victim)
 }
 
 static void *
-nile_Thread_steal_from_q (nile_Thread_t *t, nile_Thread_t *victim)
+nile_Thread_steal_from_q (nile_Thread_t *victim)
 {
     nile_Process_t *p = NULL;
     if (victim->q.n) {
@@ -264,19 +265,16 @@ nile_Thread_work_until_below (nile_Thread_t *liaison, int *var, int value)
     nile_Thread_t *worker = &liaison->threads[0];
     nile_Thread_transfer_heaps (liaison, worker);
 
-    while (!worker->abort && *var >= value)
-       if ((p = nile_Thread_steal (worker, nile_Thread_steal_from_q))) {
-            do {
-                nile_Process_run (p, worker);
-                if (*var < value)
-                    break;
-                nile_Lock_acq (&worker->lock);
-                    p = (nile_Process_t *) nile_Deque_pop_tail (&worker->q);
-                nile_Lock_rel (&worker->lock);
-            } while (p && !worker->abort);
-       }
-       else
-           nile_Sleep_doze (1000);
+    do {
+        nile_Lock_acq (&worker->lock);
+            p = (nile_Process_t *) nile_Deque_pop_tail (&worker->q);
+        nile_Lock_rel (&worker->lock);
+        if (!p)
+            p = nile_Thread_steal (worker, nile_Thread_steal_from_q);
+        if (!p)
+            break;
+        nile_Process_run (p, worker);
+    } while (!worker->abort && *var >= value);
 
     nile_Thread_transfer_heaps (worker, liaison);
 }
@@ -566,7 +564,7 @@ nile_Process_quota_hit (nile_Process_t *p)
         return 0;
     n = p->input.n;
     return (n >= INPUT_QUOTA - 1 &&
-            (p->state == NILE_BLOCKED_ON_PRODUCER || n > 2 * INPUT_QUOTA));
+            (p->state == NILE_BLOCKED_ON_PRODUCER || n > INPUT_MAX));
 }
 
 nile_Buffer_t *
@@ -714,7 +712,7 @@ nile_Process_run (nile_Process_t *p, nile_Thread_t *thread)
     nile_Process_handle_out_of_input (p, out);
 }
 
-/* Runtime maintenance */
+/* Runtime routines */
 
 nile_Process_t *
 nile_startup (char *memory, int nbytes, int nthreads)
@@ -771,6 +769,8 @@ nile_sync (nile_Process_t *init)
     for (i = 1; i < liaison->nthreads; i++)
         liaison->threads[i].sync = 1;
 
+    if ((p = nile_Thread_steal_from_q (worker)))
+        nile_Thread_work (worker, p);
     while (!worker->abort && (p = nile_Thread_steal (worker, nile_Thread_steal_from_q)))
         nile_Thread_work (worker, p);
     nile_Sleep_wait_for_quiecent (liaison->sleep);
@@ -838,7 +838,7 @@ nile_Funnel_prologue (nile_Process_t *p, nile_Buffer_t *out)
         if (out->tag == NILE_TAG_QUOTA_HIT && consumer->input.n >= INPUT_QUOTA) {
             if (consumer->state == NILE_BLOCKED_ON_PRODUCER)
                 p->heap = nile_Process_schedule (consumer, thread, p->heap);
-            else if (consumer->input.n > 4 * INPUT_QUOTA)
+            else
                 break;
         }
     }
@@ -885,11 +885,79 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
     p->producer = EOS ? NULL : p->producer;
     nile_Process_run (p, liaison);
     if (i != n) {
-        nile_Thread_work_until_below (liaison, &p->consumer->input.n, 4 * INPUT_QUOTA);
+        nile_Thread_work_until_below (liaison, &p->consumer->input.n, INPUT_MAX);
         init->heap = liaison->private_heap;
         return nile_Funnel_pour (p, data + i, n - i, EOS);
     }
     init->heap = liaison->private_heap;
+}
+
+/* Capture process */
+
+typedef struct {
+    float *data;
+    int   *n;
+    int    size;
+} nile_Capture_vars_t;
+
+nile_Buffer_t *
+nile_Capture_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
+{
+    nile_Capture_vars_t v = *(nile_Capture_vars_t *) nile_Process_vars (p);
+    while (!nile_Buffer_is_empty (in)) {
+        nile_Real_t r = nile_Buffer_pop_head (in);
+        if (*v.n < v.size)
+            v.data[*v.n] = nile_Real_tof (r);
+        (*v.n)++;
+    }
+    return out;
+}
+
+nile_Process_t *
+nile_Capture (nile_Process_t *p, float *data, int *n, int size)
+{
+    p = nile_Process (p, 1, sizeof (nile_Capture_vars_t),
+                      NULL, nile_Capture_body, NULL);
+    if (p) {
+        nile_Capture_vars_t *vars = nile_Process_vars (p);
+        vars->data = data;
+        vars->n = n;
+        vars->size = size;
+    }
+    return p;
+}
+
+/* Reverse process */
+
+static nile_Buffer_t *
+nile_Reverse_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
+{
+    nile_Buffer_t *out;
+    if (!p->consumer) {
+        in->head = in->tail;
+        return unused;
+    }
+    out = nile_Buffer (p);
+    if (!out)
+        return NULL;
+    out->head = out->tail = out->capacity;
+
+    while (!nile_Buffer_is_empty (in)) {
+        int q = p->consumer->quantum;
+        out->head -= q;
+        while (q)
+            BAT (out, out->head++) = nile_Buffer_pop_head (in);
+        out->head -= q;
+    }
+    nile_Deque_push_head (&p->consumer->input, BUFFER_TO_NODE (out));
+
+    return unused;
+}
+
+nile_Process_t *
+nile_Reverse (nile_Process_t *p)
+{
+    return nile_Process (p, 1, 0, NULL, nile_Reverse_body, NULL);
 }
 
 /* SortBy process */
@@ -1273,37 +1341,98 @@ nile_DupZip (nile_Process_t *p,
     return p;
 }
 
-/* Capture process */
+/* Cat Process */
 
 typedef struct {
-    float *data;
-    int   *n;
-    int    size;
-} nile_Capture_vars_t;
+    int          top;
+    nile_Deque_t output;
+} nile_Cat_vars_t;
 
-nile_Buffer_t *
-nile_Capture_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
+static nile_Buffer_t *
+nile_Cat_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
 {
-    nile_Capture_vars_t v = *(nile_Capture_vars_t *) nile_Process_vars (p);
-    while (!nile_Buffer_is_empty (in)) {
-        nile_Real_t r = nile_Buffer_pop_head (in);
-        if (*v.n < v.size)
-            v.data[*v.n] = nile_Real_tof (r);
-        (*v.n)++;
+    nile_Cat_vars_t *vars = (nile_Cat_vars_t *) nile_Process_vars (p);
+    nile_Buffer_copy (in, out);
+    if (vars->top)
+        return nile_Process_append_output (p, out);
+    else {
+        nile_Deque_push_tail (&vars->output, BUFFER_TO_NODE (out));
+        return nile_Buffer (p);
     }
-    return out;
+}
+
+static nile_Buffer_t *
+nile_Cat_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
+{
+    nile_Cat_vars_t v = *((nile_Cat_vars_t *) nile_Process_vars (p));
+    if (v.top) {
+        nile_ProcessState_t gstate;
+        nile_Lock_acq (&p->gatee->lock);
+            p->gatee->gatee = NULL; 
+            gstate = p->gatee->state;
+        nile_Lock_rel (&p->gatee->lock);
+        if (gstate == NILE_BLOCKED_ON_GATE)
+            p->heap = nile_Process_schedule (p->gatee, p->thread, p->heap);
+        return unused;
+    }
+    else {
+        nile_ProcessState_t state;
+        nile_Process_halting (p, unused);
+        nile_Lock_acq (&p->lock);
+            state = p->state = (p->gatee ? NILE_BLOCKED_ON_GATE : p->state);
+        nile_Lock_rel (&p->lock);
+        if (state == NILE_BLOCKED_ON_GATE)
+            return NULL;
+        p->input = v.output;
+        return nile_Buffer (p); 
+    }
 }
 
 nile_Process_t *
-nile_Capture (nile_Process_t *p, float *data, int *n, int size)
+nile_Cat (nile_Process_t *p, int top)
 {
-    p = nile_Process (p, 1, sizeof (nile_Capture_vars_t),
-                      NULL, nile_Capture_body, NULL);
+    p = nile_Process (p, 1, 0, NULL, nile_Cat_body, nile_Cat_epilogue);
     if (p) {
-        nile_Capture_vars_t *vars = nile_Process_vars (p);
-        vars->data = data;
-        vars->n = n;
-        vars->size = size;
+        nile_Cat_vars_t *vars = (nile_Cat_vars_t *) nile_Process_vars (p);
+        vars->top = top;
+        vars->output.n = 0;
+        vars->output.head = vars->output.tail = NULL;
+    }
+    return p;
+}
+
+/* DupCat Process */
+
+typedef struct {
+    nile_Process_t *p1;
+    nile_Process_t *p2;
+} nile_DupCat_vars_t;
+
+static nile_Buffer_t *
+nile_DupCat_prologue (nile_Process_t *p, nile_Buffer_t *out)
+{
+    nile_DupCat_vars_t v = *(nile_DupCat_vars_t *) nile_Process_vars (p);
+    nile_Process_t *c1 = nile_Cat (p, 1);
+    nile_Process_t *c2 = nile_Cat (p, 0);
+    nile_Process_t *dup = nile_Dup (p, v.p1 ? nile_Process_pipe (v.p1, c1, NILE_NULL) : c1,
+                                       v.p2 ? nile_Process_pipe (v.p2, c2, NILE_NULL) : c2);
+    if (!c1 || !c2 || !dup)
+        return NULL;
+    c1->gatee = c2;
+    c2->gatee = c1;
+    c2->consumer = p->consumer;
+    return nile_Process_swap (p, dup, out);
+}
+
+nile_Process_t *
+nile_DupCat (nile_Process_t *p, nile_Process_t *p1, nile_Process_t *p2)
+{
+    p = nile_Process (p, 1, sizeof (nile_DupCat_vars_t),
+                      nile_DupCat_prologue, NULL, NULL);
+    if (p) {
+        nile_DupCat_vars_t *vars = nile_Process_vars (p);
+        vars->p1 = p1;
+        vars->p2 = p2;
     }
     return p;
 }
