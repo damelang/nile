@@ -4,13 +4,13 @@
 #define DEBUG
 #include "nile-debug.h"
 
-#define MEM_SIZE 100000
+#define NBYTES_PER_THREAD 1000
 
 int
 main (int argc, char **argv)
 {
     nile_Process_t *init;
-    char *mem = malloc (MEM_SIZE);
+    char *mem;
     int nthreads;
 
     if (argc > 1) {
@@ -24,16 +24,21 @@ main (int argc, char **argv)
         nthreads = 1;
     log ("nthreads: %d", nthreads);
 
-    init = nile_startup (mem, MEM_SIZE, nthreads);
+    mem = malloc (NBYTES_PER_THREAD * nthreads);
+    init = nile_startup (mem, NBYTES_PER_THREAD * nthreads, nthreads);
     if (!init) {
         log ("Failed to start up");
         exit (0);
     }
     
-    if (nile_sync (init)) {
-        log ("sync gave error");
+    nile_sync (init);
+
+    if (nile_error (init)) {
+        log ("nile_error gave error");
         exit (0);
     }
+
+    nile_print_leaks (init);
 
     if (nile_shutdown (init) != mem) {
         log ("Didn't get memory back");
