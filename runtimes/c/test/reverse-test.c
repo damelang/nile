@@ -22,7 +22,6 @@ main (int argc, char **argv)
     if (!init)
         die ("Failed to start up");
 
-    srand (83897234);
     for (i = 0; i < NREALS; i++)
         data[i] = i;
 
