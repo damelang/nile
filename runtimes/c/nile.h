@@ -39,7 +39,7 @@ nile_Process_gate (nile_Process_t *gater, nile_Process_t *gatee);
 /* Built-in processes */
 
 nile_Process_t *
-nile_Identity (nile_Process_t *p);
+nile_Identity (nile_Process_t *p, int quantum);
 
 nile_Process_t *
 nile_Capture (nile_Process_t *p, float *data, int *n, int size);
@@ -147,18 +147,20 @@ nile_Process_swap (nile_Process_t *p, nile_Process_t *sub, nile_Buffer_t *out);
 /* Built-in processes */
 
 nile_Process_t *
-nile_Reverse (nile_Process_t *p);
+nile_Reverse (nile_Process_t *p, int quantum);
 
 nile_Process_t *
 nile_SortBy (nile_Process_t *p, int quantum, int index);
 
 nile_Process_t *
-nile_DupZip (nile_Process_t *p,
-             nile_Process_t *p1, int quantum1,
-             nile_Process_t *p2, int quantum2);
+nile_DupZip (nile_Process_t *p,  int quantum,
+             nile_Process_t *p1, int p1_out_quantum,
+             nile_Process_t *p2, int p2_out_quantum);
 
 nile_Process_t *
-nile_DupCat (nile_Process_t *p, nile_Process_t *p1, nile_Process_t *p2);
+nile_DupCat (nile_Process_t *p,  int quantum,
+             nile_Process_t *p1, int p1_out_quantum,
+             nile_Process_t *p2, int p2_out_quantum);
 
 #undef INLINE
 #undef Real

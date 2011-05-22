@@ -805,8 +805,8 @@ nile_shutdown (nile_Process_t *init)
 /* Identity process */
 
 nile_Process_t *
-nile_Identity (nile_Process_t *p)
-    { return nile_Process (p, 1, 0, NULL, NULL, NULL); }
+nile_Identity (nile_Process_t *p, int quantum)
+    { return nile_Process (p, quantum, 0, NULL, NULL, NULL); }
 
 /* Funnel process */
 
@@ -943,7 +943,7 @@ nile_Reverse_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
     out->head = out->tail = out->capacity;
 
     while (!nile_Buffer_is_empty (in)) {
-        int q = p->consumer->quantum;
+        int q = p->quantum;
         out->head -= q;
         while (q)
             BAT (out, out->head++) = nile_Buffer_pop_head (in);
@@ -955,9 +955,9 @@ nile_Reverse_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
 }
 
 nile_Process_t *
-nile_Reverse (nile_Process_t *p)
+nile_Reverse (nile_Process_t *p, int quantum)
 {
-    return nile_Process (p, 1, 0, NULL, nile_Reverse_body, NULL);
+    return nile_Process (p, quantum, 0, NULL, nile_Reverse_body, NULL);
 }
 
 /* SortBy process */
@@ -1281,9 +1281,9 @@ nile_Dup_epilogue (nile_Process_t *p, nile_Buffer_t *out)
 }
 
 static nile_Process_t *
-nile_Dup (nile_Process_t *p, nile_Process_t *p1, nile_Process_t *p2)
+nile_Dup (nile_Process_t *p, int quantum, nile_Process_t *p1, nile_Process_t *p2)
 {
-    p = nile_Process (p, 1, sizeof (nile_Dup_vars_t),
+    p = nile_Process (p, quantum, sizeof (nile_Dup_vars_t),
                       NULL, nile_Dup_body, nile_Dup_epilogue);
     if (p) {
         nile_Dup_vars_t *vars = nile_Process_vars (p);
@@ -1298,23 +1298,25 @@ nile_Dup (nile_Process_t *p, nile_Process_t *p1, nile_Process_t *p2)
 
 typedef struct {
     nile_Process_t *p1;
-    int quantum1;
+    int             p1_out_quantum;
     nile_Process_t *p2;
-    int quantum2;
+    int             p2_out_quantum;
 } nile_DupZip_vars_t;
 
 static nile_Buffer_t *
 nile_DupZip_prologue (nile_Process_t *p, nile_Buffer_t *out)
 {
     nile_DupZip_vars_t v = *(nile_DupZip_vars_t *) nile_Process_vars (p);
-    int jn = (out->capacity / (v.quantum1 + v.quantum2)) * (v.quantum1 + v.quantum2);
+    int out_quantum = v.p1_out_quantum + v.p2_out_quantum;
+    int jn = (out->capacity / out_quantum) * out_quantum;
     nile_Process_t *shared = nile_Process (p, 0, 0, NULL, NULL, NULL);
     nile_Process_t *z1 =
-        nile_Zip (p, v.quantum1, 0,          jn             , shared);
+        nile_Zip (p, v.p1_out_quantum, 0,          jn             , shared);
     nile_Process_t *z2 =
-        nile_Zip (p, v.quantum2, v.quantum1, jn + v.quantum1, shared);
-    nile_Process_t *dup = nile_Dup (p, v.p1 ? nile_Process_pipe (v.p1, z1, NILE_NULL) : z1,
-                                       v.p2 ? nile_Process_pipe (v.p2, z2, NILE_NULL) : z2);
+        nile_Zip (p, v.p2_out_quantum, v.p1_out_quantum, jn + v.p1_out_quantum, shared);
+    nile_Process_t *dup = nile_Dup (p, p->quantum,
+                                    v.p1 ? nile_Process_pipe (v.p1, z1, NILE_NULL) : z1,
+                                    v.p2 ? nile_Process_pipe (v.p2, z2, NILE_NULL) : z2);
     nile_Buffer_t *b = nile_Buffer (p);
     if (!shared || !z1 || !z2 || !dup || !b)
         return NULL;
@@ -1325,18 +1327,18 @@ nile_DupZip_prologue (nile_Process_t *p, nile_Buffer_t *out)
 }
 
 nile_Process_t *
-nile_DupZip (nile_Process_t *p,
-             nile_Process_t *p1, int quantum1,
-             nile_Process_t *p2, int quantum2)
+nile_DupZip (nile_Process_t *p,  int quantum,
+             nile_Process_t *p1, int p1_out_quantum,
+             nile_Process_t *p2, int p2_out_quantum)
 {
-    p = nile_Process (p, 1, sizeof (nile_DupZip_vars_t),
+    p = nile_Process (p, quantum, sizeof (nile_DupZip_vars_t),
                       nile_DupZip_prologue, NULL, NULL);
     if (p) {
         nile_DupZip_vars_t *vars = nile_Process_vars (p);
         vars->p1 = p1;
-        vars->quantum1 = quantum1;
+        vars->p1_out_quantum = p1_out_quantum;
         vars->p2 = p2;
-        vars->quantum2 = quantum2;
+        vars->p2_out_quantum = p2_out_quantum;
     }
     return p;
 }
@@ -1344,7 +1346,7 @@ nile_DupZip (nile_Process_t *p,
 /* Cat Process */
 
 typedef struct {
-    int          top;
+    int          is_top;
     nile_Deque_t output;
 } nile_Cat_vars_t;
 
@@ -1353,7 +1355,7 @@ nile_Cat_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
 {
     nile_Cat_vars_t *vars = (nile_Cat_vars_t *) nile_Process_vars (p);
     nile_Buffer_copy (in, out);
-    if (vars->top)
+    if (vars->is_top)
         return nile_Process_append_output (p, out);
     else {
         nile_Deque_push_tail (&vars->output, BUFFER_TO_NODE (out));
@@ -1365,7 +1367,7 @@ static nile_Buffer_t *
 nile_Cat_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
 {
     nile_Cat_vars_t v = *((nile_Cat_vars_t *) nile_Process_vars (p));
-    if (v.top) {
+    if (v.is_top) {
         nile_ProcessState_t gstate;
         nile_Lock_acq (&p->gatee->lock);
             p->gatee->gatee = NULL; 
@@ -1389,12 +1391,12 @@ nile_Cat_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
 }
 
 nile_Process_t *
-nile_Cat (nile_Process_t *p, int top)
+nile_Cat (nile_Process_t *p, int quantum, int is_top)
 {
-    p = nile_Process (p, 1, 0, NULL, nile_Cat_body, nile_Cat_epilogue);
+    p = nile_Process (p, quantum, 0, NULL, nile_Cat_body, nile_Cat_epilogue);
     if (p) {
         nile_Cat_vars_t *vars = (nile_Cat_vars_t *) nile_Process_vars (p);
-        vars->top = top;
+        vars->is_top = is_top;
         vars->output.n = 0;
         vars->output.head = vars->output.tail = NULL;
     }
@@ -1405,17 +1407,20 @@ nile_Cat (nile_Process_t *p, int top)
 
 typedef struct {
     nile_Process_t *p1;
+    int             p1_out_quantum;
     nile_Process_t *p2;
+    int             p2_out_quantum;
 } nile_DupCat_vars_t;
 
 static nile_Buffer_t *
 nile_DupCat_prologue (nile_Process_t *p, nile_Buffer_t *out)
 {
     nile_DupCat_vars_t v = *(nile_DupCat_vars_t *) nile_Process_vars (p);
-    nile_Process_t *c1 = nile_Cat (p, 1);
-    nile_Process_t *c2 = nile_Cat (p, 0);
-    nile_Process_t *dup = nile_Dup (p, v.p1 ? nile_Process_pipe (v.p1, c1, NILE_NULL) : c1,
-                                       v.p2 ? nile_Process_pipe (v.p2, c2, NILE_NULL) : c2);
+    nile_Process_t *c1 = nile_Cat (p, v.p1_out_quantum, 1);
+    nile_Process_t *c2 = nile_Cat (p, v.p2_out_quantum, 0);
+    nile_Process_t *dup = nile_Dup (p, p->quantum,
+                                    v.p1 ? nile_Process_pipe (v.p1, c1, NILE_NULL) : c1,
+                                    v.p2 ? nile_Process_pipe (v.p2, c2, NILE_NULL) : c2);
     if (!c1 || !c2 || !dup)
         return NULL;
     c1->gatee = c2;
@@ -1425,14 +1430,18 @@ nile_DupCat_prologue (nile_Process_t *p, nile_Buffer_t *out)
 }
 
 nile_Process_t *
-nile_DupCat (nile_Process_t *p, nile_Process_t *p1, nile_Process_t *p2)
+nile_DupCat (nile_Process_t *p,  int quantum,
+             nile_Process_t *p1, int p1_out_quantum,
+             nile_Process_t *p2, int p2_out_quantum)
 {
-    p = nile_Process (p, 1, sizeof (nile_DupCat_vars_t),
+    p = nile_Process (p, quantum, sizeof (nile_DupCat_vars_t),
                       nile_DupCat_prologue, NULL, NULL);
     if (p) {
         nile_DupCat_vars_t *vars = nile_Process_vars (p);
         vars->p1 = p1;
+        vars->p1_out_quantum = p1_out_quantum;
         vars->p2 = p2;
+        vars->p2_out_quantum = p2_out_quantum;
     }
     return p;
 }
