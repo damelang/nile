@@ -945,9 +945,9 @@ nile_Reverse_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
     while (!nile_Buffer_is_empty (in)) {
         int q = p->quantum;
         out->head -= q;
-        while (q)
+        while (q--)
             BAT (out, out->head++) = nile_Buffer_pop_head (in);
-        out->head -= q;
+        out->head -= p->quantum;
     }
     nile_Deque_push_head (&p->consumer->input, BUFFER_TO_NODE (out));
 
