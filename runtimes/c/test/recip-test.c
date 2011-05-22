@@ -65,10 +65,8 @@ main (int argc, char **argv)
 
     mem_size = NBYTES_PER_THREAD * nthreads;
     init = nile_startup (malloc (mem_size), mem_size, nthreads);
-    if (!init) {
-        log ("Failed to start up");
-        exit (0);
-    }
+    if (!init)
+        die ("Failed to start up");
 
     srand (17837643);
     for (i = 0; i < NREALS_PER_POUR; i++)

@@ -3,6 +3,7 @@
 
 #ifdef DEBUG
 
+#include <stdlib.h>
 #include <stdio.h>
 
 #ifdef _MSC_VER
@@ -16,6 +17,11 @@ do { \
     fflush (stderr); \
 } while (0)
 
+#define die(s, ...) \
+do { \
+    log (s " [EXITING]", ##__VA_ARGS__); exit (0); \
+} while (0)
+
 #define plog(p, s, ...) \
     log ("(process: %p) -- " s, p, ##__VA_ARGS__)
 
@@ -24,7 +30,8 @@ do { \
 
 #else
 #define log(...)
-#define plog(p, s, ...)
+#define die(...) exit (0)
+#define plog(...)
 #define tlog(...)
 #endif
 

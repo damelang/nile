@@ -26,24 +26,18 @@ main (int argc, char **argv)
 
     mem = malloc (NBYTES_PER_THREAD * nthreads);
     init = nile_startup (mem, NBYTES_PER_THREAD * nthreads, nthreads);
-    if (!init) {
-        log ("Failed to start up");
-        exit (0);
-    }
+    if (!init)
+        die ("Failed to start up");
     
     nile_sync (init);
 
-    if (nile_error (init)) {
-        log ("nile_error gave error");
-        exit (0);
-    }
+    if (nile_error (init))
+        die ("nile_error gave error");
 
     nile_print_leaks (init);
 
-    if (nile_shutdown (init) != mem) {
-        log ("Didn't get memory back");
-        exit (0);
-    }
+    if (nile_shutdown (init) != mem)
+        die ("Didn't get memory back");
 
     free (mem);
     log ("Success");

@@ -6,63 +6,38 @@
 #include "nile-debug.h"
 #include "nile-print.h"
 
-#define MEM_SIZE 1000000
-#define NREALS 10000
-
-void
-go (nile_Process_t *init, float *data)
-{
-    nile_Process_t *p = nile_Process_pipe (
-        nile_Funnel (init, 2),
-        nile_SortBy (init, 2, 1),
-        nile_PrintToFile (init, stdout), 
-        NILE_NULL);
-    nile_Funnel_pour (p, data, NREALS, 1);
-}
+#define MEM_SIZE  1000000
+#define NELEMENTS    5000
+#define QUANTUM         2
+#define NREALS    (NELEMENTS * QUANTUM)
 
 int
 main (int argc, char **argv)
 {
-    nile_Process_t *init;
-    char *mem = malloc (MEM_SIZE);
+    int i;
     float *data = malloc (NREALS * sizeof (float));
-    int i, nthreads;
+    nile_Process_t *pipeline;
+    nile_Process_t *init = nile_startup (malloc (MEM_SIZE), MEM_SIZE, 1);
 
-    if (argc > 1) {
-        nthreads = atoi (argv[1]);
-        if (nthreads < 1)
-            nthreads = 1;
-        if (nthreads > 100)
-            nthreads = 100;
-    }
-    else
-        nthreads = 1;
-    log ("nthreads: %d", nthreads);
-
-    init = nile_startup (mem, MEM_SIZE, nthreads);
-    if (!init) {
-        log ("Failed to start up");
-        exit (0);
-    }
+    if (!init)
+        die ("Failed to start up");
 
     srand (83897234);
     for (i = 0; i < NREALS; i++)
-        data[i] = rand () / (float) RAND_MAX * 1000;
-    printf ("\n");
-    go (init, data);
-    
-    if (nile_sync (init)) {
-        log ("sync gave error");
-        exit (0);
-    }
-    printf ("\n");
+        data[i] = rand () % 100;
 
-    if (nile_shutdown (init) != mem) {
-        log ("Didn't get memory back");
-        exit (0);
-    }
+    pipeline = nile_Process_pipe (
+        nile_SortBy (init, QUANTUM, 1),
+        nile_SortBy (init, QUANTUM, 0),
+        nile_PrintToFile (init, stdout), 
+        NILE_NULL);
+    nile_Process_feed (pipeline, data, NREALS);
+    nile_sync (init);
 
-    free (mem);
+    if (nile_error (init))
+        die ("nile_error");
+
+    free (nile_shutdown (init));
     log ("Success");
     exit (0);
 }
