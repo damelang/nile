@@ -811,7 +811,6 @@ nile_Identity (nile_Process_t *p, int quantum)
 /* Funnel process */
 
 typedef struct {
-    nile_Process_t *init;
     int            *i;
     float          *data;
     int             n;
@@ -856,11 +855,8 @@ nile_Process_t *
 nile_Funnel (nile_Process_t *init)
 {
     nile_Process_t *p = nile_Process (init, 1, 0, nile_Funnel_prologue, NULL, NULL);
-    if (p) {
-        nile_Funnel_vars_t *vars = nile_Process_vars (p);
-        vars->init = init;
+    if (p)
         p->state = NILE_BLOCKED_ON_GATE;
-    }
     return p;
 }
 
@@ -869,16 +865,16 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
 {
     int i = 0;
     nile_Funnel_vars_t *vars;
-    nile_Process_t *init;
     nile_Thread_t *liaison;
+    nile_Process_t *init;
     if (!p)
         return;
-    vars = nile_Process_vars (p);
-    init = vars->init;
+    init = p->parent;
     liaison = init->thread;
     liaison->private_heap = init->heap;
     if (liaison->q.n > 4 * liaison->nthreads)
         nile_Thread_work_until_below (liaison, &liaison->q.n, 2 * liaison->nthreads);
+    vars = nile_Process_vars (p);
     vars->i = &i;
     vars->data = data;
     vars->n = n;
