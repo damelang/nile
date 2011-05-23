@@ -1365,12 +1365,16 @@ nile_Cat_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
     nile_Cat_vars_t v = *((nile_Cat_vars_t *) nile_Process_vars (p));
     if (v.is_top) {
         nile_ProcessState_t gstate;
+        if (p->consumer)
+            p->consumer->producer = p->gatee;
         nile_Lock_acq (&p->gatee->lock);
             p->gatee->gatee = NULL; 
             gstate = p->gatee->state;
         nile_Lock_rel (&p->gatee->lock);
         if (gstate == NILE_BLOCKED_ON_GATE)
             p->heap = nile_Process_schedule (p->gatee, p->thread, p->heap);
+        p->consumer = NULL;
+        p->gatee = NULL;
         return unused;
     }
     else {
