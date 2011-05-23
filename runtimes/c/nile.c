@@ -1350,6 +1350,7 @@ nile_Cat_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
 {
     nile_Cat_vars_t *vars = (nile_Cat_vars_t *) nile_Process_vars (p);
     nile_Buffer_copy (in, out);
+    in->head = in->tail;
     if (vars->is_top)
         return nile_Process_append_output (p, out);
     else {
