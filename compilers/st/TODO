@@ -1,3 +1,4 @@
+- add Reverse and DupCat to compiler
 - unary negation should be lower precedence than tuple member access
 - support overloading of operators
 - "types" day with Alex

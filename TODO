@@ -1,4 +1,5 @@
-- allow for empty swap statements? (right now we have to give the identity/pass through)
+- incorporate syntax changes I used in my socal slides
+- allow for empty swap statements? (right now we have to give the identity/pass through, I think)
 
 - types
 
