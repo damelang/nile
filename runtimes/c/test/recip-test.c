@@ -34,7 +34,7 @@ static void
 create_and_run_pipeline (nile_Process_t *init, float *data)
 {
     int i;
-    //nile_Process_t *pipeline = nile_PrintToFile (init, stdout);
+    //nile_Process_t *pipeline = nile_PrintToFile (init, 1, stdout);
     nile_Process_t *pipeline = NILE_NULL;
     for (i = 0; i < NSTAGES_PER_PIPELINE; i++)
         pipeline = nile_Process_pipe (Reciprocal (init), pipeline, NILE_NULL);

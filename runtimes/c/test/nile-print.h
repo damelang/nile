@@ -4,26 +4,40 @@
 #define NILE_INCLUDE_PROCESS_API
 #include "nile.h"
 
-nile_Buffer_t *
+typedef struct {
+    int   quantum;
+    FILE *f;
+} nile_PrintToFile_vars_t;
+
+static nile_Buffer_t *
 nile_PrintToFile_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
 {
-    FILE *f = *(FILE **) nile_Process_vars (p);
-    while (!nile_Buffer_is_empty (in))
-        fprintf (f, "%.4f\n", nile_Real_tof (nile_Buffer_pop_head (in)));
+    nile_PrintToFile_vars_t v = *(nile_PrintToFile_vars_t *) nile_Process_vars (p);
+    while (!nile_Buffer_is_empty (in)) {
+        int q = v.quantum;
+        while (q--)
+            fprintf (v.f, "%.4f ", nile_Real_tof (nile_Buffer_pop_head (in)));
+        fprintf (v.f, "\n");
+    }
     return out;
 }
 
-nile_Buffer_t *
+static nile_Buffer_t *
 nile_PrintToFile_epilogue (nile_Process_t *p, nile_Buffer_t *out)
-    { fflush (*(FILE **) nile_Process_vars (p)); return out; }
-
-nile_Process_t *
-nile_PrintToFile (nile_Process_t *p, FILE *f)
 {
-    p = nile_Process (p, 1, 0, 0, nile_PrintToFile_body, nile_PrintToFile_epilogue);
+    nile_PrintToFile_vars_t v = *(nile_PrintToFile_vars_t *) nile_Process_vars (p);
+    fflush (v.f);
+    return out;
+}
+
+static nile_Process_t *
+nile_PrintToFile (nile_Process_t *p, int quantum, FILE *f)
+{
+    p = nile_Process (p, quantum, 0, 0, nile_PrintToFile_body, nile_PrintToFile_epilogue);
     if (p) {
-        FILE **var = nile_Process_vars (p);
-        *var = f;
+        nile_PrintToFile_vars_t *vars = nile_Process_vars (p);
+        vars->quantum = quantum;
+        vars->f = f;
     }
     return p;
 }

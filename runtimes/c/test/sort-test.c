@@ -29,7 +29,7 @@ main (int argc, char **argv)
     pipeline = nile_Process_pipe (
         nile_SortBy (init, QUANTUM, 1),
         nile_SortBy (init, QUANTUM, 0),
-        nile_PrintToFile (init, stdout), 
+        nile_PrintToFile (init, QUANTUM, stdout), 
         NILE_NULL);
     nile_Process_feed (pipeline, data, NREALS);
     nile_sync (init);
