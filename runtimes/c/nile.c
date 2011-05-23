@@ -822,8 +822,7 @@ nile_Funnel_prologue (nile_Process_t *p, nile_Buffer_t *out)
     nile_Funnel_vars_t *vars = nile_Process_vars (p);
     nile_Funnel_vars_t v = *vars;
     nile_Thread_t *thread = p->thread;
-    nile_Process_t *consumer = p->consumer;
-    int quantum = consumer ? consumer->quantum : 1;
+    int quantum = p->consumer ? p->consumer->quantum : p->quantum;;
     int m = (out->capacity / quantum) * quantum;
     int i = *(v.i);
 
@@ -834,9 +833,9 @@ nile_Funnel_prologue (nile_Process_t *p, nile_Buffer_t *out)
         if (i == v.n)
             break;
         out = nile_Process_append_output (p, out);
-        if (out->tag == NILE_TAG_QUOTA_HIT && consumer->input.n >= INPUT_QUOTA) {
-            if (consumer->state == NILE_BLOCKED_ON_PRODUCER)
-                p->heap = nile_Process_schedule (consumer, thread, p->heap);
+        if (out->tag == NILE_TAG_QUOTA_HIT && p->consumer->input.n >= INPUT_QUOTA) {
+            if (p->consumer->state == NILE_BLOCKED_ON_PRODUCER)
+                p->heap = nile_Process_schedule (p->consumer, thread, p->heap);
             else
                 break;
         }
