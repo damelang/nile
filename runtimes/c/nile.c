@@ -477,7 +477,8 @@ nile_Process_pipe_v (nile_Process_t **ps, int n)
 void
 nile_Process_feed (nile_Process_t *p, float *data, int n)
 {
-    nile_Funnel_pour (nile_Process_pipe (nile_Funnel (p->parent), p, NILE_NULL), data, n, 1);
+    if (p)
+        nile_Funnel_pour (nile_Process_pipe (nile_Funnel (p->parent), p, NILE_NULL), data, n, 1);
 }
 
 static int
