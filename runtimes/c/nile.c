@@ -867,7 +867,7 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
     nile_Funnel_vars_t *vars;
     nile_Thread_t *liaison;
     nile_Process_t *init;
-    if (!p)
+    if (!p || p->parent->thread->abort)
         return;
     init = p->parent;
     liaison = init->thread;
