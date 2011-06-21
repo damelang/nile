@@ -1,6 +1,3 @@
-#ifndef NILE_SLEEP_H
-#define NILE_SLEEP_H
-
 typedef CACHE_ALIGNED struct {
     nile_Lock_t lock;
     int         nthreads;
@@ -72,5 +69,3 @@ nile_Sleep_wait_for_wakeup (nile_Sleep_t *s)
 static void
 nile_Sleep_doze (int npauses)
     { while (npauses--) nile_pause (); }
-
-#endif

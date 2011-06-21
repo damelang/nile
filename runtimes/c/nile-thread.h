@@ -1,6 +1,3 @@
-#ifndef NILE_THREAD_H
-#define NILE_THREAD_H
-
 #define INPUT_QUOTA 5
 #define INPUT_MAX (2 * INPUT_QUOTA)
 
@@ -192,6 +189,3 @@ nile_Thread_work_until_below (nile_Thread_t *liaison, int *var, int value)
 
     nile_Thread_transfer_heaps (worker, liaison);
 }
-
-
-#endif

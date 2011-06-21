@@ -1,6 +1,3 @@
-#ifndef NILE_BUFFER_H
-#define NILE_BUFFER_H
-
 static void *
 nile_Process_alloc_node (nile_Process_t *p);
 
@@ -33,5 +30,3 @@ nile_Buffer_copy (nile_Buffer_t *from, nile_Buffer_t *to)
     for (; head < tail; head++)
         to_data[head] = from_data[head];
 }
-
-#endif

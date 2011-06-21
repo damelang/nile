@@ -1,6 +1,3 @@
-#ifndef NILE_DEQUE_H
-#define NILE_DEQUE_H
-
 typedef enum {
     NILE_BUFFER_TYPE,
     NILE_PROCESS_TYPE
@@ -68,5 +65,3 @@ nile_Deque_pop_tail (nile_Deque_t *d)
     }
     return nd;
 }
-
-#endif

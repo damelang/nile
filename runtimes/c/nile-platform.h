@@ -1,6 +1,3 @@
-#ifndef NILE_PLATFORM_H
-#define NILE_PLATFORM_H
-
 #define CACHE_LINE_SIZE 64
 #define SIMD_SIZE 16
 
@@ -161,5 +158,4 @@ typedef int nile_OSThread_t;
 #define nile_OSThread_spawn(t, f, arg)
 #define nile_OSThread_join(t)
 
-#endif
 #endif

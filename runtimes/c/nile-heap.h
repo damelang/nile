@@ -1,6 +1,3 @@
-#ifndef NILE_HEAP_H
-#define NILE_HEAP_H
-
 #define BLOCK_SIZE    512
 #define CHUNK_MAX_LEN  16
 
@@ -53,5 +50,3 @@ nile_Heap_pop_chunk (nile_Heap_t *h)
     *h = b ? b->eoc->next : b;
     return b;
 }
-
-#endif
