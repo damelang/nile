@@ -1,8 +1,6 @@
 #ifndef NILE_SLEEP_H
 #define NILE_SLEEP_H
 
-/* Thread sleeping */
-
 typedef CACHE_ALIGNED struct {
     nile_Lock_t lock;
     int         nthreads;
