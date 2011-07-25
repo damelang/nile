@@ -1,6 +1,3 @@
-#define INPUT_QUOTA 5
-#define INPUT_MAX (2 * INPUT_QUOTA)
-
 typedef struct nile_Thread_ nile_Thread_t;
 
 CACHE_ALIGNED struct nile_Thread_ {

@@ -12,6 +12,9 @@
 #define DEBUG
 #include "test/nile-debug.h"
 
+#define INPUT_QUOTA 5
+#define INPUT_MAX (2 * INPUT_QUOTA)
+
 typedef enum {
     NILE_BLOCKED_ON_GATE,
     NILE_BLOCKED_ON_PRODUCER,
