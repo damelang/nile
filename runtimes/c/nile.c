@@ -78,7 +78,7 @@ nile_Process (nile_Process_t *p, int quantum, int sizeof_vars,
         return NULL;
     p->node.type = NILE_PROCESS_TYPE;
     p->node.next = NULL;
-    p->thread = parent->thread;
+    p->thread = NULL;
     p->lock = 0;
     p->heap = NULL;
     p->input.head = p->input.tail = NULL;
@@ -298,20 +298,30 @@ nile_Process_prefix_input (nile_Process_t *producer, nile_Buffer_t *in)
     return b;
 }
 
-static nile_Thread_t *
-nile_Process_halting (nile_Process_t *p, nile_Buffer_t *out)
+static void
+nile_Process_activate (nile_Process_t *p, nile_Thread_t *thread)
 {
-    if (out->tag != NILE_TAG_OOM) {
+    p->thread = thread;
+    p->heap = thread->private_heap;
+    thread->private_heap = NULL;
+}
+
+static nile_Thread_t *
+nile_Process_deactivate (nile_Process_t *p, nile_Buffer_t *out)
+{
+    nile_Thread_t *thread = p->thread;
+    if (out && out->tag != NILE_TAG_OOM)
         nile_Process_enqueue_output (p, out);
-        p->thread->private_heap = p->heap;
-    }
-    return p->thread;
+    thread->private_heap = p->heap;
+    p->thread = NULL;
+    p->heap = NULL;
+    return thread;
 }
 
 nile_Buffer_t *
 nile_Process_swap (nile_Process_t *p, nile_Process_t *sub, nile_Buffer_t *out)
 {
-    nile_Thread_t *thread = nile_Process_halting (p, out);
+    nile_Thread_t *thread = nile_Process_deactivate (p, out);
     if (sub) {
         nile_Process_t *consumer = p->consumer;
         p->consumer = NULL;
@@ -328,7 +338,7 @@ nile_Process_handle_backpressure (nile_Process_t *p, nile_Buffer_t *out)
 {
     nile_ProcessState_t cstate;
     nile_Process_t *consumer = p->consumer;
-    nile_Thread_t *thread = nile_Process_halting (p, out);
+    nile_Thread_t *thread = nile_Process_deactivate (p, out);
 
     nile_Lock_acq (&consumer->lock);
         p->state = NILE_BLOCKED_ON_CONSUMER;
@@ -342,7 +352,7 @@ nile_Process_handle_backpressure (nile_Process_t *p, nile_Buffer_t *out)
 static void
 nile_Process_handle_out_of_input (nile_Process_t *p, nile_Buffer_t *out)
 {
-    nile_Thread_t *thread = nile_Process_halting (p, out);
+    nile_Thread_t *thread = nile_Process_deactivate (p, out);
 
     if (p->producer && nile_Process_block_on_producer (p))
         return;
@@ -351,14 +361,14 @@ nile_Process_handle_out_of_input (nile_Process_t *p, nile_Buffer_t *out)
     else if (p->input.n)
         thread->private_heap = nile_Process_schedule (p, thread, thread->private_heap);
     else if (p->epilogue) {
-        p->heap = thread->private_heap;
+        nile_Process_activate (p, thread);
         out = nile_Buffer (p);
         if (!out)
-            return;
+            return (void) nile_Process_deactivate (p, NULL);
         out = p->epilogue (p, out);
-        if (!out || out->tag == NILE_TAG_OOM)
+        if (!out)
             return;
-        nile_Process_halting (p, out);
+        thread = nile_Process_deactivate (p, out);
         thread->private_heap = nile_Process_remove (p, thread, thread->private_heap);
     }
     else
@@ -389,23 +399,24 @@ static void
 nile_Process_run (nile_Process_t *p, nile_Thread_t *thread)
 {
     nile_Buffer_t *out;
-    p->thread = thread;
-    p->heap = thread->private_heap;
+    nile_Process_activate (p, thread);
     out = nile_Buffer (p);
     if (!out)
-        return;
+        return (void) nile_Process_deactivate (p, NULL);
 
     if (p->prologue) {
         out = p->prologue (p, out);
-        if (!out || out->tag == NILE_TAG_OOM)
+        if (!out)
             return;
         p->prologue = NULL;
     }
 
     while (p->input.head) {
         out = p->body (p, NODE_TO_BUFFER (p->input.head), out);
-        if (!out || out->tag == NILE_TAG_OOM)
+        if (!out)
             return;
+        if (out->tag == NILE_TAG_OOM)
+            return (void) nile_Process_deactivate (p, NULL);
         nile_Process_pop_input (p);
         if (out->tag == NILE_TAG_QUOTA_HIT)
             return nile_Process_handle_backpressure (p, out);
@@ -449,11 +460,11 @@ nile_startup (char *memory, int nbytes, int nthreads)
     for (i = 1; i < nthreads; i++)
         nile_OSThread_spawn (&threads[i].osthread, nile_Thread_main, &threads[i]);
 
-    boot.thread = &threads[nthreads];
-    boot.heap = boot.thread->private_heap;
+    nile_Process_activate (&boot, &threads[nthreads]);
     init = nile_Process (&boot, 0, 0, NULL, NULL, NULL);
+    nile_Process_deactivate (&boot, NULL);
     if (init)
-        init->heap = boot.heap;
+        nile_Process_activate (init, &threads[nthreads]);
     return init;
 }
 
@@ -462,10 +473,9 @@ nile_sync (nile_Process_t *init)
 {
     int i;
     nile_Process_t *p;
-    nile_Thread_t *liaison = init->thread;
+    nile_Thread_t *liaison = nile_Process_deactivate (init, NULL);
     nile_Thread_t *worker = &liaison->threads[0];
 
-    liaison->private_heap = init->heap;
     nile_Thread_transfer_heaps (liaison, worker);
     for (i = 1; i < liaison->nthreads; i++)
         liaison->threads[i].sync = 1;
@@ -479,7 +489,7 @@ nile_sync (nile_Process_t *init)
     for (i = 1; i < liaison->nthreads; i++)
         liaison->threads[i].sync = 0;
     nile_Thread_transfer_heaps (worker, liaison);
-    init->heap = liaison->private_heap;
+    nile_Process_activate (init, liaison);
 }
 
 int
@@ -547,7 +557,7 @@ nile_Funnel_prologue (nile_Process_t *p, nile_Buffer_t *out)
         out->tag = NILE_TAG_NONE;
         return out;
     }
-    nile_Process_halting (p, out);
+    nile_Process_deactivate (p, out);
     return NULL;
 }
 
@@ -570,8 +580,7 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
     if (!p || p->parent->thread->abort)
         return;
     init = p->parent;
-    liaison = init->thread;
-    liaison->private_heap = init->heap;
+    liaison = nile_Process_deactivate (init, NULL);
     if (liaison->q.n > 4 * liaison->nthreads)
         nile_Thread_work_until_below (liaison, &liaison->q.n, 2 * liaison->nthreads);
     vars = nile_Process_vars (p);
@@ -582,10 +591,10 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
     nile_Process_run (p, liaison);
     if (i != n) {
         nile_Thread_work_until_below (liaison, &p->consumer->input.n, INPUT_MAX);
-        init->heap = liaison->private_heap;
+        nile_Process_activate (init, liaison);
         return nile_Funnel_pour (p, data + i, n - i, EOS);
     }
-    init->heap = liaison->private_heap;
+    nile_Process_activate (init, liaison);
 }
 
 /* Capture process */
@@ -635,7 +644,7 @@ nile_Reverse_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
     }
     out = nile_Buffer (p);
     if (!out)
-        return NULL;
+        return nile_Process_deactivate (p, NULL), NULL;
     out->head = out->tail = out->capacity;
 
     while (!nile_Buffer_is_empty (in)) {
@@ -669,7 +678,7 @@ nile_SortBy_prologue (nile_Process_t *p, nile_Buffer_t *out)
     nile_SortBy_vars_t *vars = nile_Process_vars (p);
     nile_Buffer_t *b = nile_Buffer (p);
     if (!b) 
-        return NULL;
+        return nile_Process_deactivate (p, NULL), NULL;
     nile_Deque_push_head (&vars->output, BUFFER_TO_NODE (b));
     return out;
 }
@@ -698,7 +707,7 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
             nile_Buffer_t *b2 = nile_Buffer (p);
             nile_Node_t *nd2 = BUFFER_TO_NODE (b2);
             if (!b2)
-                return NULL;
+                return nile_Process_deactivate (p, NULL), NULL;
             nd2->next = nd->next;
             nd->next = nd2;
             if (!nd2->next)
@@ -814,7 +823,7 @@ nile_Zip_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
         if (v.j == v.jn) {
             nile_Buffer_t *out_ = nile_Buffer (p);
             if (!out_)
-                return NULL;
+                return nile_Process_deactivate (p, NULL), NULL;
             v.j = v.j0;
             nile_Lock_acq (&v.shared->lock);
                 if (output->tail == BUFFER_TO_NODE (out)) {
@@ -853,26 +862,24 @@ nile_Zip_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
     nile_Zip_vars_t v = *(nile_Zip_vars_t *) nile_Process_vars (p);
     nile_Buffer_t *out = v.out ? v.out : NODE_TO_BUFFER (v.shared->input.head);
     nile_Process_t *sibling = p->gatee;
-    nile_Thread_t *thread = nile_Process_halting (p, unused);
-    int finished_first = 0;
+    nile_Thread_t *thread = nile_Process_deactivate (p, unused);
+    int finished_first;
 
     nile_Lock_acq (&v.shared->lock);
-        finished_first = sibling->gatee ? 1 : finished_first;
+        finished_first = !!sibling->gatee;
         p->gatee = NULL;
     nile_Lock_rel (&v.shared->lock);
 
     if (finished_first)
         return NULL;
-    p->heap = thread->private_heap;
-    out->tail = v.j - v.j0;
+    nile_Process_activate (p, thread);
     p->consumer = p->consumer ? p->consumer : sibling->consumer;
-    nile_Process_enqueue_output (p, out);
     if (p->consumer)
         p->consumer->producer = p;
     nile_Process_free_node (p, &sibling->node);
     nile_Process_free_node (p, &v.shared->node);
-    thread->private_heap = nile_Process_remove (p, thread, p->heap);
-    return NULL;
+    out->tail = v.j - v.j0;
+    return out;
 }
 
 static nile_Process_t *
@@ -919,7 +926,7 @@ nile_Dup_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
     nile_Lock_rel (&p1->lock);
     out = nile_Buffer (p);
     if (!out)
-        return NULL;
+        return nile_Process_deactivate (p, NULL), NULL;
 
     nile_Lock_acq (&p->lock);
         nile_Deque_pop_head (&p->input);
@@ -1015,7 +1022,7 @@ nile_DupZip_prologue (nile_Process_t *p, nile_Buffer_t *out)
                                     v.p2 ? nile_Process_pipe (v.p2, z2, NILE_NULL) : z2);
     nile_Buffer_t *b = nile_Buffer (p);
     if (!shared || !z1 || !z2 || !dup || !b)
-        return NULL;
+        return nile_Process_deactivate (p, NULL), NULL;
     nile_Deque_push_tail (&shared->input, BUFFER_TO_NODE (b));
     z1->gatee = z2;
     z2->gatee = z1;
@@ -1080,12 +1087,13 @@ nile_Cat_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
     }
     else {
         nile_ProcessState_t state;
-        nile_Process_halting (p, unused);
+        nile_Thread_t *thread = nile_Process_deactivate (p, unused);
         nile_Lock_acq (&p->lock);
             state = p->state = (p->gatee ? NILE_BLOCKED_ON_GATE : p->state);
         nile_Lock_rel (&p->lock);
         if (state == NILE_BLOCKED_ON_GATE)
             return NULL;
+        nile_Process_activate (p, thread);
         p->input = v.output;
         return nile_Buffer (p); 
     }
@@ -1123,7 +1131,7 @@ nile_DupCat_prologue (nile_Process_t *p, nile_Buffer_t *out)
                                     v.p1 ? nile_Process_pipe (v.p1, c1, NILE_NULL) : c1,
                                     v.p2 ? nile_Process_pipe (v.p2, c2, NILE_NULL) : c2);
     if (!c1 || !c2 || !dup)
-        return NULL;
+        return nile_Process_deactivate (p, NULL), NULL;
     c1->gatee = c2;
     c2->gatee = c1;
     c2->consumer = p->consumer;
@@ -1179,11 +1187,10 @@ nile_print_leaks (nile_Process_t *init)
 {
     int i;
     int n = 0;
-    nile_Thread_t *t = init->thread;
+    nile_Thread_t *t = nile_Process_deactivate (init, NULL);
     nile_Block_t *block = (nile_Block_t *) (t->threads + t->nthreads + 1);
     nile_Block_t *EOB   = (nile_Block_t *) (t->memory + t->nbytes - sizeof (*block) + 1);
     int nblocks = EOB - block; // minus the init block
-    t->private_heap = init->heap;
     for (i = 0; i < t->nthreads + 1; i++)
         n += nile_Heap_size (t->threads[i].private_heap) +
              nile_Heap_size (t->threads[i].public_heap);
@@ -1199,5 +1206,5 @@ nile_print_leaks (nile_Process_t *init)
                 fprintf (stderr, "LEAKED PROCESS: %p\n", nd);
         }
     }
-    init->heap = t->private_heap;
+    nile_Process_activate (init, t);
 }
