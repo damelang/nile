@@ -11,6 +11,7 @@ CACHE_ALIGNED struct nile_Thread_ {
     nile_Sleep_t    *sleep;
     char            *memory;
     int              nbytes;
+    int              ngated;
     int              sync;
     int              abort;
     nile_OSThread_t  osthread;
@@ -37,7 +38,7 @@ nile_Thread (int index, nile_Thread_t *threads, int nthreads,
     t->sleep = sleep;
     t->memory = memory;
     t->nbytes = nbytes;
-    t->sync = t->abort = 0;
+    t->ngated = t->sync = t->abort = 0;
 }
 
 static void *

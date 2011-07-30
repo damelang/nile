@@ -120,6 +120,10 @@ void
 nile_Process_gate (nile_Process_t *gater, nile_Process_t *gatee)
 {
     if (gater && gatee) {
+        nile_Thread_t *liaison = gatee->parent->thread;
+        nile_Lock_acq (&liaison->lock);
+            liaison->ngated++;
+        nile_Lock_rel (&liaison->lock);
         gater->gatee = gatee;
         gatee->state = NILE_BLOCKED_ON_GATE;
     }
@@ -215,8 +219,13 @@ nile_Process_remove (nile_Process_t *p, nile_Thread_t *thread, nile_Heap_t heap)
     nile_Process_t *consumer = p->consumer;
     nile_Deque_t input = p->input;
 
-    if (p->gatee)
+    if (p->gatee) {
+        nile_Thread_t *liaison = &thread->threads[thread->nthreads];
+        nile_Lock_acq (&liaison->lock);
+            liaison->ngated--;
+        nile_Lock_rel (&liaison->lock);
         heap = nile_Process_schedule (p->gatee, thread, heap);
+    }
     if (producer)
         producer->consumer = consumer;
     if (consumer) {
@@ -581,6 +590,8 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
         return;
     init = p->parent;
     liaison = nile_Process_deactivate (init, NULL);
+    if (liaison->ngated > 4 * liaison->nthreads)
+        nile_Thread_work_until_below (liaison, &liaison->ngated, 2 * liaison->nthreads);
     if (liaison->q.n > 4 * liaison->nthreads)
         nile_Thread_work_until_below (liaison, &liaison->q.n, 2 * liaison->nthreads);
     vars = nile_Process_vars (p);
