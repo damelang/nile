@@ -502,7 +502,7 @@ char *
 nile_shutdown (nile_Process_t *init)
 {
     int i;
-    nile_Thread_t *t = init->thread;
+    nile_Thread_t *t = nile_Process_deactivate (init, NULL);
     for (i = 0; i < t->nthreads + 1; i++)
         t->threads[i].abort = 1;
     for (i = 0; i < t->nthreads; i++)
