@@ -403,9 +403,8 @@ static void beginSource(char *path)
 {
   currentPath= newString(path);
   currentLine= newLong(1);
-  oop src= newPair(currentPath, currentLine);
-  set(src, Pair,source, get(currentSource, Pair,source));
-  set(currentSource, Pair,source, src);
+  currentSource= newPair(currentSource, nil);
+  set(currentSource, Pair,source, newPair(currentPath, currentLine));
 }
 
 static void advanceSource(void)
@@ -416,7 +415,7 @@ static void advanceSource(void)
 
 static void endSource(void)
 {
-  set(currentSource, Pair,source, get(currentSource, Pair,source));
+  currentSource= get(currentSource, Pair,head);
   oop src= get(currentSource, Pair,source);
   currentPath= car(src);
   currentLine= cdr(src);
@@ -1467,7 +1466,9 @@ static subr(read)
 {
   FILE *stream= stdin;
   if (nil == args) {
+    beginSource("<stdin>");
     oop obj= read(stdin);
+    endSource();
     if (obj == DONE) obj= nil;
     return obj;
   }

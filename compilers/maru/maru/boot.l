@@ -475,7 +475,7 @@
       (dump arg))
     found))
 
-(if '(t)
+(if '()
     (set *backtrace*
 	 (lambda (stack depth)
 	   (println "\n")
