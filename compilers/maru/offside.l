@@ -13,16 +13,8 @@
   program	= (space* name? newline)* "." ;
 }
 
-{ offside-program }
-
-this
-is
-a
-  test
-  of
-     the
-     offside
-  parsing
-.
+(list-do path *arguments*
+  (let ((program  (input-stream-up-to (input-stream (open path)) ())))
+    ($program (parser <offside> (parser-stream (string-stream program))))))
 
 (println result)

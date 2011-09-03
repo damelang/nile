@@ -52,6 +52,8 @@
 (define-function repl-file   (file prompt)	(repl-stream (input-stream file) prompt))
 (define-function repl-path   (path prompt)	(repl-file (or (open path) (error "cannot open: "path)) prompt))
 
-(map-with repl-path *arguments* ())
+(let ((path (car *arguments*)))
+  (set *arguments* (cdr *arguments*))
+  (if path (repl-path path ())))
 
 (exit 0)
