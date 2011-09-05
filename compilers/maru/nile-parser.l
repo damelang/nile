@@ -8,7 +8,7 @@
   alpha         = (uppercase | lowercase) ;
   typename      = (uppercase alpha*)@$ ;
   fielddef      = alpha@$:name _ ":" _ typename:type -> (list name type) ;
-  fielddefs     = "(" _ fielddef:def -> (list def):defs ("," _ fielddef:def -> (concat-list defs (list def)):defs)* ")" _ -> defs ;
+  fielddefs     = "(" _ fielddef:def -> `(,def):defs ("," _ fielddef:def -> `(,@defs ,def):defs)* ")" _ -> defs ;
   typedef       = "type " _ typename:name _ "=" _ fielddefs:fdefs _ newline -> (println name " " fdefs);
   program       = typedef* ;
 }
