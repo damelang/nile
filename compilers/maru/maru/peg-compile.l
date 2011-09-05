@@ -16,10 +16,15 @@
 	(rname (concat-symbol '$ name)))
     (if args
      `(match-save
-        (let ()
+        (let ((_p (parser ,tname self.source)))
 	  ,@(map (lambda (arg) (list 'parser-stream-push 'self.source arg)) args)
-	  (or (,rname (parser ,tname self.source)) (match-ko))))
-     `(,rname (parser ,tname self.source)))))
+	  (if (,rname _p)
+	      (let () (set self.result (<parser>-result _p)) 1)
+	    (match-ko))))
+     `(let ((_p (parser ,tname self.source)))
+	,@(map (lambda (arg) (list 'parser-stream-push 'self.source arg)) args)
+	(and (,rname _p)
+	     (let () (set self.result (<parser>-result _p)) 1))))))
 
 (define-form match-first exprs		`(or ,@exprs))
 (define-form match-all exprs		`(match-save (or (and ,@exprs) (match-ko))))

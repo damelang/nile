@@ -27,8 +27,10 @@
   (peg-compile-rules '<temp-grammar> rules)
   (and expr (peg-compile-rules '<temp-grammar> (list (list 'start expr))))
   ;;(println "GRAMMAR "*temp-grammar*)
-  (and expr ($start (parser <temp-grammar> *parser-stream*)))
-  ())
+  (and expr
+    `(let ((_p (parser <temp-grammar> *parser-stream*)))
+ 	  ($start _p)
+ 	  (<parser>-result _p))))
 
 ;;(define-eval <temp-grammar> (self) ($start self *parser-stream*))
 

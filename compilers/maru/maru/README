@@ -1,5 +1,5 @@
 This is a snapshot of Ian Piumarta's metacircular evaluator,
-version maru-20110518.0209.
+version maru-20110903.1138.
 
 The code is a work-in-progress and intended only to support work on Nile.
 Making a clone of this snapshot is neither advised nor advisable. Anyone
