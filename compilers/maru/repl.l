@@ -54,6 +54,12 @@
 (define-function repl-file   (file prompt)	(repl-stream (input-stream file) prompt))
 (define-function repl-path   (path prompt)	(repl-file (or (open path) (error "cannot open: "path)) prompt))
 
+(define-function concat-files (files)
+  (inject (lambda (file string)
+    (let ((contents (input-stream-up-to (input-stream (open file)) ())))
+      (concat-string string contents)))
+  "" files))
+
 (let ((path (car *arguments*)))
   (set *arguments* (cdr *arguments*))
   (if path (repl-path path ())))
