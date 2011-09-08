@@ -16,10 +16,8 @@
 { <nile-parser> : <parser> ()
   eol           = ("\n""\r"* | "\r""\n"*) ;
   _             = " "* ;
-  uppercase     = [ABCDEFGHIJKLMNOPQRSTUVWXYZ] ;
-  lowercase     = [abcdefghijklmnopqrstuvwxyz] ;
-  alpha         = (uppercase | lowercase) ;
-  typename      = (uppercase alpha*)@$ ;
+  alpha         = [ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz] ;
+  typename      = alpha+@$ ;
   fieldlabel    = alpha@$ ;
   fielddef      = fieldlabel:l _":"_ typename:t -> (nile-fielddef l t) ;
   recordtype    = "("_ fielddef:f1 (_","_ fielddef)*:fs _")" -> (nile-recordtype (cons f1 fs)) ;
