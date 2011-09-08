@@ -15,6 +15,7 @@
 
 { <nile-parser> : <parser> ()
   eol           = ("\n""\r"* | "\r""\n"*) ;
+  comment       = "--" (!eol .)* ;
   _             = " "* ;
   alpha         = [ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz] ;
   typename      = alpha+@$ ;
@@ -23,8 +24,8 @@
   recordtype    = "("_ fielddef:f1 (_","_ fielddef)*:fs _")" -> (nile-recordtype (cons f1 fs)) ;
   tupletype     = "("_ typename:t1 (_","_ typename)*:ts _")" -> (nile-tupletype (cons t1 ts)) ;
   processtype   = (typename | tupletype):in _">>"_ (typename | tupletype):out -> (nile-processtype in out) ;
-  typedef       = "type "_ typename:n _"="_ (processtype | recordtype):t _ eol -> (nile-typedef n t) ;
-  toplevel      = (typedef | (_ eol)) ;
+  typedef       = "type "_ typename:n _"="_ (processtype | recordtype):t -> (nile-typedef n t) ;
+  toplevel      = (typedef | _):top _ comment? eol -> top ;
   program       = toplevel*:p -> p ;
 }
 
