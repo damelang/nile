@@ -60,6 +60,28 @@
       (concat-string string contents)))
   "" files))
 
+(define-function make-constructor-inits (fields offset)
+  (let ((init `(set (oop-at self ,offset) ,(car fields))))
+    (if fields (cons init (make-constructor-inits (cdr fields) (+ offset 1))))))
+
+(define-form define-constructor (struct-name constructor-name fields)
+  `(define-function ,constructor-name ,fields
+     (let ((self (new ,struct-name)))
+       ,@(make-constructor-inits fields 0)
+       self)))
+
+(define-function make-structure-method (spec struct-name)
+  (let ((name (car spec)) (args (cadr spec)) (body (cddr spec)))
+    (println `(define-method ,name ,struct-name ,args ,body))
+    `(define-method ,name ,struct-name ,args ,@body)))
+
+(define-form define-ast-node (name fields . methods)
+  (let ((struct-name (string->symbol (concat-string "<" (concat-string (symbol->string name) ">")))))
+    `(let ()
+        (define-structure ,struct-name ,fields)
+        (define-constructor ,struct-name ,name ,fields)
+        ,@(map-with make-structure-method methods struct-name))))
+
 (let ((path (car *arguments*)))
   (set *arguments* (cdr *arguments*))
   (if path (repl-path path ())))
