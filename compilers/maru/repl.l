@@ -76,7 +76,7 @@
     `(define-method ,name ,struct-name ,args ,@body)))
 
 (define-form define-ast-node (name fields . methods)
-  (let ((struct-name (string->symbol (concat-string "<" (concat-string (symbol->string name) ">")))))
+  (let ((struct-name (concat-symbol '< (concat-symbol name '>))))
     `(let ()
         (define-structure ,struct-name ,fields)
         (define-constructor ,struct-name ,name ,fields)
