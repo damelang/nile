@@ -2,10 +2,10 @@
   (do-print () (print "[FIELDDEF "self.label":"self.type"]")))
 
 (define-ast-node nile-recordtype (fields)
-  (do-print () (print "[RECORDTYPE ("self.fields")]")))
+  (do-print () (print "[RECORDTYPE "self.fields"]")))
 
 (define-ast-node nile-tupletype (elements)
-  (do-print () (print "[TUPLETYPE ("self.elements")]")))
+  (do-print () (print "[TUPLETYPE "self.elements"]")))
 
 (define-ast-node nile-processtype (intype outtype)
   (do-print () (print "[PROCESSTYPE "self.intype" >> "self.outtype"]")))
