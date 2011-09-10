@@ -8,3 +8,19 @@ type EdgeSpan = (x:Real, y:Real, c:Real, l:Real)
 -- a comment
 type Texture    = Point >> Color -- another comment
 type Compositor = (Color, Color) >> Color
+
+(a:Real) \min (b:Real) : Real
+--    { a  if a < b,
+--      b  otherwise }
+
+\sgn(a:Real) : Real
+--    { -1  if a < 0,
+--       0  if a = 0,
+--       1  otherwise }
+
+(a:Real)\sqrd : Real
+--    aa
+
+\bar(a:Real)\bar : Real
+--    { -a  if a < 0,
+--       a  otherwise }
