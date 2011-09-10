@@ -32,9 +32,10 @@
   typedef       = "type "_ typename:n _"="_ (processtype | recordtype):t -> (nile-typedef n t) ;
   opname        = "\\"alpha+$ ;
   infixdef      = "("_ typedident:a1 _")"_ opname:n _"(" typedident:a2 _")"_":"_ typename:t -> `(,n ,t (,a1 ,a2)) ;
+  outfixdef     = opname:n1 _"("_ typedident:a _")"_ opname:n2 _":"_ typename:t -> `(,(concat-symbol n1 n2) ,t (,a)) ;
   prefixdef     = opname:n _"("_ typedident:a _")"_":"_ typename:t -> `(,n ,t (,a)) ;
   postfixdef    = "("_ typedident:a _")"_ opname:n _":"_ typename:t -> `(,n ,t (,a)) ;
-  opdef         = (prefixdef | infixdef | postfixdef):def _ eol -> (apply nile-opdef def) ;
+  opdef         = (infixdef | outfixdef | prefixdef | postfixdef):def _ eol -> (apply nile-opdef def) ;
   toplevel      = (typedef | opdef | _):top _ comment? eol -> top ;
   program       = toplevel*:p -> p ;
 }
