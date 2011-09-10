@@ -1,5 +1,5 @@
-(define-ast-node nile-fielddef (label type)
-  (do-print () (print "[FIELDDEF "self.label":"self.type"]")))
+(define-ast-node nile-typedident (ident type)
+  (do-print () (print "[TYPEDIDENT "self.ident":"self.type"]")))
 
 (define-ast-node nile-recordtype (fields)
   (do-print () (print "[RECORDTYPE "self.fields"]")))
@@ -18,10 +18,12 @@
   comment       = "--" (!eol .)* ;
   _             = " "* ;
   alpha         = [ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz] ;
-  typename      = alpha+@$ ;
-  fieldlabel    = alpha@$ ;
-  fielddef      = fieldlabel:l _":"_ typename:t -> (nile-fielddef l t) ;
-  recordtype    = "("_ fielddef:f1 (_","_ fielddef)*:fs _")" -> (nile-recordtype (cons f1 fs)) ;
+  num           = [1234567890] ;
+  alphanum      = (alpha | num) ;
+  typename      = (alpha alphanum*)@$ ;
+  ident         = (alpha num*)@$ ;
+  typedident    = ident:i _":"_ typename:t -> (nile-typedident i t) ;
+  recordtype    = "("_ typedident:f1 (_","_ typedident)*:fs _")" -> (nile-recordtype (cons f1 fs)) ;
   tupletype     = "("_ typename:t1 (_","_ typename)*:ts _")" -> (nile-tupletype (cons t1 ts)) ;
   processtype   = (typename | tupletype):in _">>"_ (typename | tupletype):out -> (nile-processtype in out) ;
   typedef       = "type "_ typename:n _"="_ (processtype | recordtype):t -> (nile-typedef n t) ;
