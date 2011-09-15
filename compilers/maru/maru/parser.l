@@ -382,6 +382,19 @@
 
 ;;;----------------------------------------------------------------
 
+(define-structure <rule> (name body recursive?))
+
+(define-function new-<rule> (name body)
+  (let ((self (new <rule>)))
+    (set (<rule>-name self) name)
+    (set (<rule>-body self) body)
+    self))
+
+(define-method do-print <rule> ()
+  (print "<rule "self.name"="self.body">"))
+
+;;;----------------------------------------------------------------
+
 (define-structure <grammar> (name base fields rules type))
 
 (define-method do-print <grammar> ()
@@ -391,11 +404,12 @@
 
 (define-function grammar-add-rule (self rule)
   (let* ((name  (car rule))
+	 (body  (cadr rule))
 	 (rules (<grammar>-rules self))
 	 (pair  (or (assq name rules)
 		    (car (set (<grammar>-rules self)
-			      (cons (cons (car rule) (cdr rule)) rules))))))
-    (set-cdr pair (cdr rule))))
+			      (cons (cons name body) rules))))))
+    (set-cdr pair (new-<rule> name body))))
 
 (define-function grammar (name base fields rules)
   (let ((self (new <grammar>)))
@@ -405,14 +419,20 @@
     (with-map grammar-add-rule self rules)
     self))
 
+(define-function grammar-find-rule-or-nil (self name)
+  (cdr (assq name (<grammar>-rules self))))
+
 (define-function grammar-find-rule (self name)
-  (let ((rule (assq name (<grammar>-rules self))))
-    (or rule (error "rule '"name"' not found in grammar "(<grammar>-name self)))
-    rule))
+  (or (grammar-find-rule-or-nil self name)
+      (error "rule '"name"' not found in grammar "(<grammar>-name self))))
+
+(define-function grammar-find-body (self name)
+  (<rule>-body (grammar-find-rule self name)))
 
 ;;;----------------
 
 (define-method $reachable-from <grammar> (exp reached)
+  ;;(dumpln "REACHABLE-FROM "exp)
   (and (pair? exp)
        (let ((op (car exp)))
 	 (and (!= op 'quasiquote)
@@ -420,16 +440,110 @@
 	      (if (= 'match-rule (car exp))
 		  (let ((name (cadr exp)))
 		    (or (member? name reached)
-			(set reached ($reachable-from self (cadr (grammar-find-rule self name)) (cons name reached)))))
+			(set reached ($reachable-from self (grammar-find-body self name) (cons name reached)))))
 		(map (lambda (exp) (set reached ($reachable-from self exp reached))) (cdr exp))))))
   reached)
 
+(define-method $warn-unreachable <grammar> ()
+  (let ((start (grammar-find-rule-or-nil self 'start)))
+    (and start
+	 (let ((reached ($reachable-from self (<rule>-body start) '(start))))
+	   (list-do assoc self.rules
+	     (or (member? (<rule>-name (cdr assoc)) reached)
+		 (println "; WARNING: unreachable from start: "(<rule>-name (cdr assoc)))))))))
+
+(define-selector $consumes-input?)
+
+(define-method $consumes-input-all? <grammar> (exps)
+  (and exps
+       (or ($consumes-input?     self (car exps))
+	   ($consumes-input-all? self (cdr exps)))))
+
+(define-method $consumes-input-first? <grammar> (exps)
+  (or (not exps)
+      (and ($consumes-input?       self (car exps))
+	   ($consumes-input-first? self (cdr exps)))))
+
+(define-method $consumes-input? <grammar> (exp)
+  ;;(dumpln "CONSUMES-INPUT? "exp)
+  (let ((op (car exp)))
+    (cond
+      ((= op 'match-object)		1)
+      ((= op 'match-string)		1)
+      ((= op 'match-class)		1)
+      ((= op 'match-rule-in)		1)	;xxx THIS IS NOT RELIABLE xxx
+      ((= op 'match-rule)		($consumes-input? self (grammar-find-body self (cadr exp))))
+      ((= op 'match-any)		1)
+      ((= op 'result-expr)		())
+      ((= op 'match-list)		1)
+      ((= op 'match-zero-one)		())
+      ((= op 'match-zero-more)		())
+      ((= op 'match-one-more)		($consumes-input? 	self (cadr  exp)))
+      ((= op 'make-span)		($consumes-input? 	self (cadr  exp)))
+      ((= op 'make-number)		($consumes-input? 	self (cadr  exp)))
+      ((= op 'make-symbol)		($consumes-input? 	self (cadr  exp)))
+      ((= op 'make-string)		($consumes-input? 	self (cadr  exp)))
+      ((= op 'assign-result)		($consumes-input? 	self (caddr exp)))
+      ((= op 'peek-not)			($consumes-input? 	self (cadr  exp)))
+      ((= op 'peek-for)			($consumes-input? 	self (cadr  exp)))
+      ((= op 'match-all)		($consumes-input-all?   self (cdr   exp)))
+      ((= op 'match-first)		($consumes-input-first? self (cdr   exp)))
+      (else				(error "$consumes-input? does not know about "op)))))
+
+(define-selector $recursive-from?)
+
+(define-method $recursive-from-all? <grammar> (exps name)
+  (and exps
+       (let ((hd (car exps)))
+	 (or ($recursive-from? self hd name)
+	     (and (not ($consumes-input? self hd))
+		  ($recursive-from-all? self (cdr exps) name))))))
+
+(define-method $recursive-from-first? <grammar> (exps name)
+  (and exps
+       (or ($recursive-from?       self (car exps) name)
+	   ($recursive-from-first? self (cdr exps) name))))
+
+(define-method $recursive-from? <grammar> (exp name)
+  ;;(dumpln "RECURSIVE-FROM? "exp)
+  (let ((op (car exp)))
+    (cond
+      ((= op 'match-object)		())
+      ((= op 'match-string)		())
+      ((= op 'match-class)		())
+      ((= op 'match-rule-in)		())	;xxx THIS IS NOT RELIABLE xxx
+      ((= op 'match-rule)		(or (= name (cadr exp)) ($recursive-from? self (grammar-find-body self (cadr exp)) name)))
+      ((= op 'match-any)		())
+      ((= op 'result-expr)		())
+      ((= op 'match-list)		())
+      ((= op 'match-zero-one)		($recursive-from? 	self (cadr  exp) name))
+      ((= op 'match-zero-more)		($recursive-from? 	self (cadr  exp) name))
+      ((= op 'match-one-more)		($recursive-from? 	self (cadr  exp) name))
+      ((= op 'make-span)		($recursive-from? 	self (cadr  exp) name))
+      ((= op 'make-number)		($recursive-from? 	self (cadr  exp) name))
+      ((= op 'make-symbol)		($recursive-from? 	self (cadr  exp) name))
+      ((= op 'make-string)		($recursive-from? 	self (cadr  exp) name))
+      ((= op 'assign-result)		($recursive-from? 	self (caddr exp) name))
+      ((= op 'peek-not)			($recursive-from? 	self (cadr  exp) name))
+      ((= op 'peek-for)			($recursive-from? 	self (cadr  exp) name))
+      ((= op 'match-all)		($recursive-from-all?   self (cdr   exp) name))
+      ((= op 'match-first)		($recursive-from-first? self (cdr   exp) name))
+      (else				(error "$recursive-from? does not know about "op)))))
+
+(define-method $left-recursive? <grammar> (rule)
+  ($recursive-from? self (<rule>-body rule) (<rule>-name rule)))
+
+(define-method $warn-left-recursion <grammar> ()
+  (list-do assoc self.rules
+    (let ((rule (cdr assoc)))
+      (and ($left-recursive? self rule)
+	   (set (<rule>-recursive? rule) 1)
+	   (println "; WARNING: left-recursive rule: "(<rule>-name (cdr assoc)))))))
+
 (define-method $sanity-check <grammar> ()
-  (let* ((start   (grammar-find-rule self 'start))
-	 (reached ($reachable-from self (cadr start) '(start))))
-    (list-do rule self.rules
-      (or (member? (car rule) reached)
-	  (println "; WARNING: unreachable from start: "(car rule))))))
+  ($warn-unreachable self)
+  ($warn-left-recursion self)
+  )
 
 ;;;----------------------------------------------------------------
 

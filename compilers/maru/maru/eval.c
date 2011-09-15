@@ -1,9 +1,14 @@
-// last edited: 2011-09-02 18:20:41 by piumarta on 192.168.1.11
+// last edited: 2011-09-14 16:46:27 by piumarta on 192.168.1.11
+
+#define _ISOC99_SOURCE 1
 
 #include <stdio.h>
 #include <string.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <errno.h>
+#include <wchar.h>
+#include <locale.h>
 
 extern int isatty(int);
 
@@ -12,6 +17,7 @@ extern int isatty(int);
 #define GC_APP_HEADER	int type;
 
 #include "gc.c"
+#include "wcs.c"
 #include "buffer.c"
 
 union Object;
@@ -30,14 +36,14 @@ enum { Undefined, Long, String, Symbol, Pair, _Array, Array, Expr, Form, Fixed, 
   struct Long	{ long  bits; };
 #endif
 
-struct String	{ oop   size;  char *bits; };	/* bits is in managed memory */
-struct Symbol	{ char *bits; };
+struct String	{ oop   size;  wchar_t *bits; };	/* bits is in managed memory */
+struct Symbol	{ wchar_t *bits; };
 struct Pair	{ oop 	head, tail, source; };
 struct Array	{ oop   size, _array; };
 struct Expr	{ oop 	name, defn, ctx; };
 struct Form	{ oop 	function, symbol; };
 struct Fixed	{ oop   function; };
-struct Subr	{ imp_t imp;  char *name; };
+struct Subr	{ imp_t imp;  wchar_t *name; };
 struct Variable	{ oop 	name, value, env, index; };
 struct Env	{ oop 	parent, level, offset, bindings, stable; };
 struct Context	{ oop 	home, env, bindings, callee; };
@@ -127,18 +133,18 @@ static int opt_b= 0, opt_v= 0;
 
 static oop _newString(size_t len)
 {
-  char *gstr= GC_malloc_atomic(len + 1);	GC_PROTECT(gstr);	/* + 1 to ensure null terminator */
-  oop   obj=  newOops(String);			GC_PROTECT(obj);
-  set(obj, String,size, newLong(len));		GC_UNPROTECT(obj);
-  set(obj, String,bits, gstr);			GC_UNPROTECT(gstr);
+  wchar_t *gstr= GC_malloc_atomic(sizeof(wchar_t) * (len + 1));	GC_PROTECT(gstr);	/* + 1 to ensure null terminator */
+  oop       obj= newOops(String);				GC_PROTECT(obj);
+  set(obj, String,size, newLong(len));				GC_UNPROTECT(obj);
+  set(obj, String,bits, gstr);					GC_UNPROTECT(gstr);
   return obj;
 }
 
-static oop newString(char *cstr)
+static oop newString(wchar_t *cstr)
 {
-  size_t len= strlen(cstr);
+  size_t len= wcslen(cstr);
   oop obj= _newString(len);
-  memcpy(get(obj, String,bits), cstr, len);
+  memcpy(get(obj, String,bits), cstr, sizeof(wchar_t) * len);
   return obj;
 }
 
@@ -147,7 +153,7 @@ static int stringLength(oop string)
   return getLong(get(string, String,size));
 }
 
-static oop newSymbol(char *cstr)	{ oop obj= newBits(Symbol);	set(obj, Symbol,bits, strdup(cstr));			return obj; }
+static oop newSymbol(wchar_t *cstr)	{ oop obj= newBits(Symbol);	set(obj, Symbol,bits, wcsdup(cstr));			return obj; }
 
 static oop newPair(oop head, oop tail)	{ oop obj= newOops(Pair);	set(obj, Pair,head, head);  set(obj, Pair,tail, tail);	return obj; }
 
@@ -255,7 +261,7 @@ static oop newExpr(oop defn, oop ctx)
 static oop newForm(oop fn, oop sym)	{ oop obj= newOops(Form);	set(obj, Form,function, fn);	set(obj, Form,symbol, sym);	return obj; }
 static oop newFixed(oop function)	{ oop obj= newOops(Fixed);	set(obj, Fixed,function, function);				return obj; }
 
-static oop newSubr(imp_t imp, char *name)
+static oop newSubr(imp_t imp, wchar_t *name)
 {
   oop obj= newBits(Subr);
   set(obj, Subr,imp,  imp);
@@ -332,7 +338,7 @@ static oop findVariable(oop env, oop name)
 static oop lookup(oop env, oop name)
 {
   oop var= findVariable(env, name);
-  if (nil == var) fatal("undefined variable: %s", get(name, Symbol,bits));
+  if (nil == var) fatal("undefined variable: %ls", get(name, Symbol,bits));
   return get(var, Variable,value);
 }
 
@@ -366,14 +372,14 @@ static int isGlobal(oop var)
 
 static oop newBool(int b)		{ return b ? s_t : nil; }
 
-static oop intern(char *string)
+static oop intern(wchar_t *string)
 {
   ssize_t lo= 0, hi= arrayLength(symbols) - 1, c= 0;
   oop s= nil;
   while (lo <= hi) {
     size_t m= (lo + hi) / 2;
     s= arrayAt(symbols, m);
-    c= strcmp(string, get(s, Symbol,bits));
+    c= wcscmp(string, get(s, Symbol,bits));
     if      (c < 0)	hi= m - 1;
     else if (c > 0)	lo= m + 1;
     else		return s;
@@ -387,8 +393,8 @@ static oop intern(char *string)
 
 #include "chartab.h"
 
-static int isPrint(int c)	{ return (0 <= c && c <= 127 && (CHAR_PRINT    & chartab[c])); }
-static int isAlpha(int c)	{ return (0 <= c && c <= 127 && (CHAR_ALPHA    & chartab[c])); }
+static int isPrint(int c)	{ return (0 <= c && c <= 127 && (CHAR_PRINT    & chartab[c])) || (c >= 128); }
+static int isAlpha(int c)	{ return (0 <= c && c <= 127 && (CHAR_ALPHA    & chartab[c])) || (c >= 128); }
 static int isDigit10(int c)	{ return (0 <= c && c <= 127 && (CHAR_DIGIT10  & chartab[c])); }
 static int isDigit16(int c)	{ return (0 <= c && c <= 127 && (CHAR_DIGIT16  & chartab[c])); }
 static int isLetter(int c)	{ return (0 <= c && c <= 127 && (CHAR_LETTER   & chartab[c])) || (c >= 128); }
@@ -399,7 +405,7 @@ static oop currentPath= 0;
 static oop currentLine= 0;
 static oop currentSource= 0;
 
-static void beginSource(char *path)
+static void beginSource(wchar_t *path)
 {
   currentPath= newString(path);
   currentLine= newLong(1);
@@ -446,14 +452,14 @@ static oop readList(FILE *fp, int delim)
     tail= set(tail, Pair,tail, obj);
   }
 eof:;
-  int c= getc(fp);
+  int c= getwc(fp);
   if (c != delim)			fatal("EOF while reading list");
   GC_UNPROTECT(obj);
   GC_UNPROTECT(head);
   return head;
 }
 
-static int digitValue(int c)
+static int digitValue(wint_t c)
 {
   switch (c) {
     case '0' ... '9':  return c - '0';
@@ -464,7 +470,7 @@ static int digitValue(int c)
   return 0;
 }
 
-static int isHexadecimal(int c)
+static int isHexadecimal(wint_t c)
 {
   switch (c) {
     case '0' ... '9':
@@ -475,15 +481,15 @@ static int isHexadecimal(int c)
   return 0;
 }
 
-static int isOctal(int c)
+static int isOctal(wint_t c)
 {
   return '0' <= c && c <= '7';
 }
 
-static int readChar(int c, FILE *fp)
+static int readChar(wint_t c, FILE *fp)
 {
   if ('\\' == c) {
-    c= getc(fp);
+    c= getwc(fp);
     switch (c) {
       case 'a':   return '\a';
       case 'b':   return '\b';
@@ -493,31 +499,31 @@ static int readChar(int c, FILE *fp)
       case 't':   return '\t';
       case 'v':   return '\v';
       case 'u': {
-	int a= getc(fp), b= getc(fp), c= getc(fp), d= getc(fp);
+	wint_t a= getwc(fp), b= getwc(fp), c= getwc(fp), d= getwc(fp);
 	return (digitValue(a) << 24) + (digitValue(b) << 16) + (digitValue(c) << 8) + digitValue(d);
       }
       case 'x': {
 	int x= 0;
-	if (isHexadecimal(c= getc(fp))) {
+	if (isHexadecimal(c= getwc(fp))) {
 	  x= digitValue(c);
-	  if (isHexadecimal(c= getc(fp))) {
+	  if (isHexadecimal(c= getwc(fp))) {
 	    x= x * 16 + digitValue(c);
-	    c= getc(fp);
+	    c= getwc(fp);
 	  }
 	}
-	ungetc(c, fp);
+	ungetwc(c, fp);
 	return x;
       }
       case '0' ... '7': {
 	int x= digitValue(c);
-	if (isOctal(c= getc(fp))) {
+	if (isOctal(c= getwc(fp))) {
 	  x= x * 8 + digitValue(c);
-	  if (isOctal(c= getc(fp))) {
+	  if (isOctal(c= getwc(fp))) {
 	    x= x * 8 + digitValue(c);
-	    c= getc(fp);
+	    c= getwc(fp);
 	  }
 	}
-	ungetc(c, fp);
+	ungetwc(c, fp);
 	return x;
       }
       default:
@@ -531,20 +537,20 @@ static int readChar(int c, FILE *fp)
 static oop read(FILE *fp)
 {
   for (;;) {
-    int c= getc(fp);
+    wint_t c= getwc(fp);
     switch (c) {
-      case EOF: {
+      case WEOF: {
 	return DONE;
       }
       case '\n': {
-	while ('\r' == (c= getc(fp)));
-	if (c >= 0) ungetc(c, fp);
+	while ('\r' == (c= getwc(fp)));
+	if (c >= 0) ungetwc(c, fp);
 	advanceSource();
 	continue;
       }
       case '\r': {
-	while ('\n' == (c= getc(fp)));
-	ungetc(c, fp);
+	while ('\n' == (c= getwc(fp)));
+	ungetwc(c, fp);
 	advanceSource();
 	continue;
       }
@@ -553,10 +559,10 @@ static oop read(FILE *fp)
       }
       case ';': {
 	for (;;) {
-	  c= getc(fp);
+	  c= getwc(fp);
 	  if (EOF == c) break;
 	  if ('\n' == c || '\r' == c) {
-	    ungetc(c, fp);
+	    ungetwc(c, fp);
 	    break;
 	  }
 	}
@@ -566,7 +572,7 @@ static oop read(FILE *fp)
 	static struct buffer buf= BUFFER_INITIALISER;
 	buffer_reset(&buf);
 	for (;;) {
-	  c= getc(fp);
+	  c= getwc(fp);
 	  if ('"' == c) break;
 	  c= readChar(c, fp);
 	  if (EOF == c)			fatal("EOF in string literal");
@@ -577,7 +583,7 @@ static oop read(FILE *fp)
 	return obj;
       }
       case '?': {
-	return newLong(readChar(getc(fp), fp));
+	return newLong(readChar(getwc(fp), fp));
       }
       case '\'': {
 	oop obj= read(fp);
@@ -605,9 +611,9 @@ static oop read(FILE *fp)
       }
       case ',': {
 	oop sym= s_unquote;
-	c= getc(fp);
+	c= getwc(fp);
 	if ('@' == c)	sym= s_unquote_splicing;
-	else		ungetc(c, fp);
+	else		ungetwc(c, fp);
 	oop obj= read(fp);
 	if (obj == DONE)
 	  obj= sym;
@@ -625,23 +631,23 @@ static oop read(FILE *fp)
 	buffer_reset(&buf);
 	do {
 	  buffer_append(&buf, c);
-	  c= getc(fp);
+	  c= getwc(fp);
 	} while (isDigit10(c));
 	if (('x' == c) && (1 == buf.position))
 	  do {
 	    buffer_append(&buf, c);
-	    c= getc(fp);
+	    c= getwc(fp);
 	  } while (isDigit16(c));
-	ungetc(c, fp);
-	oop obj= newLong(strtoul(buffer_contents(&buf), 0, 0));
+	ungetwc(c, fp);
+	oop obj= newLong(wcstoul(buffer_contents(&buf), 0, 0));
 	return obj;
       }
-      case '(': return readList(fp, ')');      case ')': ungetc(c, fp);  return DONE;
-      case '[': return readList(fp, ']');      case ']': ungetc(c, fp);  return DONE;
-      case '{': return readList(fp, '}');      case '}': ungetc(c, fp);  return DONE;
+      case '(': return readList(fp, ')');      case ')': ungetwc(c, fp);  return DONE;
+      case '[': return readList(fp, ']');      case ']': ungetwc(c, fp);  return DONE;
+      case '{': return readList(fp, '}');      case '}': ungetwc(c, fp);  return DONE;
       case '-': {
-	int d= getc(fp);
-	ungetc(d, fp);
+	wint_t d= getwc(fp);
+	ungetwc(d, fp);
 	if (isDigit10(d)) goto doDigits;
 	/* fall through... */
       }
@@ -653,9 +659,9 @@ static oop read(FILE *fp)
 	  buffer_reset(&buf);
 	  while (isLetter(c) || isDigit10(c)) {
 //	    if (('.' == c) && buf.position) {
-//	      c= getc(fp);
+//	      c= getwc(fp);
 //	      if (!isLetter(c) && !isDigit10(c)) {
-//		ungetc(c, fp);
+//		ungetwc(c, fp);
 //		c= '.';
 //	      }
 //	      else {
@@ -665,9 +671,9 @@ static oop read(FILE *fp)
 //	      }
 //	    }
 	    buffer_append(&buf, c);
-	    c= getc(fp);
+	    c= getwc(fp);
 	  }
-	  ungetc(c, fp);
+	  ungetwc(c, fp);
 	  obj= intern(buffer_contents(&buf));
 //	  while (nil != in) {
 //	    obj= newPair(obj, nil);
@@ -700,9 +706,9 @@ static void doprint(FILE *stream, oop obj, int storing)
     case Long:		fprintf(stream, "%ld", getLong(obj));	break;
     case String: {
       if (!storing)
-	fprintf(stream, "%s", get(obj, String,bits));
+	fprintf(stream, "%ls", get(obj, String,bits));
       else {
-	char *p= get(obj, String,bits);
+	wchar_t *p= get(obj, String,bits);
 	int c;
 	putc('"', stream);
 	while ((c= *p++)) {
@@ -718,14 +724,14 @@ static void doprint(FILE *stream, oop obj, int storing)
       }
       break;
     }
-    case Symbol:	fprintf(stream, "%s", get(obj, Symbol,bits));	break;
+    case Symbol:	fprintf(stream, "%ls", get(obj, Symbol,bits));	break;
     case Pair: {
 #if 0
       if (nil != get(obj, Pair,source)) {
 	oop source= get(obj, Pair,source);
 	oop path= car(source);
 	oop line= cdr(source);
-	fprintf(stream, "<%s:%ld>", get(path, String,bits), getLong(line));
+	fprintf(stream, "<%ls:%ld>", get(path, String,bits), getLong(line));
       }
 #endif
       fprintf(stream, "(");
@@ -784,7 +790,7 @@ static void doprint(FILE *stream, oop obj, int storing)
     }
     case Subr: {
       if (get(obj, Subr,name))
-	fprintf(stream, "%s", get(obj, Subr,name));
+	fprintf(stream, "%ls", get(obj, Subr,name));
       else
 	fprintf(stream, "Subr<%p>", get(obj, Subr,imp));
       break;
@@ -884,7 +890,7 @@ static oop expand(oop expr, oop env)
     if (s_set == head && is(Pair, car(tail)) && is(Symbol, caar(tail)) /*&& s_in != caar(tail)*/) {
       static struct buffer buf= BUFFER_INITIALISER;
       buffer_reset(&buf);
-      buffer_appendAll(&buf, "set-");
+      buffer_appendAll(&buf, L"set-");
       buffer_appendAll(&buf, get(getHead(getHead(tail)), Symbol,bits));
       head= intern(buffer_contents(&buf));
       tail= concat(getTail(getHead(tail)), getTail(tail));
@@ -965,7 +971,7 @@ static oop encode(oop expr, oop env)
     }
     else if (f_set == head) {
       oop var= findVariable(env, car(tail));
-      if (nil == var) fatal("set: undefined variable: %s", get(car(tail), Symbol,bits));
+      if (nil == var) fatal("set: undefined variable: %ls", get(car(tail), Symbol,bits));
       tail= enlist(cdr(tail), env);
       tail= newPairFrom(var, tail, expr);
     }
@@ -975,7 +981,7 @@ static oop encode(oop expr, oop env)
   }
   else if (is(Symbol, expr)) {
     oop val= findVariable(env, expr);
-    if (nil == val) fatal("undefined variable: %s", get(expr, Symbol,bits));
+    if (nil == val) fatal("undefined variable: %ls", get(expr, Symbol,bits));
     expr= val;
     if (isGlobal(expr)) {
       val= get(expr, Variable,value);
@@ -1043,7 +1049,7 @@ static void fatal(char *reason, ...)
 	oop path= car(src);
 	oop line= cdr(src);
 	if (is(String, path) && is(Long, line))
-	  printf("[7m %s %ld [0m ", get(path, String,bits), getLong(line));
+	  printf("[7m %ls %ld [0m ", get(path, String,bits), getLong(line));
       }
       dumpln(arrayAt(traceStack, i));
     }
@@ -1404,7 +1410,7 @@ static subr(eq)
   int ans= 0;
   switch (getType(lhs)) {
     case Long:		ans= (isLong(rhs)	&& (getLong(lhs) == getLong(rhs)));				break;
-    case String:	ans= (is(String, rhs) 	&& !strcmp(get(lhs, String,bits), get(rhs, String,bits)));	break;
+    case String:	ans= (is(String, rhs) 	&& !wcscmp(get(lhs, String,bits), get(rhs, String,bits)));	break;
     default:		ans= (lhs == rhs);									break;
   }
   return newBool(ans);
@@ -1418,7 +1424,7 @@ static subr(ne)
   int ans= 0;
   switch (getType(lhs)) {
     case Long:		ans= (isLong(rhs)	&& (getLong(lhs) == getLong(rhs)));				break;
-    case String:	ans= (is(String, rhs) 	&& !strcmp(get(lhs, String,bits), get(rhs, String,bits)));	break;
+    case String:	ans= (is(String, rhs) 	&& !wcscmp(get(lhs, String,bits), get(rhs, String,bits)));	break;
     default:		ans= (lhs == rhs);									break;
   }
   return newBool(!ans);
@@ -1440,7 +1446,8 @@ static subr(open)
 {
   oop arg= car(args);
   if (!is(String, arg)) { fprintf(stderr, "open: non-string argument: ");  fdumpln(stderr, arg);  fatal(0); }
-  FILE *stream= (FILE *)fopen(get(arg, String,bits), "rb");
+  FILE *stream= (FILE *)fopen(wcs2mbs(get(arg, String,bits)), "rb");
+  if (stream) fwide(stream, 1);
   return stream ? newLong((long)stream) : nil;
 }
 
@@ -1458,24 +1465,25 @@ static subr(getc)
   if (nil == arg) arg= get(input, Variable,value);
   if (!isLong(arg)) { fprintf(stderr, "getc: non-integer argument: ");  fdumpln(stderr, arg);  fatal(0); }
   FILE *stream= (FILE *)getLong(arg);
-  int c= getc(stream);
-  return (EOF == c) ? nil : newLong(c & 255);
+  int c= getwc(stream);
+  return (EOF == c) ? nil : newLong(c);
 }
 
 static subr(read)
 {
   FILE *stream= stdin;
   if (nil == args) {
-    beginSource("<stdin>");
+    beginSource(L"<stdin>");
     oop obj= read(stdin);
     endSource();
     if (obj == DONE) obj= nil;
     return obj;
   }
   oop arg= car(args);			if (!is(String, arg)) { fprintf(stderr, "read: non-String argument: ");  fdumpln(stderr, arg);  fatal(0); }
-  char *path= get(arg, String,bits);
-  stream= fopen(path, "r");
+  wchar_t *path= get(arg, String,bits);
+  stream= fopen(wcs2mbs(path), "r");
   if (!stream) return nil;
+  fwide(stream, 1);
   beginSource(path);
   oop head= newPairFrom(nil, nil, currentSource), tail= head;	GC_PROTECT(head);
   oop obj= nil;							GC_PROTECT(obj);
@@ -1564,10 +1572,10 @@ static subr(dump)
 static subr(format)
 {
   arity2(args, "format");
-  oop ofmt= car(args);		if (!is(String, ofmt)) fatal("format is not a string");
-  oop oarg= cadr(args);
-  char *fmt= get(ofmt, String,bits);
-  void *arg= 0;
+  oop     ofmt= car(args);		if (!is(String, ofmt)) fatal("format is not a string");
+  oop     oarg= cadr(args);
+  wchar_t *fmt= get(ofmt, String,bits);
+  void    *arg= 0;
   switch (getType(oarg)) {
     case Undefined:						break;
     case Long:		arg= (void *)getLong(oarg);		break;
@@ -1576,11 +1584,11 @@ static subr(format)
     default:		arg= (void *)oarg;			break;
   }
   size_t size= 100;
-  char *p, *np;
+  wchar_t *p, *np;
   oop ans= nil;
-  if (!(p= malloc(size))) return nil;
+  if (!(p= malloc(sizeof(wchar_t) * size))) return nil;
   for (;;) {
-    int n= snprintf (p, size, fmt, arg);
+    int n= swprintf(p, size, fmt, arg);
     if (0 <= n && n < size) {
       ans= newString(p);
       free(p);
@@ -1588,7 +1596,7 @@ static subr(format)
     }
     if (n >= 0)	size= n + 1;
     else	size *= 2;
-    if (!(np= realloc (p, size))) {
+    if (!(np= realloc(p, sizeof(wchar_t) * size))) {
       free(p);
       break;
     }
@@ -1685,7 +1693,7 @@ static subr(string_at)
   oop arr= getHead(args);		if (!is(String, arr)) { fprintf(stderr, "string-at: non-String argument: ");  fdumpln(stderr, arr);  fatal(0); }
   oop arg= getHead(getTail(args));	if (!isLong(arg)) return nil;
   int idx= getLong(arg);
-  if (0 <= idx && idx < stringLength(arr)) return newLong(255 & get(arr, String,bits)[idx]);
+  if (0 <= idx && idx < stringLength(arr)) return newLong(get(arr, String,bits)[idx]);
   return nil;
 }
 
@@ -1718,8 +1726,8 @@ static subr(symbol_string)
 static subr(long_string)
 {
   oop arg= car(args);				if (is(String, arg)) return arg;  if (!isLong(arg)) return nil;
-  char buf[32];
-  sprintf(buf, "%ld", getLong(arg));
+  wchar_t buf[32];
+  swprintf(buf, 32, L"%ld", getLong(arg));
   return newString(buf);
 }
 
@@ -1800,7 +1808,7 @@ static subr(verbose)
 
 #undef subr
 
-static void replFile(FILE *stream, char *path)
+static void replFile(FILE *stream, wchar_t *path)
 {
   set(input, Variable,value, newLong((long)stream));
   beginSource(path);
@@ -1835,19 +1843,22 @@ static void replFile(FILE *stream, char *path)
 	     GC_count_fragments() * 100.0);
     }
   }
-  int c= getc(stream);
+  int c= getwc(stream);
   if (EOF != c)				fatal("unexpected character 0x%02x '%c'\n", c, c);
   endSource();
 }
 
-static void replPath(char *path)
+static void replPath(wchar_t *path)
 {
-  FILE *stream= fopen(path, "r");
+  FILE *stream= fopen(wcs2mbs(path), "r");
   if (!stream) {
+    int err= errno;
     fprintf(stderr, "\nerror: ");
-    perror(path);
+    errno= err;
+    perror(wcs2mbs(path));
     fatal(0);
   }
+  fwide(stream, 1);
   fscanf(stream, "#!%*[^\012\015]");
   replFile(stream, path);
   fclose(stream);
@@ -1860,6 +1871,16 @@ static void sigint(int signo)
 
 int main(int argc, char **argv)
 {
+  if ((fwide(stdin, 1) <= 0) || (fwide(stdout, -1) >= 0) || (fwide(stderr, -1) >= 0)) {
+    fprintf(stderr, "Cannot set stream widths.\n");
+    return 1;
+  }
+
+  if (!setlocale(LC_CTYPE, "")) {
+    fprintf(stderr, "Cannot set the locale.  Verify your LANG, LC_CTYPE, LC_ALL.\n");
+    return 1;
+  }
+
   GC_add_root(&symbols);
   GC_add_root(&globals);
   GC_add_root(&expanders);
@@ -1870,38 +1891,38 @@ int main(int argc, char **argv)
 
   symbols= newArray(0);
 
-  s_set			= intern("set");
-  s_define		= intern("define");
-  s_let			= intern("let");
-  s_lambda		= intern("lambda");
-  s_quote		= intern("quote");
-  s_quasiquote		= intern("quasiquote");
-  s_unquote		= intern("unquote");
-  s_unquote_splicing	= intern("unquote-splicing");
-  s_t			= intern("t");
-  s_dot			= intern(".");
-//s_in			= intern("in");
+  s_set			= intern(L"set");
+  s_define		= intern(L"define");
+  s_let			= intern(L"let");
+  s_lambda		= intern(L"lambda");
+  s_quote		= intern(L"quote");
+  s_quasiquote		= intern(L"quasiquote");
+  s_unquote		= intern(L"unquote");
+  s_unquote_splicing	= intern(L"unquote-splicing");
+  s_t			= intern(L"t");
+  s_dot			= intern(L".");
+//s_in			= intern(L"in");
 
   oop tmp= nil;		GC_PROTECT(tmp);
 
   globals= newEnv(nil, 0, 0);
-  globals= define(globals, intern("*globals*"), globals);
+  globals= define(globals, intern(L"*globals*"), globals);
 
-  expanders=	define(get(globals, Variable,value), intern("*expanders*"),   nil);
-  encoders=	define(get(globals, Variable,value), intern("*encoders*"),    nil);
-  evaluators=	define(get(globals, Variable,value), intern("*evaluators*"),  nil);
-  applicators=	define(get(globals, Variable,value), intern("*applicators*"), nil);
+  expanders=	define(get(globals, Variable,value), intern(L"*expanders*"),   nil);
+  encoders=	define(get(globals, Variable,value), intern(L"*encoders*"),    nil);
+  evaluators=	define(get(globals, Variable,value), intern(L"*evaluators*"),  nil);
+  applicators=	define(get(globals, Variable,value), intern(L"*applicators*"), nil);
 
   traceStack=	newArray(32);					GC_add_root(&traceStack);
 
-  backtrace=	define(get(globals, Variable,value), intern("*backtrace*"), nil);
-  input=	define(get(globals, Variable,value), intern("*input*"), nil);
+  backtrace=	define(get(globals, Variable,value), intern(L"*backtrace*"), nil);
+  input=	define(get(globals, Variable,value), intern(L"*input*"), nil);
 
   currentPath= nil;			GC_add_root(&currentPath);
   currentLine= nil;			GC_add_root(&currentLine);
   currentSource= newPair(nil, nil);	GC_add_root(&currentSource);
 
-#define _do(NAME, OP)	tmp= newSubr(subr_##NAME, #OP);  define(get(globals, Variable,value), intern(#OP), tmp);
+#define _do(NAME, OP)	tmp= newSubr(subr_##NAME, WIDEN(#OP));  define(get(globals, Variable,value), intern(WIDEN(#OP)), tmp);
   _do_unary();  _do_binary();  _do(sub, -);  _do_relation();  _do(eq, =);  _do(ne, !=);
 #undef _do
 
@@ -1964,18 +1985,19 @@ int main(int argc, char **argv)
       { 0,		   0 }
     };
     for (ptr= subrs;  ptr->name;  ++ptr) {
-      tmp= newSubr(ptr->imp, ptr->name + 1);
+      wchar_t *name= mbs2wcs(ptr->name + 1);
+      tmp= newSubr(ptr->imp, name);
       if ('.' == ptr->name[0]) tmp= newFixed(tmp);
-      define(get(globals, Variable,value), intern(ptr->name + 1), tmp);
+      define(get(globals, Variable,value), intern(name), tmp);
     }
   }
 
   tmp= nil;
   while (--argc) {
     tmp= newPair(nil, tmp);
-    setHead(tmp, newString(argv[argc]));
+    setHead(tmp, newString(mbs2wcs(argv[argc])));
   }	    
-  arguments= define(get(globals, Variable,value), intern("*arguments*"), tmp);
+  arguments= define(get(globals, Variable,value), intern(L"*arguments*"), tmp);
 
   tmp= nil;		GC_UNPROTECT(tmp);
 
@@ -1993,12 +2015,12 @@ int main(int argc, char **argv)
     oop argl= get(arguments, Variable,value);
     oop args= getHead(argl);				GC_PROTECT(args);
     set(arguments, Variable,value, getTail(argl));
-    char *arg= get(args, String,bits);
-    if 	    (!strcmp(arg, "-v"))	++opt_v;
-    else if (!strcmp(arg, "-b"))	++opt_b;
+    wchar_t *arg= get(args, String,bits);
+    if 	    (!wcscmp(arg, L"-v"))	++opt_v;
+    else if (!wcscmp(arg, L"-b"))	++opt_b;
     else {
       if (!opt_b) {
-	replPath("boot.l");
+	replPath(L"boot.l");
 	opt_b= 1;
       }
       replPath(arg);
@@ -2014,8 +2036,8 @@ int main(int argc, char **argv)
   }
 
   if (!repled) {
-    if (!opt_b) replPath("boot.l");
-    replFile(stdin, "<stdin>");
+    if (!opt_b) replPath(L"boot.l");
+    replFile(stdin, L"<stdin>");
     printf("\nmorituri te salutant\n");
   }
 

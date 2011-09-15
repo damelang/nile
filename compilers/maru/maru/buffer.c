@@ -1,6 +1,6 @@
 struct buffer
 {
-  unsigned char	*buffer;
+  wchar_t	*buffer;
   int		 size;
   int		 position;
 };
@@ -17,23 +17,25 @@ static int  buffer_position(struct buffer *b)		{ return b->position; }
 static int  buffer_last(struct buffer *b)		{ return (b->position > 0) ? b->buffer[b->position - 1] : -1; }
 #endif
 
+#if 0
 static int buffer_read(struct buffer *b)
 {
   int c= b->buffer[b->position++];
   if (!c) b->position--;
   return c;
 }
+#endif
 
 static void buffer_append(struct buffer *b, int c)
 {
   if (b->position == b->size)
     b->buffer= b->buffer
-      ? realloc(b->buffer, b->size *= 2)
-      : malloc(b->size= 32);
+	? realloc(b->buffer, sizeof(wchar_t) * (b->size *= 2))
+	: malloc(sizeof(wchar_t) * (b->size= 32));
   b->buffer[b->position++]= c;
 }
 
-static void buffer_appendAll(struct buffer *b, const char *s)
+static void buffer_appendAll(struct buffer *b, const wchar_t *s)
 {
   while (*s) buffer_append(b, *s++);
 }
@@ -46,9 +48,9 @@ static void buffer_seek(struct buffer *b, int off)
 }
 #endif
 
-static char *buffer_contents(struct buffer *b)
+static wchar_t *buffer_contents(struct buffer *b)
 {
   buffer_append(b, 0);
   b->position--;
-  return (char *)b->buffer;
+  return (wchar_t *)b->buffer;
 }

@@ -227,7 +227,7 @@
 (define-function %make-accessor (name fields offset)
   (if fields (cons `(define-form ,(concat-symbol name (concat-symbol '- (car fields))) (self)
 		      (list 'oop-at
-			    self ;; (list '%typecheck ',name self) ; self ; xxx
+			    (list '%typecheck ',name self) ; self ; xxx
 			    ,offset))
 		   (%make-accessor name (cdr fields) (+ 1 offset)))))
 
@@ -251,7 +251,7 @@
   (let ((base (eval basis)))
     (set fields (concat-list (array-at %structure-fields base) fields))
     (let ((type   (%allocate-type name))
-	  (offset (list-length (array-at %structure-fields base)))
+;	  (offset (list-length (array-at %structure-fields base)))
 	  (size   (list-length fields)))
       (set-array-at %structure-sizes  type size)
       (set-array-at %structure-fields type fields)
@@ -347,7 +347,7 @@
   (let ((method ()))
     (while (and (set type (array-at %structure-bases type))
 		(not (set method (array-at methods type)))))
-    method))
+    method)) ;; xxx THIS SHOULD COPY DOWN THE METHOD FOR PERFORMANCE xxx
 
 (define-apply <selector> (self . arguments)
   (apply (or (array-at (<selector>-methods self) (type-of (car arguments)))

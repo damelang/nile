@@ -9,7 +9,7 @@ all : eval
 run : eval
 	rlwrap ./eval
 
-eval : eval.c gc.c gc.h buffer.c chartab.h
+eval : eval.c gc.c gc.h buffer.c chartab.h wcs.c
 	$(CC) -g $(CFLAGS) -o eval eval.c
 
 debug : .force
@@ -74,10 +74,10 @@ clean : .force
 #----------------------------------------------------------------
 
 FILES = Makefile \
-	buffer.c chartab.h eval.c gc.c gc.h \
+	wcs.c buffer.c chartab.h eval.c gc.c gc.h \
 	boot.l emit.l eval.l test-emit.l \
-	parser.l peg-compile.l peg-boot.l peg.l test-peg.l test-repl.l \
-	repl.l mpl.l sim.l \
+	parser.l peg-compile.l peg-compile-2.l peg-boot.l peg.l test-peg.l test-repl.l \
+	repl.l repl-2.l mpl.l sim.l \
 	peg.g
 
 NOW = $(shell date '+%Y%m%d.%H%M')
