@@ -572,19 +572,30 @@
 
 ;;; conversion
 
-(define-function string->number (str)
+(define-function string->number-base (str radix)
   (let ((n 0)
 	(i 0)
-	(l (string-length str)))
-    (while (< i l)
-      (let ((c (string-at str i)))
-	(set n (+ (* 10 n)
-		  (cond
-		    ((and (<= ?A c) (<= c ?Z))	(+ 10 (- c ?A)))
-		    ((and (<= ?a c) (<= c ?z))	(+ 10 (- c ?a)))
-		    (else			(- c ?0))))))
+	(l (string-length str))
+	(s 1))
+    (while (and (< i l) (= ?- (string-at str i)))
+      (set s (- s))
       (set i (+ i 1)))
-    n))
+    (while (< i l)
+      (let* ((c (string-at str i))
+	     (d (cond
+		  ((and (<= ?0 c) (<= c ?9))	      (- c ?0) )
+		  ((and (<= ?A c) (<= c ?Z))	(+ 10 (- c ?A)))
+		  ((and (<= ?a c) (<= c ?z))	(+ 10 (- c ?a)))
+		  (else				      radix    ))))
+	(if (< d radix)
+	    (let ()
+	      (set n (+ (* radix n) d))
+	      (set i (+ i 1)))
+	  (set l i))))
+    (* s n)))
+
+(define-function string->number (str)
+  (string->number-base str 10))
 
 (define-function array->string (arr)
   (let* ((ind 0)
@@ -611,6 +622,39 @@
       (set idx (+ idx 1))
       (set list (cdr list)))
     str))
+
+;;; sorting and searching
+
+(define-function %partition (items at set-at left pivot right)
+  (let ((index left)
+	(value (at items pivot)))
+    (set-at items pivot (at items right))
+    (set-at items right value)
+    (for (i left right)
+      (and (< (at items i) value)
+	   (let ((item (at items i)))
+	     (set-at items i (at items index))
+	     (set-at items index item)
+	     (set index (+ index 1)))))
+    (set value (at items index))
+    (set-at items index (at items right))
+    (set-at items right value)
+    index))
+
+(define-function %sort (items at set-at left right)
+  (and (< left right)
+       (let* ((pivot (/ (+ left right) 2))
+	      (index (%partition items at set-at left pivot right)))
+	 (%sort items at set-at left (- index 1))
+	 (%sort items at set-at (+ index 1) right))))
+
+(define-function array-sort (items)
+  (%sort items array-at set-array-at 0 (- (array-length items) 1))
+  items)
+
+(define-function string-sort (items)
+  (%sort items string-at set-string-at 0 (- (string-length items) 1))
+  items)
 
 ;;; structural equality
 

@@ -219,7 +219,9 @@
        (let ((exp self.result))
 	 (while (cond
 		  ((RULE at)		(set exp (list 'make-span exp)))
-		  ((RULE dollarhash)	(set exp (list 'make-number exp)))
+		  ((RULE dollarhash)	(if (RULE number)
+					    (set exp (list 'make-number self.result exp))
+					  (set exp   (list 'make-number 10 exp))))
 		  ((RULE dollardbl)	(set exp (list 'make-symbol exp)))
 		  ((RULE dollar)	(set exp (list 'make-string exp)))
 		  ((RULE colon)		(if (RULE identifier)
@@ -277,6 +279,8 @@
   					\"string\" [class] identifier .
   					foo? bar* baz+
   					letter+$
+  					digit+$#
+  					digit+$#42
   					&foo !bar -> baz -> \"string\" -> ( a list )
   					atom
   					this is a sequence of stuffs ;
@@ -314,6 +318,8 @@
     (unit-assert (RULE repetition	))	(unit-assert (equal (<begpeg>-result self) '(match-zero-more (match-rule bar))))
     (unit-assert (RULE repetition	))	(unit-assert (equal (<begpeg>-result self) '(match-one-more (match-rule baz))))
     (unit-assert (RULE conversion	))	(unit-assert (equal (<begpeg>-result self) '(make-string (match-one-more (match-rule letter)))))
+    (unit-assert (RULE conversion	))	(unit-assert (equal (<begpeg>-result self) '(make-number 10 (match-one-more (match-rule digit)))))
+    (unit-assert (RULE conversion	))	(unit-assert (equal (<begpeg>-result self) '(make-number 42 (match-one-more (match-rule digit)))))
     (unit-assert (RULE predicate	))	(unit-assert (equal (<begpeg>-result self) '(peek-for (match-rule foo))))
     (unit-assert (RULE predicate	))	(unit-assert (equal (<begpeg>-result self) '(peek-not (match-rule bar))))
     (unit-assert (RULE predicate	))	(unit-assert (equal (<begpeg>-result self) '(result-expr baz)))

@@ -47,7 +47,7 @@ test-emit : eval .force
 peg.l : eval parser.l peg-compile.l peg-boot.l peg.g
 	-rm peg.l.new
 	./eval parser.l peg-compile.l peg-boot.l > peg.l.new
-	-mv peg.l peg.l.bak
+	-mv peg.l peg.l.$(shell date '+%Y%m%d.%H%M%S')
 	mv peg.l.new peg.l
 
 test-repl : eval peg.l .force

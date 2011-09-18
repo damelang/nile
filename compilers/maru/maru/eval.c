@@ -1,4 +1,4 @@
-// last edited: 2011-09-14 16:46:27 by piumarta on 192.168.1.11
+// last edited: 2011-09-17 05:01:53 by piumarta on emilia
 
 #define _ISOC99_SOURCE 1
 
@@ -500,7 +500,7 @@ static int readChar(wint_t c, FILE *fp)
       case 'v':   return '\v';
       case 'u': {
 	wint_t a= getwc(fp), b= getwc(fp), c= getwc(fp), d= getwc(fp);
-	return (digitValue(a) << 24) + (digitValue(b) << 16) + (digitValue(c) << 8) + digitValue(d);
+	return (digitValue(a) << 12) + (digitValue(b) << 8) + (digitValue(c) << 4) + digitValue(d);
       }
       case 'x': {
 	int x= 0;

@@ -27,13 +27,18 @@ rparen     	= ")"  space ;
 lbrace      	= "{"  space ;
 rbrace     	= "}"  space ;
 dot       	= "."  space ;
-digit		= [0123456789] ;
-letter		= [ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz] ;
+digit		= [0-9] ;
+higit		= [0-9A-Fa-f] ;
+number		= ("-"? digit+) @$#:n space -> n ;
+letter		= [A-Z_a-z] ;
 idpart		= (letter (letter | digit)*) @$$ ;
 identifier	= idpart:id space				-> id ;
-char		= "\\"	( "t"	->  9
-			| "n"	-> 10
-			| "r"	-> 13
+
+char		= "\\"	( "t"					->  9
+			| "n"					-> 10
+			| "r"					-> 13
+			| "x" (higit higit) @$#16
+			| "u" (higit higit higit higit) @$#16
 			| .
                         )
 		| . ;
@@ -48,10 +53,10 @@ grammar         = symbol:name space plus
                 | definition*:d space expression?:e             -> `(grammar-eval ,d ,(car e))
                 ;
 
-symfirst	= [!#$%&*+-/<=>@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz|~] ;
-symrest		= [!#$%&*+-./0123456789<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz|~] ;
+symfirst	= [-!#$%&*+/<=>@A-Z^_a-z|~] ;
+symrest		= [-!#$%&*+./0-9<=>?@A-Z^_a-z|~] ;
 symbol		= (symfirst symrest*) @$$ ;
-sexpr		= ("-"? digit+) $#
+sexpr		= ("-"? digit+) @$#
 		| symbol
 		| "?".
 		| "\""  (!"\""  char)* $:e "\""					-> e
@@ -85,11 +90,13 @@ repetition	= atom :e ( query				-> `(match-zero-one ,e)  :e
 			  | star				-> `(match-zero-more ,e) :e
 			  | plus				-> `(match-one-more ,e)  :e
 			  )?					-> e ;
-conversion	= repetition :e ( at				-> `(make-span        ,e) :e
-				| dollarhash			-> `(make-number      ,e) :e
-				| dollardbl			-> `(make-symbol      ,e) :e
-				| dollar			-> `(make-string      ,e) :e
-				| colon identifier :i		-> `(assign-result ,i ,e) :e
+conversion	= repetition :e ( at				-> `(make-span	    ,e) :e
+				| dollarhash ( number:n		-> `(make-number ,n ,e) :e
+					     |			-> `(make-number 10 ,e) :e
+					     )
+				| dollardbl			-> `(make-symbol      ,e   ) :e
+				| dollar			-> `(make-string      ,e   ) :e
+				| colon identifier :i		-> `(assign-result ,i ,e   ) :e
 				)*				-> e ;
 predicate	= pling     conversion:e			-> `(peek-not ,e)
 		| ampersand conversion:e			-> `(peek-for ,e)
@@ -175,7 +182,7 @@ value =
  						(let ((ok ,exp))
  						  (set self.source src)
  						  (and ok (parser-stream-next src)))))
- | 'match-class  .:str			-> `(set self.result (parser-stream-match-class self.source ,str))
+ | 'match-class  .:str			-> `(set self.result (parser-stream-match-class self.source ,(make-class str)))
  | 'match-string .:str			-> `(set self.result (parser-stream-match-string self.source ,str))
  | 'match-object .:obj			-> `(and (= ',obj (parser-stream-peek self.source))
  					         (set self.result (parser-stream-next self.source)))
@@ -188,7 +195,7 @@ value =
  						     1)))
  | 'make-string value:exp		-> `(and ,exp (set self.result (list->string self.result)))
  | 'make-symbol value:exp		-> `(and ,exp (set self.result (string->symbol (list->string self.result))))
- | 'make-number value:exp		-> `(and ,exp (set self.result (string->number (list->string self.result))))
+ | 'make-number .:r value:exp		-> `(and ,exp (set self.result (string->number-base (list->string self.result) ,r)))
  | 'assign-result .:name value:exp	-> `(and ,exp (let () (set ,name self.result) 1))
  | 'result-expr .:exp			-> `(let () (set self.result ,exp) 1)
  | .:op					->  (error "cannot generate value for "op)
@@ -225,14 +232,14 @@ effect =
  						(let ((ok ,exp))
  						  (set self.source src)
  						  (and ok (parser-stream-next src)))))
- | 'match-class   .:str			-> `(parser-stream-match-class  self.source ,str)
+ | 'match-class   .:str			-> `(parser-stream-match-class  self.source ,(make-class str))
  | 'match-string  .:str			-> `(parser-stream-match-string self.source ,str)
  | 'match-object  .:obj			-> `(parser-stream-match-object self.source ',obj)
  | 'match-any				-> '(parser-stream-match-any    self.source)
  | 'make-span     effect:exp		->  exp
  | 'make-string   effect:exp		->  exp
  | 'make-symbol   effect:exp		->  exp
- | 'make-number   effect:exp		->  exp
+ | 'make-number .:r effect:exp		->  exp
  | 'assign-result .:name value:exp	-> `(and ,exp (let () (set ,name self.result) 1))
  | 'result-expr   .:exp			-> `(let () ,exp 1)
  | .:op					->  (error "cannot generate value for "op)
