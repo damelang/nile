@@ -56,8 +56,8 @@
 
 (define-function concat-files (files)
   (inject (lambda (file string)
-    (let ((contents (input-stream-up-to (input-stream (open file)) ())))
-      (concat-string string contents)))
+    (let ((contents (input-stream-up-to (input-stream (open file)) *end*)))
+      (concat-string contents string)))
   "" files))
 
 (define-function make-constructor-inits (fields offset)
