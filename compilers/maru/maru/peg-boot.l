@@ -145,11 +145,11 @@
 
 (define-rule symfirst
   (set self.result
-       (CLASS "!#$%&*+-./<=>@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz|~")))
+       (CLASS "!#$%&*+-./:<=>@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz|~")))
 
 (define-rule symrest
   (set self.result
-       (CLASS "!#$%&*+-./0123456789<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz|~")))
+       (CLASS "!#$%&*+-./:0123456789<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz|~")))
 
 (define-rule symbol
   (let ((pos (<parser-stream>-position _)))
@@ -334,7 +334,7 @@
 
 ;;;----------------------------------------------------------------
 
-(define peg-grammar-string (input-stream-up-to (input-stream (open "peg.g")) ()))
+(define peg-grammar-string (input-stream-up-to (input-stream (open "peg.g")) *end*))
 
 ;;;----------------
 

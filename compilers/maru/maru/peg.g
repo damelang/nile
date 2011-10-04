@@ -53,8 +53,8 @@ grammar         = symbol:name space plus
                 | definition*:d space expression?:e             -> `(grammar-eval ,d ,(car e))
                 ;
 
-symfirst	= [-!#$%&*+/<=>@A-Z^_a-z|~] ;
-symrest		= [-!#$%&*+./0-9<=>?@A-Z^_a-z|~] ;
+symfirst	= [-!#$%&*+/:<=>@A-Z^_a-z|~] ;
+symrest		= [-!#$%&*+./:0-9<=>?@A-Z^_a-z|~] ;
 symbol		= (symfirst symrest*) @$$ ;
 sexpr		= ("-"? digit+) @$#
 		| symbol
@@ -98,8 +98,10 @@ conversion	= repetition :e ( at				-> `(make-span	    ,e) :e
 				| dollar			-> `(make-string      ,e   ) :e
 				| colon identifier :i		-> `(assign-result ,i ,e   ) :e
 				)*				-> e ;
-predicate	= pling     conversion:e			-> `(peek-not ,e)
-		| ampersand conversion:e			-> `(peek-for ,e)
+predicate	= pling     conversion:e			-> `(peek-not  ,e)
+		| ampersand ( arrow sexpression:e space		-> `(peek-expr ,e)
+			    | conversion:e			-> `(peek-for  ,e)
+			    )
 		| conversion ;
 
 sequence	= predicate:p	( predicate+:q			-> `(match-all ,p ,@q)
@@ -174,6 +176,7 @@ value =
  						     1)))
  | 'peek-for value:exp			-> `(let ((pos (<parser-stream>-position self.source)))
 					      (and ,exp (set (<parser-stream>-position self.source) pos)))
+ | 'peek-expr .:exp			-> exp
  | 'peek-not value:exp			-> `(not (let ((pos (<parser-stream>-position self.source)))
 						   (and ,exp (set (<parser-stream>-position self.source) pos))))
  | 'match-list value:exp		-> `(and (pair? (parser-stream-peek self.source))
@@ -224,6 +227,7 @@ effect =
  | 'match-one-more  effect:exp		-> `(and ,exp (let () (while ,exp) 1))
  | 'peek-for        effect:exp		-> `(let ((pos (<parser-stream>-position self.source)))
 					      (and ,exp (set (<parser-stream>-position self.source) pos)))
+ | 'peek-expr .:exp			-> exp
  | 'peek-not	    effect:exp		-> `(not (let ((pos (<parser-stream>-position self.source)))
 						   (and ,exp (set (<parser-stream>-position self.source) pos))))
  | 'match-list      effect:exp		-> `(and (pair? (parser-stream-peek self.source))
