@@ -111,11 +111,11 @@
                 | opname:n  coerceexpr:a           -> (nile-opexpr n                     `(,a))
                 |           coerceexpr:a opname:n  -> (nile-opexpr n                     `(,a))
                 |           coerceexpr ;
-  prodexpr      =  unaryexpr:a (   _                     _   prodexpr:b -> (nile-opexpr "_" `(,a ,b)):a)* -> a ;
-  mulexpr       =   prodexpr:a (" "_ &mulop ropname:o " "_    mulexpr:b -> (nile-opexpr o `(,a ,b)):a)* -> a ;
-  infixexpr     =    mulexpr:a (" "_ !mulop ropname:o " "_  infixexpr:b -> (nile-opexpr o `(,a, b)):a)* -> a ;
-  relateexpr    =  infixexpr:a (" "_     [<>≤≥≠=]@$:o " "_ relateexpr:b -> (nile-opexpr o `(,a ,b)):a)* -> a ;
-  logicexpr     = relateexpr:a (" "_         [∧∨]@$:o " "_  logicexpr:b -> (nile-opexpr o `(,a ,b)):a)* -> a ;
+  prodexpr      =  unaryexpr:a (   _          ->"_":o    _  unaryexpr:b -> (nile-opexpr o `(,a ,b)):a)* -> a ;
+  mulexpr       =   prodexpr:a (" "_ &mulop ropname:o " "_   prodexpr:b -> (nile-opexpr o `(,a ,b)):a)* -> a ;
+  infixexpr     =    mulexpr:a (" "_ !mulop ropname:o " "_    mulexpr:b -> (nile-opexpr o `(,a, b)):a)* -> a ;
+  relateexpr    =  infixexpr:a (" "_     [<>≤≥≠=]@$:o " "_  infixexpr:b -> (nile-opexpr o `(,a ,b)):a)* -> a ;
+  logicexpr     = relateexpr:a (" "_         [∧∨]@$:o " "_ relateexpr:b -> (nile-opexpr o `(,a ,b)):a)* -> a ;
   expr          = logicexpr ;
 
   # Statements
