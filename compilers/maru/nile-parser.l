@@ -1,71 +1,71 @@
 (define-ast-node nile-typedvar (name type)
-  (do-print () (print "[TYPEDVAR "self.name":"self.type"]")))
+  (do-print () (print self.name":"self.type)))
 
 (define-ast-node nile-pattern (elements)
-  (do-print () (print "[PATTERN "self.elements" ]")))
+  (do-print () (print self.elements)))
 
 (define-ast-node nile-realexpr (real)
-  (do-print () (print "[REALEXPR "self.real" ]")))
+  (do-print () (print self.real)))
 
 (define-ast-node nile-varexpr (var)
-  (do-print () (print "[VAREXPR "self.var" ]")))
+  (do-print () (print self.var)))
 
 (define-ast-node nile-tupleexpr (elements)
-  (do-print () (print "[TUPLEEXPR "self.elements" ]")))
+  (do-print () (print self.elements)))
 
 (define-ast-node nile-condcase (value condition)
-  (do-print () (print "[CONDCASE "self.value" if "self.condition" ]")))
+  (do-print () (print self.value" if "self.condition"; ")))
 
 (define-ast-node nile-condexpr (cases default)
-  (do-print () (print "[CONDEXPR "self.cases" "self.default", otherwise ]")))
+  (do-print () (print "{ "self.cases" "self.default", otherwise }")))
 
 (define-ast-node nile-recfieldexpr (rec fields)
-  (do-print () (print "[RECFIELDEXPR "self.rec"."self.fields" ]")))
+  (do-print () (print self.rec"."self.fields)))
 
 (define-ast-node nile-coerceexpr (value type)
-  (do-print () (print "[COERCEEXPR "self.value" : "self.type"]")))
+  (do-print () (print "("self.value":"self.type")")))
 
 (define-ast-node nile-opexpr (op args)
-  (do-print () (print "[OPEXPR "self.op" "self.args" ]")))
+  (do-print () (print self.op self.args)))
 
 (define-ast-node nile-vardef (pattern value)
-  (do-print () (print "[VARDEF "self.pattern" = "self.value" ]")))
+  (do-print () (print self.pattern" = "self.value"\n")))
 
 (define-ast-node nile-instmt (values)
-  (do-print () (print "[INSTMT "self.values" ]")))
+  (do-print () (print "<< "self.values"\n")))
 
 (define-ast-node nile-outstmt (values)
-  (do-print () (print "[OUTSTMT "self.values" ]")))
+  (do-print () (print ">> "self.values"\n")))
 
 (define-ast-node nile-ifstmt (condition stmts)
-  (do-print () (print "[IFSTMT "self.condition" "self.stmts" ]")))
+  (do-print () (print "IF "self.condition"\n"self.stmts"ENDIF\n")))
 
 (define-ast-node nile-tupletype (elements)
-  (do-print () (print "[TUPLETYPE "self.elements"]")))
+  (do-print () (print self.elements)))
 
 (define-ast-node nile-recordtype (fields)
-  (do-print () (print "[RECORDTYPE "self.fields"]")))
+  (do-print () (print self.fields)))
 
 (define-ast-node nile-processtype (intype outtype)
-  (do-print () (print "[PROCESSTYPE "self.intype" >> "self.outtype"]")))
+  (do-print () (print self.intype" >> "self.outtype)))
 
 (define-ast-node nile-typedef (name type)
-  (do-print () (print "[TYPEDEF "self.name" = "self.type"]")))
+  (do-print () (print "type "self.name" = "self.type)))
 
 (define-ast-node nile-opsig (name args type)
-  (do-print () (print "[OPSIG "self.name" "self.args" : "self.type" ]")))
+  (do-print () (print self.name" "self.args" : "self.type)))
 
 (define-ast-node nile-opdef (sig vars result)
-  (do-print () (print "[OPDEF "self.sig" "self.vars" "self.result" ]")))
+  (do-print () (print self.sig"\n"self.vars"\n"self.result)))
 
 (define-ast-node nile-processsig (name args type)
-  (do-print () (print "[PROCESSSIG "self.name" "self.args" : "self.type" ]")))
+  (do-print () (print self.name" "self.args" : "self.type)))
 
 (define-ast-node nile-processbody (pattern stmts)
-  (do-print () (print "[PROCESSBODY ∀ "self.pattern" "self.stmts" ]")))
+  (do-print () (print "∀ "self.pattern"\n"self.stmts)))
 
 (define-ast-node nile-processdef (sig prologue body epilogue)
-  (do-print () (print "[PROCESSDEF "self.sig" "self.prologue" "self.body" "self.epilogue" ]")))
+  (do-print () (print self.sig"\n\n"self.prologue"\n\n"self.body"\n\n"self.epilogue)))
 
 (define nile-indentation 0)
 
@@ -176,4 +176,4 @@
 "\n\n\n\n"
 
 (list-do top nile-program
-  (println top))
+  (println "\n\n" top))
