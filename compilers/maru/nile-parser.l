@@ -144,7 +144,7 @@
                 | LPAREN RARROW RPAREN               -> (nile-processinst "Passthrough" '()) ;
   process       = LPAREN varname:v RPAREN            -> v
                 | processinst ;
-  pexpr         = process:p1 (RARROW process)*:ps    -> (nile-pexpr (cons p1 ps)) ; 
+  pexpr         = process:p1 (RARROW process)*:ps    -> (nile-pexpr (cons p1 ps)) ;
 
   # Statements
   pattern       = LPAREN pattern:p1 (COMMA pattern)*:ps RPAREN     -> (nile-pattern (cons p1 ps))
