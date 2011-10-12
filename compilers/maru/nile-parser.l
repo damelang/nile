@@ -37,8 +37,8 @@
 (define-ast-node nile-outstmt (values)
   (do-print () (print ">> "self.values"\n")))
 
-(define-ast-node nile-ifstmt (condition stmts)
-  (do-print () (print "IF "self.condition"\n"self.stmts"ENDIF\n")))
+(define-ast-node nile-ifstmt (condition iftrue iffalse)
+  (do-print () (print "IF "self.condition"\n"self.iftrue"\nELSE\n"self.iffalse"ENDIF\n")))
 
 (define-ast-node nile-tupletype (elements)
   (do-print () (print self.elements)))
@@ -50,22 +50,36 @@
   (do-print () (print self.intype" >> "self.outtype)))
 
 (define-ast-node nile-typedef (name type)
-  (do-print () (print "type "self.name" = "self.type)))
+  (do-print () (print "type "self.name" = "self.type))
+  (name     () self.name))
 
 (define-ast-node nile-opsig (name args type)
-  (do-print () (print self.name" "self.args" : "self.type)))
+  (do-print () (print self.name" "self.args" : "self.type))
+  (name     () self.name))
 
 (define-ast-node nile-opdef (sig vars result)
-  (do-print () (print self.sig"\n"self.vars"\n"self.result)))
+  (do-print () (print self.sig"\n"self.vars"\n"self.result))
+  (name     () (name self.sig)))
 
 (define-ast-node nile-processsig (name args type)
-  (do-print () (print self.name" "self.args" : "self.type)))
+  (do-print () (print self.name" "self.args" : "self.type))
+  (name     () self.name))
 
 (define-ast-node nile-processbody (pattern stmts)
   (do-print () (print "∀ "self.pattern"\n"self.stmts)))
 
 (define-ast-node nile-processdef (sig prologue body epilogue)
-  (do-print () (print self.sig"\n\n"self.prologue"\n\n"self.body"\n\n"self.epilogue)))
+  (do-print () (print self.sig"\n\n"self.prologue"\n\n"self.body"\n\n"self.epilogue))
+  (name     () (name self.sig)))
+
+(define-ast-node nile-processinst (name args)
+  (do-print () (print self.name self.args)))
+
+(define-ast-node nile-pexpr (processes)
+  (do-print () (print self.processes)))
+
+(define-ast-node nile-substmt (pexpr)
+  (do-print () (print "⇒ "self.pexpr)))
 
 (define nile-indentation 0)
 
@@ -78,6 +92,8 @@
   RPAREN        = _")"_ ;
   COMMA         = _","_ ;
   COLON         = _":"_ ;
+  RARROW        = _"→"_ ;
+  DQUOTE        = "\"" ;
   opsym         = [-!#$%&*+/<>?@^|~¬²³×‖\u2201-\u221D\u221F-\u22FF⌈⌉⌊⌋▷◁⟂] ;
   mulop         = [/∙×] ;
   ropname       = ![<>≤≥≠=∧∨] opname ;
@@ -88,7 +104,8 @@
   typename      = (alpha alphanum*)@$ ;
   opname        = (opsym+ | "\\"alpha+)$ ;
   processname   = (alpha alphanum*)@$ ;
-  varname       = (alpha num*)@$ ;
+  varname       = (alpha num* "'"?)@$
+                | DQUOTE (!DQUOTE .)+$:n DQUOTE -> n ;
 
   # Indentation rules
   EOL           = _ ("--" (!CRLF .)*)? CRLF _:spaces -> (set nile-indentation (list-length spaces)) ;
@@ -118,15 +135,34 @@
   logicexpr     = relateexpr:a (" "_         [∧∨]@$:o " "_ relateexpr:b -> (nile-opexpr o `(,a ,b)):a)* -> a ;
   expr          = logicexpr ;
 
+  # Process expressions
+  processarg    = LPAREN expr:e RPAREN               -> e
+                | pexpr ;
+  processinst   = processname:n LPAREN processarg:a1
+                  (COMMA processarg)*:as RPAREN      -> (nile-processinst n (cons a1 as))
+                | processname:n (LPAREN RPAREN)?     -> (nile-processinst n '())
+                | LPAREN RARROW RPAREN               -> (nile-processinst "Passthrough" '()) ;
+  process       = LPAREN varname:v RPAREN            -> v
+                | processinst ;
+  pexpr         = process:p1 (RARROW process)*:ps    -> (nile-pexpr (cons p1 ps)) ; 
+
   # Statements
-  pattern       = LPAREN pattern:p1 (COMMA pattern)*:ps RPAREN    -> (nile-pattern (cons p1 ps))
+  pattern       = LPAREN pattern:p1 (COMMA pattern)*:ps RPAREN     -> (nile-pattern (cons p1 ps))
                 | "_"
                 | varname ;
-  vardef        = pattern:p _"="_ expr:e                          -> (nile-vardef p e) ;
-  instmt        = "<<"_ expr:e1 (_"<<"_ expr)*:es                 -> (nile-instmt  (cons e1 es)) ;
-  outstmt       = ">>"_ expr:e1 (_">>"_ expr)*:es                 -> (nile-outstmt (cons e1 es)) ;
-  ifstmt        = indentation:i "if "_ expr:c {indentedStmts i}:s -> (nile-ifstmt c s) ;
-  stmt          = vardef | instmt | outstmt | ifstmt;
+  vardef        = pattern:p _"="_ expr:e               -> (nile-vardef p e) ;
+  instmt        = "<<"_ expr:e1 (_"<<"_ expr)*:es      -> (nile-instmt  (cons e1 es)) ;
+  outstmt       = ">>"_ expr:e1 (_">>"_ expr)*:es      -> (nile-outstmt (cons e1 es)) ;
+  ifstmt        = indentation:i "if "_ {ifbody i} ;
+  ifbody        = .:i expr:c {indentedStmts i}:t
+                  ( EOL+ &->(= i nile-indentation)
+                        ( "else "_"if "_ {ifbody i}:f -> (nile-ifstmt c t f)
+                        | "else" {indentedStmts i}:f -> (nile-ifstmt c t f)
+                        )
+                  | -> (nile-ifstmt c t '())
+                  ) ;
+  substmt       = "⇒"_ pexpr:e                                     -> (nile-substmt e) ;
+  stmt          = vardef | instmt | outstmt | ifstmt | substmt ;
   indentedStmts = .:i (EOL+ &->(< i nile-indentation) stmt)* ;
 
   # Type definitions
@@ -151,9 +187,9 @@
                   &->(< 0 nile-indentation) expr:result EOL     -> (nile-opdef sig stmts result) ;
 
   # Process definitions
-  processargs   = LPAREN typedvar:a1 (COMMA typedvar)*:as RPAREN    -> (cons a1 as)
+  processfargs  = LPAREN typedvar:a1 (COMMA typedvar)*:as RPAREN    -> (cons a1 as)
                 |                                                   -> () ;
-  processsig    = processname:n processargs:args
+  processsig    = processname:n processfargs:args
                   COLON (processtype | typename):t                  -> (nile-processsig n args t) ;
   prologue      = {indentedStmts 0} ;
   processbody   = EOL+ indentation:i "∀"_ pattern:p
