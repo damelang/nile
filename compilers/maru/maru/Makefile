@@ -12,6 +12,9 @@ run : eval
 eval : eval.c gc.c gc.h buffer.c chartab.h wcs.c
 	$(CC) -g $(CFLAGS) -o eval eval.c -lm
 
+gceval : eval.c libgc.c buffer.c chartab.h wcs.c
+	$(CC) -g $(CFLAGS) -DLIB_GC=1 -o gceval eval.c -lm -lgc
+
 debug : .force
 	$(MAKE) OFLAGS="-O0"
 
@@ -69,7 +72,7 @@ stats : .force
 	cat boot.l emit.l eval.l | sed 's/.*debug.*//;s/;.*//' | sort -u | wc -l
 
 clean : .force
-	rm -f *~ *.o main eval test *.s
+	rm -f *~ *.o main eval gceval test *.s
 	rm -rf *.dSYM *.mshark
 
 #----------------------------------------------------------------

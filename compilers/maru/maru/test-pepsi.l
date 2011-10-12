@@ -34,12 +34,13 @@
 
 (define %pepsi-methods)
 
-(define-form define-message (type selector args . body)
+(define-form define-message (src type selector args . body)
   (set type (type-name type))
   (set selector (concat-symbol '# selector))
   (or (defined? selector) (eval (list 'define-selector selector)))
   (or (assq selector %pepsi-methods) (push %pepsi-methods (cons selector (eval selector))))
-  `(<selector>-add-method ,selector ,type (lambda ,(cons 'self args) (with-message-accessors ,type ,@body))))
+  ;;; xxx BOGUS
+  `(set (<expr>-name (<selector>-add-method ,selector ,type (lambda ,(cons 'self args) (with-message-accessors ,type ,@body)))) ,src))
 
 (define-form send (selector receiver . args)
   `(,(concat-symbol '# selector) ,receiver ,@args))
@@ -88,6 +89,9 @@
 
 {
   expected	= .:what -> (error what " expected near: "(parser-stream-context self.source)) ;
+
+  pos		=		-> (<parser-stream>-position self.source) ;
+  src		= .:s		-> (group->string (group-from-to s (<parser-stream>-position self.source))) ;
 
 ##----------------
 
@@ -209,7 +213,7 @@
 				    | identifier:b "("_ typename:t    ")"_	-> (define-sysclass t i b  )
 				    | { expected "class description" }
 				    )
-		| typename:t pattern:p methodbody:b				-> (pval `(define-message ,t ,(car p) ,(cdr p) ,@b))
+		| pos:s typename:t pattern:p methodbody:b {src s}:s		-> (pval `(define-message ,s ,t ,(car p) ,(cdr p) ,@b))
 		| expression:e "."_						-> (pval e)
 		;
 
@@ -223,6 +227,7 @@
 Object : ()
   UndefinedObject : Object (<undefined>)
   BlockClosure : Object (<block>)
+  CompiledMethod : Object (<expr>)
   Symbol : Object (<symbol>)
   MessageSelector : Object (<selector>)
   Magnitude : Object ()
@@ -512,7 +517,7 @@ Object className		[ self typeName copyFrom: 1 to: -2 ]
 Object subclasses		{ (list->array (array-at %pepsi-subclasses (type-of self))) }
 Object instanceVariableNames	{ (list->array (array-at %structure-fields (type-of self))) }
 
-MessageSelector allSelectors	{ (list->array (map cdr %pepsi-methods)) }
+MessageSelector allSelectors   	{ (list->array (map cdr %pepsi-methods)) }
 
 MessageSelector selector	[ name ]
 MessageSelector methods		[ methods ]
@@ -681,6 +686,23 @@ Array testFFT
 ]
 
 Pepsi statistics.
+
+'\nSource code for Number.timesRepeat:\n' println.
+
+MessageSelector selectorNamed: sel	{ (cdr (assq (concat-symbol '# sel) %pepsi-methods)) }
+
+MessageSelector methodFor: class	{ (array-at methods class) }
+
+CompiledMethod source			[ name ]
+
+Object methodAt: selector
+[
+    | tmp |
+    tmp := MessageSelector selectorNamed: selector.
+    tmp methodFor: self class
+]
+
+(Number methodAt: #timesRepeat:) source println.
 
 Array testFFT.
 

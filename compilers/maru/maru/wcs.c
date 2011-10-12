@@ -1,6 +1,8 @@
 #define _WIDEN(x)  L ## x
 #define WIDEN(x)   _WIDEN(x)
 
+#include <stdlib.h>
+
 static wchar_t *mbs2wcs(char *mbs)
 {
     static wchar_t *wcs= 0;

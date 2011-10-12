@@ -1,3 +1,5 @@
+;; (define %make-accessor %make-unsafe-accessor)
+
 (define-structure <*end-of-stream-marker*> ())
 
 (define *end* (new <*end-of-stream-marker*>))
@@ -621,3 +623,5 @@
 ;;;----------------------------------------------------------------
 
 (define-class <peg> <parser> ())
+
+(define %make-accessor %make-safe-accessor)

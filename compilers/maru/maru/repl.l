@@ -5,8 +5,6 @@
   ;;(println "### expr")
   (eval expr))
 
-(define-function load (name) (list-do expr (read name) (pval expr)))
-
 (load "parser.l")
 (load "peg-compile.l")
 (load "peg.l")

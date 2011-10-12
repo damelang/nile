@@ -35,6 +35,18 @@
 (define caddar (lambda (x) (car (cdr (cdr (car x))))))
 (define caaddr (lambda (x) (car (car (cdr (cdr x))))))
 (define cadddr (lambda (x) (car (cdr (cdr (cdr x))))))
+(define cddddr (lambda (x) (cdr (cdr (cdr (cdr x))))))
+
+(define memq
+  (lambda (object list)
+    (let ((result ()))
+      (while (pair? list)
+	(if (= object (car list))
+	    (let ()
+	      (set result list)
+	      (set list ()))
+	  (set list (cdr list))))
+      result)))
 
 (define assq
   (lambda (object list)
@@ -221,6 +233,13 @@
 (define %structure-bases	(array))
 (define %structure-derivatives	(array))
 
+(define-function sanity-check-structure-fields (name fields)
+  (let ((f fields))
+    (while (pair? f)
+      (and (memq (car f) (cdr f))
+	   (error "field '"(car f)"' multiply-defined in structure: "name" "fields))
+      (set f (cdr f)))))
+
 (define-function fields-of-type (type)
   (array-at %structure-fields type))
 
@@ -235,12 +254,23 @@
       (error "type check failed for field accessor: expected "type" "(array-at %type-names type)" got "(type-of object)" "(array-at %type-names (type-of object))))
   object)
 
-(define-function %make-accessor (name fields offset)
+(define %make-accessor) ;; forward
+
+(define-function %make-safe-accessor (name fields offset)
   (if fields (cons `(define-form ,(concat-symbol name (concat-symbol '- (car fields))) (self)
 		      (list 'oop-at
 			    (list '%typecheck ',name self) ; self ; xxx
 			    ,offset))
 		   (%make-accessor name (cdr fields) (+ 1 offset)))))
+
+(define-function %make-unsafe-accessor (name fields offset)
+  (if fields (cons `(define-form ,(concat-symbol name (concat-symbol '- (car fields))) (self)
+		      (list 'oop-at
+			    self;(list '%typecheck ',name self) ; self ; xxx
+			    ,offset))
+		   (%make-accessor name (cdr fields) (+ 1 offset)))))
+
+(define %make-accessor %make-safe-accessor)
 
 (define-function %make-accessors (name fields)
   (%make-accessor name fields 0))
@@ -248,6 +278,7 @@
 (define-form define-structure (name fields)
   (let ((type (%allocate-type name))
 	(size (list-length fields)))
+    (sanity-check-structure-fields name fields)
     (set-array-at %structure-sizes  type size)
     (set-array-at %structure-fields type fields)
     `(let ()
@@ -265,6 +296,7 @@
 (define-form define-class (name basis fields)
   (let ((base (eval basis)))
     (set fields (concat-list (array-at %structure-fields base) fields))
+    (sanity-check-structure-fields name fields)
     (let ((type   (%allocate-type name))
 ;	  (offset (list-length (array-at %structure-fields base)))
 	  (size   (list-length fields)))
@@ -295,7 +327,7 @@
 (define-structure <subr>	(_imp _name))
 (define-structure <variable>	(name value env index))
 (define-structure <env>		(parent level offset bindings stable))
-(define-structure <context>	(home env bindings callee))
+(define-structure <context>	(home env bindings callee pc))
 
 (define-function fixed (fun)
   (let ((self (new <fixed>)))
@@ -381,7 +413,8 @@
 (define-function <selector>-add-method (self type method)
   (and (expr? method)
        (or (<expr>-name method)
-	   (set (<expr>-name method) (<selector>-name self))))
+	   (set (<expr>-name method)
+		(concat-symbol (array-at %type-names type) (concat-symbol '. (<selector>-name self))))))
   (set-array-at (<selector>-methods self) type method))
 
 (define-form define-selector (name . default)
@@ -503,7 +536,8 @@
 		 (print "\n")
 		 (set posn here))))
 	   (exit 1)))
-  (println "; backtrace disabled"))
+  ;;(println "; backtrace disabled")
+  )
 
 ;;; multimethod
 
@@ -605,6 +639,8 @@
 (define-function for-each-with (collection function value)
   (for-each collection (lambda (x) (function x value))))
 
+(define-form incr (lval . options)	`(set ,lval (+ ,lval ,(or (car options) 1))))
+
 ;;; conversion
 
 (define-function string->number-base (str radix)
@@ -691,6 +727,23 @@
   (%sort items string-at set-string-at (or (car options) <) 0 (- (string-length items) 1))
   items)
 
+(define-function array-search (arr obj compare)
+  (let ((lo 0)
+	(hi (- (array-length arr) 1))
+	(ix ()))
+    (while (and (not ix) (<= lo hi))
+      (let* ((m (/ (+ lo hi) 2))
+	     (s (array-at arr m))
+	     (c (compare obj s)))
+	(cond
+	 ((< c 0)	(set hi (- m 1)))
+	 ((> c 0)	(set lo (+ m 1)))
+	 (else		(set ix m)))))
+    ix))
+
+(define-function max (a b)	(if (> a b) a b))
+(define-function min (a b)	(if (< a b) a b))
+
 ;;; structural equality
 
 (define equal ()) ;; forward
@@ -725,3 +778,7 @@
 (define-form define-namespace (name parent)	`(define ,name (environment ,parent)))
 
 (define-form namespace (name)			`(set *globals* ,name))
+
+;;; load/save
+
+(define-function load (name) (list-do expr (read name) (eval expr)))
