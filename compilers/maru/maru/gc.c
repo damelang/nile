@@ -15,7 +15,7 @@
 **
 ** THE SOFTWARE IS PROVIDED 'AS IS'.  USE ENTIRELY AT YOUR OWN RISK.
 **
-** Last edited: 2011-01-13 10:51:29 by piumarta on emilia.ipe.media.kyoto-u.ac.jp
+** Last edited: 2011-10-14 17:04:43 by piumarta on debian.piumarta.com
 */
 
 #include <stdio.h>
@@ -100,6 +100,8 @@ static size_t	gcMemory=  GC_MEMORY;
 
 static gcfinaliser *finalisable= 0;
 
+//static void bkpt() {}
+
 GC_API void *GC_malloc(size_t lbs)
 {
   gcheader *hdr, *org;
@@ -161,7 +163,7 @@ GC_API void *GC_malloc(size_t lbs)
 #      endif
 	  memset(mem, 0, hdr->size);
 	  gcMemory -= hdr->size;
-	  //if (mem == (void *)0x617190) { fprintf(stderr, "ALLOCATING %p\n", mem);  bkpt(); }
+	  //if (mem == (void *)0x82dd534) { fprintf(stderr, "ALLOCATING %p\n", mem);  bkpt(); }
 	  return mem;
 	}
     }
@@ -440,6 +442,23 @@ GC_API double GC_count_fragments(void)
     hdr= hdr->next;
   } while (hdr != &gcbase);
   return (double)free / (double)used;
+}
+
+GC_API void *GC_first_object(void)
+{
+    gcheader *hdr= gcbase.next;
+    while (!hdr->used && hdr != &gcbase) hdr= hdr->next;
+    if (hdr == &gcbase) return 0;
+    return hdr2ptr(hdr);
+}
+
+GC_API void *GC_next_object(void *ptr)
+{
+    if (!ptr) return 0;
+    gcheader *hdr= ptr2hdr(ptr)->next;
+    while (!hdr->used && hdr != &gcbase) hdr= hdr->next;
+    if (hdr == &gcbase) return 0;
+    return hdr2ptr(hdr);
 }
 
 GC_API int GC_atomic(void *ptr)

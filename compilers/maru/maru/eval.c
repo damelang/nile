@@ -1,4 +1,4 @@
-// last edited: 2011-10-11 18:24:44 by piumarta on debian.piumarta.com
+// last edited: 2011-10-17 10:46:14 by piumarta on debian.piumarta.com
 
 #define _ISOC99_SOURCE 1
 
@@ -11,6 +11,7 @@
 #include <wchar.h>
 #include <locale.h>
 #include <math.h>
+#include <assert.h>
 
 extern int isatty(int);
 
@@ -43,10 +44,10 @@ struct String	{ oop      size;  wchar_t *bits; };	/* bits is in managed memory *
 struct Symbol	{ wchar_t *bits; };
 struct Pair	{ oop 	   head, tail, source; };
 struct Array	{ oop      size, _array; };
-struct Expr	{ oop 	   name, defn, ctx; };
+struct Expr	{ oop 	   name, defn, ctx, profile; };
 struct Form	{ oop 	   function, symbol; };
 struct Fixed	{ oop      function; };
-struct Subr	{ imp_t    imp;  wchar_t *name; };
+struct Subr	{ imp_t    imp;  wchar_t *name;  int profile; };
 struct Variable	{ oop 	   name, value, env, index; };
 struct Env	{ oop 	   parent, level, offset, bindings, stable; };
 struct Context	{ oop 	   home, env, bindings, callee, pc; };
@@ -123,7 +124,7 @@ static oop f_lambda= nil, f_let= nil, f_quote= nil, f_set= nil, f_define;
 static oop globals= nil, expanders= nil, encoders= nil, evaluators= nil, applicators= nil;
 static oop arguments= nil, backtrace= nil, input= nil;
 
-static int opt_b= 0, opt_g= 0, opt_v= 0;
+static int opt_b= 0, opt_g= 0, opt_p= 0, opt_v= 0;
 
 #if (TAG_INT)
   static inline int  isLong(oop x)	{ return (((long)x & 1) || Long == getType(x)); }
@@ -146,7 +147,7 @@ static oop newDouble(double bits)	{ oop obj= newBits(Double);  setDouble(obj, bi
 
 static oop _newString(size_t len)
 {
-  wchar_t *gstr= (wchar_t *)GC_malloc_atomic(sizeof(wchar_t) * (len + 1));	GC_PROTECT(gstr);	/* + 1 to ensure null terminator */
+  wchar_t *gstr= (wchar_t *)_newBits(-1, sizeof(wchar_t) * (len + 1));	GC_PROTECT(gstr);	/* + 1 to ensure null terminator */
   oop       obj= newOops(String);				GC_PROTECT(obj);
   set(obj, String,size, newLong(len));				GC_UNPROTECT(obj);
   set(obj, String,bits, gstr);					GC_UNPROTECT(gstr);
@@ -265,9 +266,10 @@ static oop oopAtPut(oop obj, int index, oop value)
 
 static oop newExpr(oop defn, oop ctx)
 {
-  oop obj= newOops(Expr);
-  set(obj, Expr,defn, defn);
-  set(obj, Expr,ctx, ctx);
+  oop obj= newOops(Expr);		GC_PROTECT(obj);
+  set(obj, Expr,defn,    defn);
+  set(obj, Expr,ctx,     ctx);
+  set(obj, Expr,profile, newLong(0));	GC_UNPROTECT(obj);
   return obj;
 }
 
@@ -277,8 +279,9 @@ static oop newFixed(oop function)	{ oop obj= newOops(Fixed);	set(obj, Fixed,func
 static oop newSubr(imp_t imp, wchar_t *name)
 {
   oop obj= newBits(Subr);
-  set(obj, Subr,imp,  imp);
-  set(obj, Subr,name, name);
+  set(obj, Subr,imp,     imp);
+  set(obj, Subr,name,    name);
+  set(obj, Subr,profile, 0);
   return obj;
 }
 
@@ -879,7 +882,7 @@ static void doprint(FILE *stream, oop obj, int storing)
       if (is(Array, name)) {
 	name= arrayAt(name, getType(obj));
 	if (is(Symbol, name)) {
-	  printf("[34m%ls[m", get(name, Symbol,bits));
+	  fprintf(stream, "[34m%ls[m", get(name, Symbol,bits));
 	  break;
 	}
       }
@@ -1085,6 +1088,21 @@ static oop evlist(oop obj, oop env);
 static oop traceStack= nil;
 static int traceDepth= 0;
 
+static int printSource(oop exp)
+{
+    if (is(Pair, exp)) {
+	oop src= get(exp, Pair,source);
+	if (nil != src) {
+	    oop path= car(src);
+	    oop line= cdr(src);
+	    if (is(String, path) && is(Long, line)) {
+		return printf("%ls:%ld", get(path, String,bits), getLong(line));
+	    }
+	}
+    }
+    return 0;
+}
+
 static void fatal(char *reason, ...)
 {
   if (reason) {
@@ -1110,19 +1128,9 @@ static void fatal(char *reason, ...)
     while (i--) {
       //printf("%3d: ", i);
       oop exp= arrayAt(traceStack, i);
-      int l= 0;
       printf("[31m[?7l");
-      if (is(Pair, exp)) {
-	  oop src= get(exp, Pair,source);
-	  if (nil != src) {
-	      oop path= car(src);
-	      oop line= cdr(src);
-	      if (is(String, path) && is(Long, line)) {
-		  l= printf("%ls:%ld", get(path, String,bits), getLong(line));
-		  if (l >= j) j= l;
-	      }
-	  }
-      }
+      int l= printSource(exp);
+      if (l >= j) j= l;
       if (!l) while (l < 3) l++, putchar('.');
       while (l++ < j) putchar(' ');
       printf("[0m ");
@@ -1192,6 +1200,7 @@ static oop apply(oop fun, oop arguments, oop ctx)
   if (opt_v > 2) { printf("APPLY ");  dump(fun);  printf(" TO ");  dump(arguments);  printf(" IN ");  dumpln(ctx); }
   switch (getType(fun)) {
     case Expr: {
+      if (opt_p) arrayAtPut(traceStack, traceDepth++, fun);
       oop args=    arguments;
       oop defn=    get(fun, Expr,defn);				GC_PROTECT(defn);
       oop env=     car(defn);
@@ -1231,7 +1240,7 @@ static oop apply(oop fun, oop arguments, oop ctx)
 	ans= eval(getHead(body), ctx);
 	body= getTail(body);
       }
-      if (opt_g) --traceDepth;
+      if (opt_g || opt_p) --traceDepth;
       //GC_UNPROTECT(tmp);
       GC_UNPROTECT(ctx);
       GC_UNPROTECT(defn);
@@ -1242,7 +1251,10 @@ static oop apply(oop fun, oop arguments, oop ctx)
       return apply(get(fun, Fixed,function), arguments, ctx);
     }
     case Subr: {
-      return get(fun, Subr,imp)(arguments, ctx);
+	if (opt_p) arrayAtPut(traceStack, traceDepth++, fun);
+	oop ans= get(fun, Subr,imp)(arguments, ctx);
+	if (opt_p) --traceDepth;
+	return ans;
     }
     default: {
       oop args= arguments;
@@ -1597,9 +1609,19 @@ static subr(ne)
     return newBool(!equal(lhs, rhs));
 }
 
+#if (!LIB_GC)
+static void profilingDisable(int);
+#endif
+
 static subr(exit)
 {
   oop n= car(args);
+#if (!LIB_GC)
+  if (opt_p)
+  {
+      profilingDisable(1);
+  }
+#endif
   exit(isLong(n) ? getLong(n) : 0);
 }
 
@@ -2134,6 +2156,91 @@ static void sigint(int signo)
   fatal("\nInterrupt");
 }
 
+#if (!LIB_GC)
+
+static int profilerCount= 0;
+
+static void sigvtalrm(int signo)
+{
+    if (traceDepth < 1) return;
+    ++profilerCount;
+    oop func= arrayAt(traceStack, traceDepth - 1);
+    switch (getType(func))
+    {
+	case Expr: {
+	    oop profile= get(func, Expr,profile);
+	    if ((long)profile & 1) {
+		set(func, Expr,profile, (oop)((long)profile + 2));
+	    }
+	    else printf("? %p\n", func);
+	    break;
+	}
+	case Subr: {
+	    set(func, Subr,profile, 1 + get(func, Subr,profile));
+	    break;
+	}
+    }
+}
+
+#include <sys/time.h>
+
+static void profilingEnable(void)
+{
+    struct itimerval itv= { { 0, opt_p * 1000 }, { 0, opt_p * 1000 } };	/* VTALARM every opt_p mSecs */
+    setitimer(ITIMER_VIRTUAL, &itv, 0);
+}
+
+static void profilingDisable(int stats)
+{
+    struct itimerval itv= { { 0, 0 }, { 0, 0 } };
+    setitimer(ITIMER_VIRTUAL, &itv, 0);
+    if (stats)
+    {
+	struct profile { int profile;  oop object, source; } profiles[64];
+	int nprofiles= 0;
+	printf("%i profiles\n", profilerCount);
+	GC_gcollect();
+	oop obj;
+	for (obj= GC_first_object();  obj;  obj= GC_next_object(obj)) {
+	    int profile= 0;
+	    oop source= nil;
+	    switch (getType(obj))
+	    {
+		case Expr: {
+		    oop oprof= get(obj, Expr,profile);
+		    if (isLong(oprof)) {
+			profile= getLong(get(obj, Expr,profile));
+			source=  cddr(get(obj, Expr,defn));
+		    }
+		    break;
+		}
+		case Subr: {
+		    profile= get(obj, Subr,profile);
+		    break;
+		}
+	    }
+	    if (profile) {
+		int index= 0;
+		while (index < nprofiles && profile <= profiles[index].profile) ++index;
+		if (nprofiles < 64) ++nprofiles;
+		int jndex;
+		for (jndex= nprofiles - 1;  jndex > index;  --jndex) profiles[jndex] = profiles[jndex - 1];
+		profiles[index]= (struct profile){ profile, obj, source };
+	    }
+	}
+	int i;
+	for (i= 0;  i < nprofiles;  ++i) {
+	    printf("%i\t", profiles[i].profile);
+	    int l= printSource(profiles[i].source);
+	    if (l < 20) printf("%*s", 20 - l, "");
+	    printf(" ");
+	    dumpln(profiles[i].object);
+	}
+    }
+}
+
+#endif
+
 int main(int argc, char **argv)
 {
   if ((fwide(stdin, 1) <= 0) || (fwide(stdout, -1) >= 0) || (fwide(stderr, -1) >= 0)) {
@@ -2288,21 +2395,45 @@ int main(int argc, char **argv)
 
   signal(SIGINT, sigint);
 
+#if (!LIB_GC)
+  {
+      struct sigaction sa;
+      sa.sa_handler= sigvtalrm;
+      sigemptyset(&sa.sa_mask);
+      sa.sa_flags= 0;
+      if (sigaction(SIGVTALRM, &sa, 0)) perror("vtalrm");
+  }
+#endif
+
   while (is(Pair, get(arguments, Variable,value))) {
     oop argl= get(arguments, Variable,value);
     oop args= getHead(argl);				GC_PROTECT(args);
     set(arguments, Variable,value, getTail(argl));
     wchar_t *arg= get(args, String,bits);
-    if 	    (!wcscmp(arg, L"-v"))	++opt_v;
-    else if (!wcscmp(arg, L"-b"))	++opt_b;
-    else if (!wcscmp(arg, L"-g"))	++opt_g;
+    if 	    (!wcscmp (arg, L"-v"))	{ ++opt_v; }
+    else if (!wcscmp (arg, L"-b"))	{ ++opt_b; }
+    else if (!wcscmp (arg, L"-g"))	{ ++opt_g;  opt_p= 0; }
+#if (!LIB_GC)
+    else if (!wcsncmp(arg, L"-p", 2)) {
+	opt_g= 0;
+	opt_p= wcstoul(arg + 2, 0, 0);
+	if (!opt_p) opt_p= 1;
+	printf("profiling every %i mSec(s)\n", opt_p);
+    }
+#endif
     else {
       if (!opt_b) {
 	replPath(L"boot.l");
 	opt_b= 1;
       }
+#if (!LIB_GC)
+      if (opt_p) profilingEnable();
+#endif
       replPath(arg);
       repled= 1;
+#if (!LIB_GC)
+      if (opt_p) profilingDisable(0);
+#endif
     }							GC_UNPROTECT(args);
   }
 
@@ -2320,6 +2451,10 @@ int main(int argc, char **argv)
     replFile(stdin, L"<stdin>");
     printf("\nmorituri te salutant\n");
   }
+
+#if (!LIB_GC)
+  if (opt_p) profilingDisable(1);
+#endif
 
   return 0;
 }

@@ -226,6 +226,9 @@
 (define-function name-of-type (type)
   (array-at %type-names type))
 
+(define-function type-name-of (obj)
+  (name-of-type (type-of obj)))
+
 ;;; structure
 
 (define %structure-sizes	(array))
@@ -321,11 +324,11 @@
 (define-structure <pair>	(head tail source))
 (define-structure <_array>	())
 (define-structure <array>	(size _array))
-(define-structure <expr>	(name defn ctx))			(define-function expr? (obj) (= <expr> (type-of obj)))
+(define-structure <expr>	(name defn ctx profile))		(define-function expr? (obj) (= <expr> (type-of obj)))
 (define-structure <form>	(function symbol))
 (define-structure <fixed>	(function))
-(define-structure <subr>	(_imp _name))
-(define-structure <variable>	(name value env index))
+(define-structure <subr>	(_imp _name _profile))
+(define-structure <variable>	(name value env index))			(define-function variable? (obj) (= <variable> (type-of obj)))
 (define-structure <env>		(parent level offset bindings stable))
 (define-structure <context>	(home env bindings callee pc))
 
@@ -553,7 +556,7 @@
 (define-method do-print <generic> () (print "<multimethod:" (<generic>-name self) ">"))
 
 (define-form define-generic (name . default)
-  (or default (set default `(args (error "no method in  "',name" corresponding to: "args))))
+  (or default (set default `(args (error "no method in "',name" corresponding to: "args))))
   `(define ,name (generic ',name (lambda ,@default))))
 
 (define-function %add-multimethod (mm types method)
@@ -601,6 +604,11 @@
   (while (and (pair? list) (!= key (car list)))
     (set list (cdr list)))
   (car list))
+
+(define-function list-zip (a b)
+  (if (and (pair? a) (pair? b))
+      (cons (car a) (cons (car b) (list-zip (cdr a) (cdr b))))
+    (or a b)))
 
 ;;; iteration
 

@@ -44,6 +44,9 @@ GC_API	size_t 	GC_count_objects(void);
 GC_API	size_t 	GC_count_bytes(void);
 GC_API	double 	GC_count_fragments(void);
 
+GC_API	void   *GC_first_object(void);
+GC_API	void   *GC_next_object(void *prev);
+
 GC_API	int 	GC_atomic(void *ptr);
 
 #ifndef NDEBUG

@@ -92,10 +92,31 @@
 (define-function peg-make-declaration (type rule)
   `(define-selector ,(concat-symbol '$ (car rule))))
 
-(define-function peg-make-definition (type rule)
+(define-function peg-make-definition-without-memo (type rule)
   `(define-method ,(concat-symbol '$ (car rule)) ,type ()
      (let ,(peg-find-variables (cadr rule) ())
        ,(expand (cadr rule)))))
+
+(define-structure <memo> (success result position))
+
+(define-function peg-make-definition-with-memo (type rule)
+  `(define-method ,(concat-symbol '$ (car rule)) ,type ()
+     (let ,(peg-find-variables (cadr rule) ())
+       (let ((_here_ (<parser-stream>-position self.source))
+	     (_memo_ (assq ',(car rule) (<token>-notes _here_))))
+	 (if _memo_
+	     (let ()
+	       (set _memo_ (cdr _memo_))
+	       (and (<memo>-success _memo_)
+		    (let ()
+		      (set self.result (<memo>-result _memo_))
+		      (set (<parser-stream>-position self.source) (<memo>-position _memo_))
+		       (<memo>-success _memo_))))
+	   (let ((success  ,(expand (cadr rule))))
+	     (push (<token>-notes _here_) (cons ',(car rule) (new <memo> success self.result (<parser-stream>-position self.source))))
+	     success))))))
+
+(define peg-make-definition peg-make-definition-without-memo)
 
 ;; (define-function pval (expr)
 ;;   (dumpln expr)
