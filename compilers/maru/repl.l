@@ -1,9 +1,9 @@
 (define-function array-append-all (arr . vals)
   (list-do val vals (array-append arr val)))
 
-(define-function peval (expr) (println "### "expr) (eval expr))
-
-(define-function load (name) (map eval (read name)))
+(define-function pval (expr)
+  ;;(println "### expr")
+  (eval expr))
 
 (load "maru/parser.l")
 (load "maru/peg-compile.l")
@@ -28,9 +28,9 @@
   (and expr (peg-compile-rules '<temp-grammar> (list (list 'start expr))))
   ;;(println "GRAMMAR "*temp-grammar*)
   (and expr
-    `(let ((_p (parser <temp-grammar> *parser-stream*)))
- 	  ($start _p)
- 	  (<parser>-result _p))))
+       `(let ((_p (parser <temp-grammar> *parser-stream*)))
+	  ($start _p)
+	  (<parser>-result _p))))
 
 ;;(define-eval <temp-grammar> (self) ($start self *parser-stream*))
 
@@ -43,9 +43,9 @@
 	     (and prompt (print prompt))
 	     ($sexpression p))
       (set v (<parser>-result p))
-      (println v)
+      ;;(println "*** " v)
       (set v (eval v))
-      (println " => "v)
+      ;;(println " => "v)
       )
     (set *parser-stream* s)
     v))
