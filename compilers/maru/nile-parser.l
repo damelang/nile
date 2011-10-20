@@ -83,6 +83,8 @@
 
 (define nile-indentation 0)
 
+(define peg-make-definition peg-make-definition-with-memo)
+
 { <nile-parser> : <parser> ()
 
   # Lexical rules
