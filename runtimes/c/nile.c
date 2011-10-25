@@ -430,7 +430,11 @@ nile_Process_run (nile_Process_t *p, nile_Thread_t *thread)
         if (out->tag == NILE_TAG_QUOTA_HIT)
             return nile_Process_handle_backpressure (p, out);
     }
-    nile_Process_handle_out_of_input (p, out);
+
+    if (nile_Process_quota_hit (p->consumer))
+        return nile_Process_handle_backpressure (p, out);
+    else
+        return nile_Process_handle_out_of_input (p, out);
 }
 
 /* Runtime routines */
