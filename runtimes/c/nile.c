@@ -621,7 +621,8 @@ typedef struct {
 nile_Buffer_t *
 nile_Capture_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
 {
-    nile_Capture_vars_t v = *(nile_Capture_vars_t *) nile_Process_vars (p);
+    nile_Capture_vars_t *vars = nile_Process_vars (p);
+    nile_Capture_vars_t v = *vars;
     while (!nile_Buffer_is_empty (in)) {
         nile_Real_t r = nile_Buffer_pop_head (in);
         if (*v.n < v.size)
@@ -1106,7 +1107,8 @@ nile_Cat_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
 static nile_Buffer_t *
 nile_Cat_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
 {
-    nile_Cat_vars_t v = *((nile_Cat_vars_t *) nile_Process_vars (p));
+    nile_Cat_vars_t *vars = nile_Process_vars (p);
+    nile_Cat_vars_t v = *vars;
     if (v.is_top) {
         nile_ProcessState_t gstate;
         if (p->consumer)
@@ -1160,7 +1162,8 @@ typedef struct {
 static nile_Buffer_t *
 nile_DupCat_prologue (nile_Process_t *p, nile_Buffer_t *out)
 {
-    nile_DupCat_vars_t v = *(nile_DupCat_vars_t *) nile_Process_vars (p);
+    nile_DupCat_vars_t *vars = nile_Process_vars (p);
+    nile_DupCat_vars_t v = *vars;
     nile_Process_t *c1 = nile_Cat (p, v.p1_out_quantum, 1);
     nile_Process_t *c2 = nile_Cat (p, v.p2_out_quantum, 0);
     nile_Process_t *dup = nile_Dup (p, p->quantum,
