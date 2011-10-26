@@ -878,10 +878,8 @@ nile_Zip_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
                 p->consumer = p->consumer ? p->consumer : sibling->consumer;
                 nile_Process_enqueue_output (p, out);
                 out = NODE_TO_BUFFER (output->head);
-                if (p->consumer && p->consumer->input.n >= INPUT_QUOTA &&
-                                   nile_Process_quota_hit (p->consumer)) {
+                if (nile_Process_quota_hit (p->consumer))
                     unused->tag = NILE_TAG_QUOTA_HIT;
-                }
             }
         }
     }
