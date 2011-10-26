@@ -663,7 +663,7 @@ nile_Reverse_prologue (nile_Process_t *p, nile_Buffer_t *out)
 static nile_Buffer_t *
 nile_Reverse_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
 {
-    nile_Reverse_vars_t *vars = (nile_Reverse_vars_t *) nile_Process_vars (p);
+    nile_Reverse_vars_t *vars = nile_Process_vars (p);
     nile_Deque_t *output = &vars->output;
     nile_Buffer_t *out = nile_Buffer (p);
 
@@ -686,7 +686,7 @@ nile_Reverse_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
 static nile_Buffer_t *
 nile_Reverse_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
 {
-    nile_Reverse_vars_t *vars = (nile_Reverse_vars_t *) nile_Process_vars (p);
+    nile_Reverse_vars_t *vars = nile_Process_vars (p);
     if (p->consumer)
         p->consumer->input = vars->output;
     else
@@ -785,7 +785,7 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
 static nile_Buffer_t *
 nile_SortBy_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
 {
-    nile_SortBy_vars_t *vars = (nile_SortBy_vars_t *) nile_Process_vars (p);
+    nile_SortBy_vars_t *vars = nile_Process_vars (p);
     if (p->consumer)
         p->consumer->input = vars->output;
     else
@@ -1092,7 +1092,7 @@ typedef struct {
 static nile_Buffer_t *
 nile_Cat_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
 {
-    nile_Cat_vars_t *vars = (nile_Cat_vars_t *) nile_Process_vars (p);
+    nile_Cat_vars_t *vars = nile_Process_vars (p);
     nile_Buffer_copy (in, out);
     in->head = in->tail;
     if (vars->is_top)
@@ -1140,7 +1140,7 @@ nile_Cat (nile_Process_t *p, int quantum, int is_top)
 {
     p = nile_Process (p, quantum, 0, NULL, nile_Cat_body, nile_Cat_epilogue);
     if (p) {
-        nile_Cat_vars_t *vars = (nile_Cat_vars_t *) nile_Process_vars (p);
+        nile_Cat_vars_t *vars = nile_Process_vars (p);
         vars->is_top = is_top;
         vars->output.n = 0;
         vars->output.head = vars->output.tail = NULL;
