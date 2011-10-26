@@ -714,10 +714,8 @@ static nile_Buffer_t *
 nile_SortBy_prologue (nile_Process_t *p, nile_Buffer_t *out)
 {
     nile_SortBy_vars_t *vars = nile_Process_vars (p);
-    nile_Buffer_t *b = nile_Buffer (p);
-    if (!b) 
-        return nile_Process_deactivate (p, NULL), NULL;
-    nile_Deque_push_head (&vars->output, BUFFER_TO_NODE (b));
+    vars->output.n = 0;
+    vars->output.head = vars->output.tail = NULL;
     return out;
 }
 
@@ -727,6 +725,13 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
     nile_SortBy_vars_t *vars = nile_Process_vars (p); 
     nile_SortBy_vars_t v = *vars; 
     int quantum = p->quantum;
+
+    if (!v.output.n) {
+        nile_Buffer_t *b = nile_Buffer (p);
+        if (!b)
+            return nile_Process_deactivate (p, NULL), NULL;
+        nile_Deque_push_head (&v.output, BUFFER_TO_NODE (b));
+    }
 
     while (!nile_Buffer_is_empty (in)) {
         int q, j;
@@ -782,13 +787,11 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
 static nile_Buffer_t *
 nile_SortBy_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
 {
-    nile_Deque_t output = ((nile_SortBy_vars_t *) nile_Process_vars (p))->output;
-    if (nile_Buffer_is_empty (NODE_TO_BUFFER (output.head)))
-        nile_Process_free_node (p, nile_Deque_pop_head (&output));
+    nile_SortBy_vars_t *vars = (nile_SortBy_vars_t *) nile_Process_vars (p);
     if (p->consumer)
-        p->consumer->input = output;
+        p->consumer->input = vars->output;
     else
-        p->input = output;
+        p->input = vars->output;
     return unused;
 }
 
@@ -800,8 +803,6 @@ nile_SortBy (nile_Process_t *p, int quantum, int index)
     if (p) {
         nile_SortBy_vars_t *vars = nile_Process_vars (p);
         vars->index = index;
-        vars->output.n = 0;
-        vars->output.head = vars->output.tail = NULL;
     }
     return p;
 }
