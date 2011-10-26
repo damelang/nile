@@ -649,35 +649,58 @@ nile_Capture (nile_Process_t *p, float *data, int *n, int size)
 
 /* Reverse process */
 
+typedef struct {
+    nile_Deque_t output;
+} nile_Reverse_vars_t;
+
+static nile_Buffer_t *
+nile_Reverse_prologue (nile_Process_t *p, nile_Buffer_t *out)
+{
+    nile_Reverse_vars_t *vars = nile_Process_vars (p);
+    vars->output.n = 0;
+    vars->output.head = vars->output.tail = NULL;
+    return out;
+}
+
 static nile_Buffer_t *
 nile_Reverse_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
 {
-    nile_Buffer_t *out;
-    if (!p->consumer) {
-        in->head = in->tail;
-        return unused;
-    }
-    out = nile_Buffer (p);
+    nile_Reverse_vars_t *vars = (nile_Reverse_vars_t *) nile_Process_vars (p);
+    nile_Deque_t *output = &vars->output;
+    nile_Buffer_t *out = nile_Buffer (p);
+
     if (!out)
         return nile_Process_deactivate (p, NULL), NULL;
     out->head = out->tail = out->capacity;
 
     while (!nile_Buffer_is_empty (in)) {
         int q = p->quantum;
-        out->head -= q;
+        out->head -= p->quantum;
         while (q--)
             BAT (out, out->head++) = nile_Buffer_pop_head (in);
         out->head -= p->quantum;
     }
-    nile_Deque_push_head (&p->consumer->input, BUFFER_TO_NODE (out));
+    nile_Deque_push_head (output, BUFFER_TO_NODE (out));
 
+    return unused;
+}
+
+static nile_Buffer_t *
+nile_Reverse_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
+{
+    nile_Reverse_vars_t *vars = (nile_Reverse_vars_t *) nile_Process_vars (p);
+    if (p->consumer)
+        p->consumer->input = vars->output;
+    else
+        p->input = vars->output;
     return unused;
 }
 
 nile_Process_t *
 nile_Reverse (nile_Process_t *p, int quantum)
 {
-    return nile_Process (p, quantum, 0, NULL, nile_Reverse_body, NULL);
+    return nile_Process (p, quantum, sizeof (nile_Reverse_vars_t),
+                         nile_Reverse_prologue, nile_Reverse_body, nile_Reverse_epilogue);
 }
 
 /* SortBy process */
