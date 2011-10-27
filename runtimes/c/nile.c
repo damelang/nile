@@ -651,12 +651,7 @@ nile_Capture (nile_Process_t *p, float *data, int *n, int size)
 static nile_Buffer_t *
 nile_Reverse_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
 {
-    nile_Buffer_t *out;
-    if (!p->consumer) {
-        in->head = in->tail;
-        return unused;
-    }
-    out = nile_Buffer (p);
+    nile_Buffer_t *out = nile_Buffer (p);
     if (!out)
         return nile_Process_deactivate (p, NULL), NULL;
     out->head = out->tail = out->capacity;
@@ -668,7 +663,10 @@ nile_Reverse_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
             BAT (out, out->head++) = nile_Buffer_pop_head (in);
         out->head -= p->quantum;
     }
-    nile_Deque_push_head (&p->consumer->input, BUFFER_TO_NODE (out));
+    if (p->consumer)
+        nile_Deque_push_head (&p->consumer->input, BUFFER_TO_NODE (out));
+    else
+        nile_Process_free_node (p, BUFFER_TO_NODE (out));
 
     return unused;
 }
