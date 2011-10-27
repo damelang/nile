@@ -696,7 +696,7 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
         return unused;
     }
     output = &p->consumer->input;
-    if (!output.n) {
+    if (!output->n) {
         nile_Buffer_t *b = nile_Buffer (p);
         if (!b)
             return nile_Process_deactivate (p, NULL), NULL;
