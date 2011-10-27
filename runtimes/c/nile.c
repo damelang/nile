@@ -685,6 +685,29 @@ typedef struct {
 } nile_SortBy_vars_t;
 
 static nile_Buffer_t *
+nile_SortBy_split_buffer (nile_Buffer_t *b1, nile_Buffer_t *b2, int quantum, int index, nile_Deque_t *output, nile_Real_t key)
+{
+    int i;
+    nile_Node_t *nd1 = BUFFER_TO_NODE (b1);
+    nile_Node_t *nd2 = BUFFER_TO_NODE (b2);
+    if (!b2)
+        return NULL;
+    if (output->tail == nd1)
+        output->tail = nd2;
+    nd2->next = nd1->next;
+    nd1->next = nd2;
+    output->n++;
+    i = b1->tail / quantum / 2 * quantum;
+    while (i < b1->tail)
+        nile_Buffer_push_tail (b2, BAT (b1, i++));
+    b1->tail -= b2->tail;
+    if (nile_Real_nz (nile_Real_geq (key, BAT (b2, index))))
+        return b2;
+    else
+        return b1;
+}
+
+static nile_Buffer_t *
 nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
 {
     nile_SortBy_vars_t *vars = nile_Process_vars (p); 
@@ -717,22 +740,10 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
 
         /* split the buffer if it's full */
         b = NODE_TO_BUFFER (nd);
-        if (b->tail > b->capacity - quantum) {
-            nile_Buffer_t *b2 = nile_Buffer (p);
-            nile_Node_t *nd2 = BUFFER_TO_NODE (b2);
-            if (!b2)
+        if (nile_Buffer_tailroom (b) < quantum) {
+            b = nile_SortBy_split_buffer (b, nile_Buffer (p), quantum, v.index, output, key);
+            if (!b)
                 return nile_Process_deactivate (p, NULL), NULL;
-            nd2->next = nd->next;
-            nd->next = nd2;
-            if (!nd2->next)
-                output->tail = nd2;
-            output->n++;
-            j = b->tail / quantum / 2 * quantum;
-            while (j < b->tail)
-                nile_Buffer_push_tail (b2, BAT (b, j++));
-            b->tail -= b2->tail;
-            if (nile_Real_nz (nile_Real_geq (key, BAT (b2, v.index))))
-                b = b2;
         }
 
         /* insert new element */
