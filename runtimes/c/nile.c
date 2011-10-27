@@ -680,18 +680,8 @@ nile_Reverse (nile_Process_t *p, int quantum)
 /* SortBy process */
 
 typedef struct {
-    int          index;
-    nile_Deque_t output;
+    int index;
 } nile_SortBy_vars_t;
-
-static nile_Buffer_t *
-nile_SortBy_prologue (nile_Process_t *p, nile_Buffer_t *out)
-{
-    nile_SortBy_vars_t *vars = nile_Process_vars (p);
-    vars->output.n = 0;
-    vars->output.head = vars->output.tail = NULL;
-    return out;
-}
 
 static nile_Buffer_t *
 nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
@@ -699,18 +689,24 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
     nile_SortBy_vars_t *vars = nile_Process_vars (p); 
     nile_SortBy_vars_t v = *vars; 
     int quantum = p->quantum;
+    nile_Deque_t *output;
 
-    if (!v.output.n) {
+    if (!p->consumer) {
+        in->head = in->tail;
+        return unused;
+    }
+    output = &p->consumer->input;
+    if (!output.n) {
         nile_Buffer_t *b = nile_Buffer (p);
         if (!b)
             return nile_Process_deactivate (p, NULL), NULL;
-        nile_Deque_push_head (&v.output, BUFFER_TO_NODE (b));
+        nile_Deque_push_head (output, BUFFER_TO_NODE (b));
     }
 
     while (!nile_Buffer_is_empty (in)) {
         int q, j;
         nile_Buffer_t *b;
-        nile_Node_t *nd = v.output.head;
+        nile_Node_t *nd = output->head;
         nile_Real_t key = BAT (in, in->head + v.index);
 
         /* find the right buffer */
@@ -728,8 +724,8 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
             nd2->next = nd->next;
             nd->next = nd2;
             if (!nd2->next)
-                v.output.tail = nd2;
-            v.output.n++;
+                output->tail = nd2;
+            output->n++;
             j = b->tail / quantum / 2 * quantum;
             while (j < b->tail)
                 nile_Buffer_push_tail (b2, BAT (b, j++));
@@ -758,22 +754,11 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
     return unused;
 }
 
-static nile_Buffer_t *
-nile_SortBy_epilogue (nile_Process_t *p, nile_Buffer_t *unused)
-{
-    nile_SortBy_vars_t *vars = nile_Process_vars (p);
-    if (p->consumer)
-        p->consumer->input = vars->output;
-    else
-        p->input = vars->output;
-    return unused;
-}
-
 nile_Process_t *
 nile_SortBy (nile_Process_t *p, int quantum, int index)
 {
     p = nile_Process (p, quantum, sizeof (nile_SortBy_vars_t),
-                      nile_SortBy_prologue, nile_SortBy_body, nile_SortBy_epilogue);
+                      NULL, nile_SortBy_body, NULL);
     if (p) {
         nile_SortBy_vars_t *vars = nile_Process_vars (p);
         vars->index = index;
