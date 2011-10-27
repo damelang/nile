@@ -662,8 +662,8 @@ nile_Reverse_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
     out->head = out->tail = out->capacity;
 
     while (!nile_Buffer_is_empty (in)) {
-        int q = p->quantum;
-        out->head -= q;
+        int q      = p->quantum;
+        out->head -= p->quantum;
         while (q--)
             BAT (out, out->head++) = nile_Buffer_pop_head (in);
         out->head -= p->quantum;
