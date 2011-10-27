@@ -668,6 +668,7 @@ nile_Reverse_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
     else
         nile_Process_free_node (p, BUFFER_TO_NODE (out));
 
+    unused->tag = NILE_TAG_NONE;
     return unused;
 }
 
@@ -751,6 +752,7 @@ nile_SortBy_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
     }
 
     *vars = v;
+    unused->tag = NILE_TAG_NONE;
     return unused;
 }
 
