@@ -800,6 +800,7 @@ nile_Zip_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *unused)
     nile_Deque_t *output = &v.shared->input;
     nile_Buffer_t *out = v.out ? v.out : NODE_TO_BUFFER (output->head);
 
+    unused->tag = NILE_TAG_NONE;
     while (!nile_Buffer_is_empty (in) && unused->tag == NILE_TAG_NONE) {
         int i = in->head;
         int j = v.j;
