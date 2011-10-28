@@ -951,19 +951,21 @@ nile_Dup_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
         nile_Deque_push_tail (&p2->input, BUFFER_TO_NODE (in));
     nile_Lock_rel (&p2->lock);
 
-    if (p1->input.n >= INPUT_QUOTA && nile_Process_quota_hit (p1)) {
-        vars->p1 = NULL;
-        p->consumer = p1;
-        p1->producer = p;
-        p2->producer = p2;
-        out->tag = NILE_TAG_QUOTA_HIT;
-    }
-    else if (p2->input.n >= INPUT_QUOTA && nile_Process_quota_hit (p2)) {
-        vars->p2 = NULL;
-        p->consumer = p2;
-        p1->producer = p1;
-        p2->producer = p;
-        out->tag = NILE_TAG_QUOTA_HIT;
+    if (nile_Process_quota_hit (p1) || nile_Process_quota_hit (p2)) {
+        if (p1->input.n > p2->input.n) {
+            vars->p1 = NULL;
+            p->consumer = p1;
+            p1->producer = p;
+            p2->producer = p2;
+            out->tag = NILE_TAG_QUOTA_HIT;
+        }
+        else {
+            vars->p2 = NULL;
+            p->consumer = p2;
+            p1->producer = p1;
+            p2->producer = p;
+            out->tag = NILE_TAG_QUOTA_HIT;
+        }
     }
     return out;
 }
