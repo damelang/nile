@@ -181,8 +181,9 @@ nile_Thread_work_until_below (nile_Thread_t *liaison, int *var, int value)
         if (!p)
             p = nile_Thread_steal (worker, nile_Thread_steal_from_q);
         if (!p)
-            break;
-        nile_Process_run (p, worker);
+            nile_Sleep_doze (1000);
+        else
+            nile_Process_run (p, worker);
     } while (!worker->abort && *var >= value);
 
     nile_Thread_transfer_heaps (worker, liaison);
