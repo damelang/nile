@@ -25,8 +25,7 @@ main ()
     }
 
     pipeline = nile_Process_pipe (
-        text_layout_MakeWords (init),
-        text_layout_PlaceWords (init, LINE_ORIGIN_X, LINE_ORIGIN_Y,
+        text_layout_LayoutText (init, LINE_ORIGIN_X, LINE_ORIGIN_Y,
                                       LINE_WIDTH, LINE_HEIGHT),
         nile_PrintToFile (init, 2, stdout),
         NILE_NULL);
