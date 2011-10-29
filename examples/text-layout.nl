@@ -1,6 +1,5 @@
 {-
     TODO:
-        expand result for glyphs
         new line chars
         very long words
         variable line height
@@ -38,5 +37,19 @@ DuplicatePlacement : (Point, Real) >> Point
             >> P
             << (P, n - 1)
 
+PlaceGlyphs : (Point, Glyph) >> Point
+    x = 0
+    y = 0
+    o = 0
+    ∀ (P, (w, _))
+        if P.x = x ∧ P.y = y
+            o' = o + w 
+            >> (x + o, y)
+        else
+            x' = P.x
+            y' = P.y
+            o' = w
+            >> (x', y')
+
 LayoutText (o:Point, w:Real, h:Real) : Glyph >> Point
-    ⇒ MakeWords → PlaceWords (o, w, h) → DuplicatePlacement
+    ⇒ DupZip (MakeWords → PlaceWords (o, w, h) → DuplicatePlacement, (→)) → PlaceGlyphs

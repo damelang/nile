@@ -302,6 +302,100 @@ text_layout_DuplicatePlacement (nile_Process_t *p)
 #undef IN_QUANTUM
 #undef OUT_QUANTUM
 
+#define IN_QUANTUM 4
+#define OUT_QUANTUM 2
+
+typedef struct {
+    nile_Real_t v_x;
+    nile_Real_t v_y;
+    nile_Real_t v_o;
+} text_layout_PlaceGlyphs_vars_t;
+
+static nile_Buffer_t *
+text_layout_PlaceGlyphs_prologue (nile_Process_t *p, nile_Buffer_t *out)
+{
+    text_layout_PlaceGlyphs_vars_t *vars = nile_Process_vars (p);
+    text_layout_PlaceGlyphs_vars_t v = *vars;
+    nile_Real_t t_4 = nile_Real (0);
+    v.v_x = t_4;
+    nile_Real_t t_5 = nile_Real (0);
+    v.v_y = t_5;
+    nile_Real_t t_6 = nile_Real (0);
+    v.v_o = t_6;
+    *vars = v;
+    return out;
+}
+
+static nile_Buffer_t *
+text_layout_PlaceGlyphs_body (nile_Process_t *p,
+                              nile_Buffer_t *in,
+                              nile_Buffer_t *out)
+{
+    text_layout_PlaceGlyphs_vars_t *vars = nile_Process_vars (p);
+    text_layout_PlaceGlyphs_vars_t v = *vars;
+    
+    while (!nile_Buffer_is_empty (in) && !nile_Buffer_quota_hit (out)) {
+        text_layout_PlaceGlyphs_vars_t v_ = v;
+        nile_Real_t t_7;
+        nile_Real_t v_P_x = nile_Buffer_pop_head(in);
+        nile_Real_t v_P_y = nile_Buffer_pop_head(in);
+        nile_Real_t v_w = nile_Buffer_pop_head(in);
+        t_7 = nile_Buffer_pop_head(in);
+        nile_Real_t t_8 = nile_Real_eq(v_P_x, v.v_x);
+        nile_Real_t t_9 = nile_Real_eq(v_P_y, v.v_y);
+        nile_Real_t t_10 = nile_Real_and(t_8, t_9);
+        if (nile_Real_nz (t_10)) {
+            nile_Real_t t_11 = nile_Real_add(v.v_o, v_w);
+            v_.v_o = t_11;
+            nile_Real_t t_13 = nile_Real_add(v.v_x, v.v_o);
+            nile_Real_t t_12_1 = t_13;
+            nile_Real_t t_12_2 = v.v_y;
+            nile_Real_t t_14_x = t_12_1;
+            nile_Real_t t_14_y = t_12_2;
+            if (nile_Buffer_tailroom (out) < OUT_QUANTUM)
+                out = nile_Process_append_output (p, out);
+            nile_Buffer_push_tail(out, t_14_x);
+            nile_Buffer_push_tail(out, t_14_y);
+        }
+        else {
+            v_.v_x = v_P_x;
+            v_.v_y = v_P_y;
+            v_.v_o = v_w;
+            nile_Real_t t_15_1 = v_.v_x;
+            nile_Real_t t_15_2 = v_.v_y;
+            nile_Real_t t_16_x = t_15_1;
+            nile_Real_t t_16_y = t_15_2;
+            if (nile_Buffer_tailroom (out) < OUT_QUANTUM)
+                out = nile_Process_append_output (p, out);
+            nile_Buffer_push_tail(out, t_16_x);
+            nile_Buffer_push_tail(out, t_16_y);
+        }
+        v = v_;
+    }
+    
+    *vars = v;
+    return out;
+}
+
+static nile_Buffer_t *
+text_layout_PlaceGlyphs_epilogue (nile_Process_t *p, nile_Buffer_t *out)
+{
+    text_layout_PlaceGlyphs_vars_t *vars = nile_Process_vars (p);
+    text_layout_PlaceGlyphs_vars_t v = *vars;
+    return out;
+}
+
+nile_Process_t *
+text_layout_PlaceGlyphs (nile_Process_t *p)
+{
+    text_layout_PlaceGlyphs_vars_t *vars;
+    p = nile_Process (p, IN_QUANTUM, sizeof (*vars), text_layout_PlaceGlyphs_prologue, text_layout_PlaceGlyphs_body, text_layout_PlaceGlyphs_epilogue);
+    return p;
+}
+
+#undef IN_QUANTUM
+#undef OUT_QUANTUM
+
 #define IN_QUANTUM 2
 #define OUT_QUANTUM 2
 
@@ -321,7 +415,12 @@ text_layout_LayoutText_prologue (nile_Process_t *p, nile_Buffer_t *out)
     nile_Process_t *t_1 = text_layout_PlaceWords(p, nile_Real_tof (v.v_o_x), nile_Real_tof (v.v_o_y), nile_Real_tof (v.v_w), nile_Real_tof (v.v_h));
     nile_Process_t *t_2 = nile_Process_pipe (t_1, text_layout_DuplicatePlacement(p), NILE_NULL);
     nile_Process_t *t_3 = nile_Process_pipe (text_layout_MakeWords(p), t_2, NILE_NULL);
-    return nile_Process_swap (p, t_3, out);
+    nile_Real_t t_4 = nile_Real (2);
+    nile_Process_t *t_5 = nile_Process_pipe (NILE_NULL);
+    nile_Real_t t_6 = nile_Real (2);
+    nile_Process_t *t_7 = nile_DupZip(p, 2, t_3, nile_Real_toi (t_4), t_5, nile_Real_toi (t_6));
+    nile_Process_t *t_8 = nile_Process_pipe (t_7, text_layout_PlaceGlyphs(p), NILE_NULL);
+    return nile_Process_swap (p, t_8, out);
     *vars = v;
     return out;
 }
