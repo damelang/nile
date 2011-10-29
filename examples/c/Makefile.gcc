@@ -1,0 +1,21 @@
+TARGET  := $(shell $(CC) -dumpmachine)
+RUNTIME := ../../runtimes/c
+LDFLAGS := -L$(RUNTIME) -lnile
+CFLAGS  := -pipe -Wall -Werror -Wno-unused -Wno-uninitialized \
+           -I$(RUNTIME) \
+           -O3 -ffast-math
+
+ifneq (,$(findstring mingw,$(TARGET))$(findstring cygwin,$(TARGET)))
+  LDFLAGS += # TODO windows
+else
+  LDFLAGS += -lm -pthread
+endif
+
+%-test: %-test.c FORCE
+	$(MAKE) -C $(RUNTIME) -f Makefile.gcc
+	$(CC) $< -o $@ $(CFLAGS) $(LDFLAGS)
+
+clean:
+	$(RM) -r *-test *.dSYM
+
+FORCE:
