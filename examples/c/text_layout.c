@@ -45,17 +45,20 @@ text_layout_MakeWords_body (nile_Process_t *p,
         nile_Real_t v_G_w = nile_Buffer_pop_head(in);
         nile_Real_t v_G_s = nile_Buffer_pop_head(in);
         nile_Real_t t_11 = nile_Real_neq(v_G_s, v.v_W_s);
-        if (nile_Real_nz (t_11)) {
-            nile_Real_t t_13 = nile_Real (1);
-            nile_Real_t t_12_1 = v_G_w;
-            nile_Real_t t_12_2 = v_G_s;
-            nile_Real_t t_12_3 = t_13;
-            nile_Real_t t_14_w = t_12_1;
-            nile_Real_t t_14_s = t_12_2;
-            nile_Real_t t_14_n = t_12_3;
-            v_.v_W_w = t_14_w;
-            v_.v_W_s = t_14_s;
-            v_.v_W_n = t_14_n;
+        nile_Real_t t_12 = nile_Real (2);
+        nile_Real_t t_13 = nile_Real_eq(v.v_W_s, t_12);
+        nile_Real_t t_14 = nile_Real_or(t_11, t_13);
+        if (nile_Real_nz (t_14)) {
+            nile_Real_t t_16 = nile_Real (1);
+            nile_Real_t t_15_1 = v_G_w;
+            nile_Real_t t_15_2 = v_G_s;
+            nile_Real_t t_15_3 = t_16;
+            nile_Real_t t_17_w = t_15_1;
+            nile_Real_t t_17_s = t_15_2;
+            nile_Real_t t_17_n = t_15_3;
+            v_.v_W_w = t_17_w;
+            v_.v_W_s = t_17_s;
+            v_.v_W_n = t_17_n;
             if (nile_Buffer_tailroom (out) < OUT_QUANTUM)
                 out = nile_Process_append_output (p, out);
             nile_Buffer_push_tail(out, v.v_W_w);
@@ -63,18 +66,18 @@ text_layout_MakeWords_body (nile_Process_t *p,
             nile_Buffer_push_tail(out, v.v_W_n);
         }
         else {
-            nile_Real_t t_16 = nile_Real_add(v.v_W_w, v_G_w);
-            nile_Real_t t_17 = nile_Real (1);
-            nile_Real_t t_18 = nile_Real_add(v.v_W_n, t_17);
-            nile_Real_t t_15_1 = t_16;
-            nile_Real_t t_15_2 = v.v_W_s;
-            nile_Real_t t_15_3 = t_18;
-            nile_Real_t t_19_w = t_15_1;
-            nile_Real_t t_19_s = t_15_2;
-            nile_Real_t t_19_n = t_15_3;
-            v_.v_W_w = t_19_w;
-            v_.v_W_s = t_19_s;
-            v_.v_W_n = t_19_n;
+            nile_Real_t t_19 = nile_Real_add(v.v_W_w, v_G_w);
+            nile_Real_t t_20 = nile_Real (1);
+            nile_Real_t t_21 = nile_Real_add(v.v_W_n, t_20);
+            nile_Real_t t_18_1 = t_19;
+            nile_Real_t t_18_2 = v.v_W_s;
+            nile_Real_t t_18_3 = t_21;
+            nile_Real_t t_22_w = t_18_1;
+            nile_Real_t t_22_s = t_18_2;
+            nile_Real_t t_22_n = t_18_3;
+            v_.v_W_w = t_22_w;
+            v_.v_W_s = t_22_s;
+            v_.v_W_n = t_22_n;
         }
         v = v_;
     }
@@ -111,9 +114,124 @@ text_layout_MakeWords (nile_Process_t *p)
 #define OUT_QUANTUM 3
 
 typedef struct {
+    nile_Real_t v_w;
+    nile_Real_t v_o;
+} text_layout_InsertLineBreaks_vars_t;
+
+static nile_Buffer_t *
+text_layout_InsertLineBreaks_prologue (nile_Process_t *p, nile_Buffer_t *out)
+{
+    text_layout_InsertLineBreaks_vars_t *vars = nile_Process_vars (p);
+    text_layout_InsertLineBreaks_vars_t v = *vars;
+    nile_Real_t t_2 = nile_Real (0);
+    v.v_o = t_2;
+    *vars = v;
+    return out;
+}
+
+static nile_Buffer_t *
+text_layout_InsertLineBreaks_body (nile_Process_t *p,
+                                   nile_Buffer_t *in,
+                                   nile_Buffer_t *out)
+{
+    text_layout_InsertLineBreaks_vars_t *vars = nile_Process_vars (p);
+    text_layout_InsertLineBreaks_vars_t v = *vars;
+    
+    while (!nile_Buffer_is_empty (in) && !nile_Buffer_quota_hit (out)) {
+        text_layout_InsertLineBreaks_vars_t v_ = v;
+        nile_Real_t v_W_w = nile_Buffer_pop_head(in);
+        nile_Real_t v_W_s = nile_Buffer_pop_head(in);
+        nile_Real_t v_W_n = nile_Buffer_pop_head(in);
+        nile_Real_t t_3 = nile_Real (2);
+        nile_Real_t t_4 = nile_Real_eq(v_W_s, t_3);
+        if (nile_Real_nz (t_4)) {
+            nile_Real_t t_5 = nile_Real (0);
+            v_.v_o = t_5;
+            if (nile_Buffer_tailroom (out) < OUT_QUANTUM)
+                out = nile_Process_append_output (p, out);
+            nile_Buffer_push_tail(out, v_W_w);
+            nile_Buffer_push_tail(out, v_W_s);
+            nile_Buffer_push_tail(out, v_W_n);
+        }
+        else {
+            nile_Real_t t_6 = nile_Real (1);
+            nile_Real_t t_7 = nile_Real_eq(v_W_s, t_6);
+            nile_Real_t t_8 = nile_Real_add(v.v_o, v_W_w);
+            nile_Real_t t_9 = nile_Real_lt(t_8, v.v_w);
+            nile_Real_t t_10 = nile_Real_or(t_7, t_9);
+            if (nile_Real_nz (t_10)) {
+                nile_Real_t t_11 = nile_Real_add(v.v_o, v_W_w);
+                v_.v_o = t_11;
+                if (nile_Buffer_tailroom (out) < OUT_QUANTUM)
+                    out = nile_Process_append_output (p, out);
+                nile_Buffer_push_tail(out, v_W_w);
+                nile_Buffer_push_tail(out, v_W_s);
+                nile_Buffer_push_tail(out, v_W_n);
+            }
+            else {
+                nile_Real_t t_12 = nile_Real (0);
+                nile_Real_t t_13 = nile_Real_add(t_12, v_W_w);
+                v_.v_o = t_13;
+                nile_Real_t t_15 = nile_Real (0);
+                nile_Real_t t_16 = nile_Real (2);
+                nile_Real_t t_17 = nile_Real (0);
+                nile_Real_t t_14_1 = t_15;
+                nile_Real_t t_14_2 = t_16;
+                nile_Real_t t_14_3 = t_17;
+                nile_Real_t t_18_w = t_14_1;
+                nile_Real_t t_18_s = t_14_2;
+                nile_Real_t t_18_n = t_14_3;
+                if (nile_Buffer_tailroom (out) < OUT_QUANTUM)
+                    out = nile_Process_append_output (p, out);
+                nile_Buffer_push_tail(out, t_18_w);
+                nile_Buffer_push_tail(out, t_18_s);
+                nile_Buffer_push_tail(out, t_18_n);
+                if (nile_Buffer_tailroom (out) < OUT_QUANTUM)
+                    out = nile_Process_append_output (p, out);
+                nile_Buffer_push_tail(out, v_W_w);
+                nile_Buffer_push_tail(out, v_W_s);
+                nile_Buffer_push_tail(out, v_W_n);
+            }
+        }
+        v = v_;
+    }
+    
+    *vars = v;
+    return out;
+}
+
+static nile_Buffer_t *
+text_layout_InsertLineBreaks_epilogue (nile_Process_t *p, nile_Buffer_t *out)
+{
+    text_layout_InsertLineBreaks_vars_t *vars = nile_Process_vars (p);
+    text_layout_InsertLineBreaks_vars_t v = *vars;
+    return out;
+}
+
+nile_Process_t *
+text_layout_InsertLineBreaks (nile_Process_t *p, 
+                              float v_w)
+{
+    text_layout_InsertLineBreaks_vars_t *vars;
+    text_layout_InsertLineBreaks_vars_t v;
+    p = nile_Process (p, IN_QUANTUM, sizeof (*vars), text_layout_InsertLineBreaks_prologue, text_layout_InsertLineBreaks_body, text_layout_InsertLineBreaks_epilogue);
+    if (p) {
+        vars = nile_Process_vars (p);
+        v.v_w = nile_Real (v_w);
+        *vars = v;
+    }
+    return p;
+}
+
+#undef IN_QUANTUM
+#undef OUT_QUANTUM
+
+#define IN_QUANTUM 3
+#define OUT_QUANTUM 5
+
+typedef struct {
     nile_Real_t v_o_x;
     nile_Real_t v_o_y;
-    nile_Real_t v_w;
     nile_Real_t v_h;
     nile_Real_t v_x;
     nile_Real_t v_y;
@@ -143,48 +261,35 @@ text_layout_PlaceWords_body (nile_Process_t *p,
         nile_Real_t v_W_w = nile_Buffer_pop_head(in);
         nile_Real_t v_W_s = nile_Buffer_pop_head(in);
         nile_Real_t v_W_n = nile_Buffer_pop_head(in);
-        nile_Real_t t_1 = nile_Real_add(v.v_x, v_W_w);
-        nile_Real_t t_2 = nile_Real_add(v.v_o_x, v.v_w);
-        nile_Real_t t_3 = nile_Real_lt(t_1, t_2);
-        nile_Real_t t_4 = nile_Real (1);
+        nile_Real_t t_2_1 = v.v_x;
+        nile_Real_t t_2_2 = v.v_y;
+        nile_Real_t t_1_1_w = v_W_w;
+        nile_Real_t t_1_1_s = v_W_s;
+        nile_Real_t t_1_1_n = v_W_n;
+        nile_Real_t t_1_2_1 = t_2_1;
+        nile_Real_t t_1_2_2 = t_2_2;
+        nile_Real_t t_3_1_w = t_1_1_w;
+        nile_Real_t t_3_1_s = t_1_1_s;
+        nile_Real_t t_3_1_n = t_1_1_n;
+        nile_Real_t t_3_2_x = t_1_2_1;
+        nile_Real_t t_3_2_y = t_1_2_2;
+        if (nile_Buffer_tailroom (out) < OUT_QUANTUM)
+            out = nile_Process_append_output (p, out);
+        nile_Buffer_push_tail(out, t_3_1_w);
+        nile_Buffer_push_tail(out, t_3_1_s);
+        nile_Buffer_push_tail(out, t_3_1_n);
+        nile_Buffer_push_tail(out, t_3_2_x);
+        nile_Buffer_push_tail(out, t_3_2_y);
+        nile_Real_t t_4 = nile_Real (2);
         nile_Real_t t_5 = nile_Real_eq(v_W_s, t_4);
-        nile_Real_t t_6 = nile_Real_or(t_3, t_5);
-        if (nile_Real_nz (t_6)) {
-            nile_Real_t t_7 = nile_Real_add(v.v_x, v_W_w);
-            v_.v_x = t_7;
-            nile_Real_t t_9_1 = v.v_x;
-            nile_Real_t t_9_2 = v.v_y;
-            nile_Real_t t_8_1_1 = t_9_1;
-            nile_Real_t t_8_1_2 = t_9_2;
-            nile_Real_t t_8_2 = v_W_n;
-            nile_Real_t t_10_1_x = t_8_1_1;
-            nile_Real_t t_10_1_y = t_8_1_2;
-            nile_Real_t t_10_2 = t_8_2;
-            if (nile_Buffer_tailroom (out) < OUT_QUANTUM)
-                out = nile_Process_append_output (p, out);
-            nile_Buffer_push_tail(out, t_10_1_x);
-            nile_Buffer_push_tail(out, t_10_1_y);
-            nile_Buffer_push_tail(out, t_10_2);
-        }
-        else {
-            nile_Real_t t_11 = nile_Real_add(v.v_o_x, v_W_w);
-            v_.v_x = t_11;
-            nile_Real_t t_12 = nile_Real_add(v.v_y, v.v_h);
-            v_.v_y = t_12;
-            nile_Real_t t_14_1 = v.v_o_x;
-            nile_Real_t t_14_2 = v_.v_y;
-            nile_Real_t t_13_1_1 = t_14_1;
-            nile_Real_t t_13_1_2 = t_14_2;
-            nile_Real_t t_13_2 = v_W_n;
-            nile_Real_t t_15_1_x = t_13_1_1;
-            nile_Real_t t_15_1_y = t_13_1_2;
-            nile_Real_t t_15_2 = t_13_2;
-            if (nile_Buffer_tailroom (out) < OUT_QUANTUM)
-                out = nile_Process_append_output (p, out);
-            nile_Buffer_push_tail(out, t_15_1_x);
-            nile_Buffer_push_tail(out, t_15_1_y);
-            nile_Buffer_push_tail(out, t_15_2);
-        }
+        nile_Real_t t_6 = nile_Real_add(v.v_x, v_W_w);
+        nile_Real_t t_7 = nile_Real_nz (t_5) ? v.v_o_x : t_6;
+        v_.v_x = t_7;
+        nile_Real_t t_8 = nile_Real (2);
+        nile_Real_t t_9 = nile_Real_eq(v_W_s, t_8);
+        nile_Real_t t_10 = nile_Real_add(v.v_y, v.v_h);
+        nile_Real_t t_11 = nile_Real_nz (t_9) ? t_10 : v.v_y;
+        v_.v_y = t_11;
         v = v_;
     }
     
@@ -204,7 +309,6 @@ nile_Process_t *
 text_layout_PlaceWords (nile_Process_t *p, 
                         float v_o_x, 
                         float v_o_y, 
-                        float v_w, 
                         float v_h)
 {
     text_layout_PlaceWords_vars_t *vars;
@@ -214,7 +318,6 @@ text_layout_PlaceWords (nile_Process_t *p,
         vars = nile_Process_vars (p);
         v.v_o_x = nile_Real (v_o_x);
         v.v_o_y = nile_Real (v_o_y);
-        v.v_w = nile_Real (v_w);
         v.v_h = nile_Real (v_h);
         *vars = v;
     }
@@ -224,7 +327,7 @@ text_layout_PlaceWords (nile_Process_t *p,
 #undef IN_QUANTUM
 #undef OUT_QUANTUM
 
-#define IN_QUANTUM 3
+#define IN_QUANTUM 5
 #define OUT_QUANTUM 2
 
 typedef struct {
@@ -249,29 +352,40 @@ text_layout_DuplicatePlacement_body (nile_Process_t *p,
     
     while (!nile_Buffer_is_empty (in) && !nile_Buffer_quota_hit (out)) {
         text_layout_DuplicatePlacement_vars_t v_ = v;
+        nile_Real_t v_W_w = nile_Buffer_pop_head(in);
+        nile_Real_t v_W_s = nile_Buffer_pop_head(in);
+        nile_Real_t v_W_n = nile_Buffer_pop_head(in);
         nile_Real_t v_P_x = nile_Buffer_pop_head(in);
         nile_Real_t v_P_y = nile_Buffer_pop_head(in);
-        nile_Real_t v_n = nile_Buffer_pop_head(in);
         nile_Real_t t_1 = nile_Real (0);
-        nile_Real_t t_2 = nile_Real_gt(v_n, t_1);
+        nile_Real_t t_2 = nile_Real_gt(v_W_n, t_1);
         if (nile_Real_nz (t_2)) {
             if (nile_Buffer_tailroom (out) < OUT_QUANTUM)
                 out = nile_Process_append_output (p, out);
             nile_Buffer_push_tail(out, v_P_x);
             nile_Buffer_push_tail(out, v_P_y);
-            nile_Real_t t_4 = nile_Real (1);
-            nile_Real_t t_5 = nile_Real_sub(v_n, t_4);
-            nile_Real_t t_3_1_x = v_P_x;
-            nile_Real_t t_3_1_y = v_P_y;
-            nile_Real_t t_3_2 = t_5;
-            nile_Real_t t_6_1_x = t_3_1_x;
-            nile_Real_t t_6_1_y = t_3_1_y;
-            nile_Real_t t_6_2 = t_3_2;
+            nile_Real_t t_5 = nile_Real (1);
+            nile_Real_t t_6 = nile_Real_sub(v_W_n, t_5);
+            nile_Real_t t_4_1 = v_W_w;
+            nile_Real_t t_4_2 = v_W_s;
+            nile_Real_t t_4_3 = t_6;
+            nile_Real_t t_3_1_1 = t_4_1;
+            nile_Real_t t_3_1_2 = t_4_2;
+            nile_Real_t t_3_1_3 = t_4_3;
+            nile_Real_t t_3_2_x = v_P_x;
+            nile_Real_t t_3_2_y = v_P_y;
+            nile_Real_t t_7_1_w = t_3_1_1;
+            nile_Real_t t_7_1_s = t_3_1_2;
+            nile_Real_t t_7_1_n = t_3_1_3;
+            nile_Real_t t_7_2_x = t_3_2_x;
+            nile_Real_t t_7_2_y = t_3_2_y;
             if (nile_Buffer_headroom (in) < IN_QUANTUM)
                 in = nile_Process_prefix_input (p, in);
-            nile_Buffer_push_head(in, t_6_2);
-            nile_Buffer_push_head(in, t_6_1_y);
-            nile_Buffer_push_head(in, t_6_1_x);
+            nile_Buffer_push_head(in, t_7_2_y);
+            nile_Buffer_push_head(in, t_7_2_x);
+            nile_Buffer_push_head(in, t_7_1_n);
+            nile_Buffer_push_head(in, t_7_1_s);
+            nile_Buffer_push_head(in, t_7_1_w);
         }
         else {
             ; /* no-op */
@@ -337,19 +451,19 @@ text_layout_PlaceGlyphs_body (nile_Process_t *p,
     while (!nile_Buffer_is_empty (in) && !nile_Buffer_quota_hit (out)) {
         text_layout_PlaceGlyphs_vars_t v_ = v;
         nile_Real_t t_7;
-        nile_Real_t v_P_x = nile_Buffer_pop_head(in);
-        nile_Real_t v_P_y = nile_Buffer_pop_head(in);
+        v_.v_x = nile_Buffer_pop_head(in);
+        v_.v_y = nile_Buffer_pop_head(in);
         nile_Real_t v_w = nile_Buffer_pop_head(in);
         t_7 = nile_Buffer_pop_head(in);
-        nile_Real_t t_8 = nile_Real_eq(v_P_x, v.v_x);
-        nile_Real_t t_9 = nile_Real_eq(v_P_y, v.v_y);
+        nile_Real_t t_8 = nile_Real_eq(v.v_x, v_.v_x);
+        nile_Real_t t_9 = nile_Real_eq(v.v_y, v_.v_y);
         nile_Real_t t_10 = nile_Real_and(t_8, t_9);
         if (nile_Real_nz (t_10)) {
             nile_Real_t t_11 = nile_Real_add(v.v_o, v_w);
             v_.v_o = t_11;
-            nile_Real_t t_13 = nile_Real_add(v.v_x, v.v_o);
+            nile_Real_t t_13 = nile_Real_add(v_.v_x, v.v_o);
             nile_Real_t t_12_1 = t_13;
-            nile_Real_t t_12_2 = v.v_y;
+            nile_Real_t t_12_2 = v_.v_y;
             nile_Real_t t_14_x = t_12_1;
             nile_Real_t t_14_y = t_12_2;
             if (nile_Buffer_tailroom (out) < OUT_QUANTUM)
@@ -358,17 +472,19 @@ text_layout_PlaceGlyphs_body (nile_Process_t *p,
             nile_Buffer_push_tail(out, t_14_y);
         }
         else {
-            v_.v_x = v_P_x;
-            v_.v_y = v_P_y;
-            v_.v_o = v_w;
-            nile_Real_t t_15_1 = v_.v_x;
-            nile_Real_t t_15_2 = v_.v_y;
-            nile_Real_t t_16_x = t_15_1;
-            nile_Real_t t_16_y = t_15_2;
+            nile_Real_t t_15 = nile_Real (0);
+            nile_Real_t t_16 = nile_Real_add(t_15, v_w);
+            v_.v_o = t_16;
+            nile_Real_t t_18 = nile_Real (0);
+            nile_Real_t t_19 = nile_Real_add(v_.v_x, t_18);
+            nile_Real_t t_17_1 = t_19;
+            nile_Real_t t_17_2 = v_.v_y;
+            nile_Real_t t_20_x = t_17_1;
+            nile_Real_t t_20_y = t_17_2;
             if (nile_Buffer_tailroom (out) < OUT_QUANTUM)
                 out = nile_Process_append_output (p, out);
-            nile_Buffer_push_tail(out, t_16_x);
-            nile_Buffer_push_tail(out, t_16_y);
+            nile_Buffer_push_tail(out, t_20_x);
+            nile_Buffer_push_tail(out, t_20_y);
         }
         v = v_;
     }
@@ -412,15 +528,17 @@ text_layout_LayoutText_prologue (nile_Process_t *p, nile_Buffer_t *out)
     text_layout_LayoutText_vars_t *vars = nile_Process_vars (p);
     text_layout_LayoutText_vars_t v = *vars;
     ; /* no-op */
-    nile_Process_t *t_1 = text_layout_PlaceWords(p, nile_Real_tof (v.v_o_x), nile_Real_tof (v.v_o_y), nile_Real_tof (v.v_w), nile_Real_tof (v.v_h));
-    nile_Process_t *t_2 = nile_Process_pipe (t_1, text_layout_DuplicatePlacement(p), NILE_NULL);
-    nile_Process_t *t_3 = nile_Process_pipe (text_layout_MakeWords(p), t_2, NILE_NULL);
-    nile_Real_t t_4 = nile_Real (2);
-    nile_Process_t *t_5 = nile_Process_pipe (NILE_NULL);
+    nile_Process_t *t_1 = text_layout_InsertLineBreaks(p, nile_Real_tof (v.v_w));
+    nile_Process_t *t_2 = text_layout_PlaceWords(p, nile_Real_tof (v.v_o_x), nile_Real_tof (v.v_o_y), nile_Real_tof (v.v_h));
+    nile_Process_t *t_3 = nile_Process_pipe (t_2, text_layout_DuplicatePlacement(p), NILE_NULL);
+    nile_Process_t *t_4 = nile_Process_pipe (t_1, t_3, NILE_NULL);
+    nile_Process_t *t_5 = nile_Process_pipe (text_layout_MakeWords(p), t_4, NILE_NULL);
     nile_Real_t t_6 = nile_Real (2);
-    nile_Process_t *t_7 = nile_DupZip(p, 2, t_3, nile_Real_toi (t_4), t_5, nile_Real_toi (t_6));
-    nile_Process_t *t_8 = nile_Process_pipe (t_7, text_layout_PlaceGlyphs(p), NILE_NULL);
-    return nile_Process_swap (p, t_8, out);
+    nile_Process_t *t_7 = nile_Process_pipe (NILE_NULL);
+    nile_Real_t t_8 = nile_Real (2);
+    nile_Process_t *t_9 = nile_DupZip(p, 2, t_5, nile_Real_toi (t_6), t_7, nile_Real_toi (t_8));
+    nile_Process_t *t_10 = nile_Process_pipe (t_9, text_layout_PlaceGlyphs(p), NILE_NULL);
+    return nile_Process_swap (p, t_10, out);
     *vars = v;
     return out;
 }

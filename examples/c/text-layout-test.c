@@ -7,8 +7,12 @@
 #define LINE_HEIGHT    10
 
 static float glyph_metrics[] = {
-    10, 0, 10, 0, 10, 0,  5, 1,  10, 0, 10, 0,  5, 1,
-    10, 0, 10, 0, 10, 0, 10, 0,  5, 1,  10, 0, 10, 0, 10, 0,
+    0, 2,
+    10, 0,  10, 0,  10, 0,  5, 1,  10, 0,  10, 0,  5, 1,
+    10, 0,  10, 0,  10, 0,  10, 0,  5, 1,  5, 1,
+    10, 0,  10, 0,  20, 0, 15, 0,  0, 2,
+    5, 0,  30, 0,  0, 2,
+    0, 2,
 };
 static int glyph_metrics_n = sizeof (glyph_metrics) / sizeof (glyph_metrics[0]);
 
