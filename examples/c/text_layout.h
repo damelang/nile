@@ -4,7 +4,8 @@
 #include "nile.h"
 
 nile_Process_t *
-text_layout_MakeWords (nile_Process_t *p);
+text_layout_MakeWords (nile_Process_t *p, 
+                       float v_w);
 
 nile_Process_t *
 text_layout_InsertLineBreaks (nile_Process_t *p, 

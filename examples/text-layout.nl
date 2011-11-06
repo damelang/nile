@@ -1,17 +1,11 @@
-{-
-    TODO:
-        very long words
-        variable line height
--}
-
 Glyph <: (w:Real, s:Real)
 Word  <: (w:Real, s:Real, n:Real)
 Point <: (x:Real, y:Real)
 
-MakeWords : Glyph >> Word
+MakeWords (w:Real) : Glyph >> Word
     W = (0, 0, 0):Word
     ∀ G
-        if G.s ≠ W.s ∨ W.s = 2
+        if G.s ≠ W.s ∨ W.s = 2 ∨ (W.w + G.w > w)
             W' = (G.w, G.s, 1)
             >> W
         else
@@ -59,4 +53,4 @@ PlaceGlyphs : (Point, Glyph) >> Point
             >> (x' + 0, y')
 
 LayoutText (o:Point, w:Real, h:Real) : Glyph >> Point
-    ⇒ DupZip (MakeWords → InsertLineBreaks (w) → PlaceWords (o, h) → DuplicatePlacement, (→)) → PlaceGlyphs
+    ⇒ DupZip (MakeWords (w) → InsertLineBreaks (w) → PlaceWords (o, h) → DuplicatePlacement, (→)) → PlaceGlyphs
