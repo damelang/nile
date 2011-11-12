@@ -34,7 +34,7 @@ PlaceWords (b:Point, h:Real) : Word >> (Word, Point)
         x' = { b.x   if W.s = 2, x + W.w }
         y' = { y + h if W.s = 2,       y }
 
-DuplicatePlacement : (Word, Point) >> Point
+RepeatPlacement : (Word, Point) >> Point
     ∀ (W, P) 
         if W.n > 0
             >> P
@@ -53,4 +53,4 @@ PlaceGlyphs : (Point, Glyph) >> Point
             >> (x' + 0, y')
 
 LayoutText (b:Point, w:Real, h:Real) : Glyph >> Point
-    ⇒ DupZip (MakeWords (w) → InsertLineBreaks (w) → PlaceWords (b, h) → DuplicatePlacement, (→)) → PlaceGlyphs
+    ⇒ DupZip (MakeWords (w) → InsertLineBreaks (w) → PlaceWords (b, h) → RepeatPlacement, (→)) → PlaceGlyphs
