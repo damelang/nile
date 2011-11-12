@@ -31,8 +31,11 @@ PlaceWords (b:Point, h:Real) : Word >> (Word, Point)
     y = b.y
     ∀ W
         >> (W, (x, y))
-        x' = { b.x   if W.s = 2, x + W.w }
-        y' = { y + h if W.s = 2,       y }
+        if W.s = 2
+            x' = b.x
+            y' = y + h
+        else
+            x' = x + W.w
 
 RepeatPlacement : (Word, Point) >> Point
     ∀ (W, P) 
