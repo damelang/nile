@@ -26,12 +26,12 @@ InsertLineBreaks (w:Real) : Word >> Word
             >> (0, 2, 0)
             >> W
 
-PlaceWords (o:Point, h:Real) : Word >> (Word, Point)
-    x = o.x
-    y = o.y
+PlaceWords (b:Point, h:Real) : Word >> (Word, Point)
+    x = b.x
+    y = b.y
     ∀ W
         >> (W, (x, y))
-        x' = { o.x   if W.s = 2, x + W.w }
+        x' = { b.x   if W.s = 2, x + W.w }
         y' = { y + h if W.s = 2,       y }
 
 DuplicatePlacement : (Word, Point) >> Point
@@ -52,5 +52,5 @@ PlaceGlyphs : (Point, Glyph) >> Point
             o' = 0 + w
             >> (x' + 0, y')
 
-LayoutText (o:Point, w:Real, h:Real) : Glyph >> Point
-    ⇒ DupZip (MakeWords (w) → InsertLineBreaks (w) → PlaceWords (o, h) → DuplicatePlacement, (→)) → PlaceGlyphs
+LayoutText (b:Point, w:Real, h:Real) : Glyph >> Point
+    ⇒ DupZip (MakeWords (w) → InsertLineBreaks (w) → PlaceWords (b, h) → DuplicatePlacement, (→)) → PlaceGlyphs
