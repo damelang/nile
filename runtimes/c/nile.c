@@ -303,7 +303,8 @@ nile_Process_prefix_input (nile_Process_t *producer, nile_Buffer_t *in)
     }
     else
         b = in;
-    b->head = b->tail = b->capacity;
+    if (b)
+        b->head = b->tail = b->capacity;
     return b;
 }
 
