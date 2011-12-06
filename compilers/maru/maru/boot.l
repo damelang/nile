@@ -18,9 +18,9 @@
 (set error
   (lambda args
     (set error %error)
-    (%print "\nerror: ")
+    (%print "\n[31;1merror: ")
     (apply print args)
-    (%print "\n")
+    (%print "[m\n")
     (abort)))
 
 (define caar (lambda (x) (car (car x))))
@@ -117,6 +117,21 @@
 (define-form define-function (name args . body)
   `(define ,name (lambda ,args ,@body)))
 
+(define-form define-macro (name args . body)
+  `(define-form ,name ,args (cons 'let (cons () (macro-expand (list-zip-assocs ',args (list ,@args)) ',body)))))
+
+(define-function macro-expand (bindings exp)
+  (if (pair? exp)
+      (cons (macro-expand bindings (car exp))
+	    (macro-expand bindings (cdr exp)))
+    (if (symbol? exp)
+	(let ((a (assq exp bindings)))
+	  (if a (cdr a) exp))
+      exp)))
+
+(define-form define-constant (name value)
+  `(define ,name (form () (lambda args ',value))))
+
 (define-function list-length (list)
   (if (pair? list)
       (+ 1 (list-length (cdr list)))
@@ -201,14 +216,16 @@
 
 ;;; cond
 
+(define-function %progn (prog)	(if (cdr prog) (cons 'let (cons '() prog)) (car prog)))
+
 (define-function %cond (clauses)
   (if (pair? clauses)
       (let* ((clause (car clauses))
 	     (test   (car clause))
 	     (value  (cdr clause)))
 	(if (= 'else test)
-	    `(let () ,@value)
-	  `(if ,test (let () ,@value) ,(%cond (cdr clauses)))))))
+	    (%progn value)
+	  `(if ,test ,(%progn value) ,(%cond (cdr clauses)))))))
 
 (define-form cond clauses (%cond clauses))
 
@@ -223,11 +240,8 @@
     (set-array-at %type-names %last-type name)
     %last-type))
 
-(define-function name-of-type (type)
-  (array-at %type-names type))
-
-(define-function type-name-of (obj)
-  (name-of-type (type-of obj)))
+(define-function name-of-type (type)	(array-at %type-names type))
+(define-function type-name-of (obj)	(name-of-type (type-of obj)))
 
 ;;; structure
 
@@ -262,14 +276,14 @@
 (define-function %make-safe-accessor (name fields offset)
   (if fields (cons `(define-form ,(concat-symbol name (concat-symbol '- (car fields))) (self)
 		      (list 'oop-at
-			    (list '%typecheck ',name self) ; self ; xxx
+			    (list '%typecheck ',name self)
 			    ,offset))
 		   (%make-accessor name (cdr fields) (+ 1 offset)))))
 
 (define-function %make-unsafe-accessor (name fields offset)
   (if fields (cons `(define-form ,(concat-symbol name (concat-symbol '- (car fields))) (self)
 		      (list 'oop-at
-			    self;(list '%typecheck ',name self) ; self ; xxx
+			    self
 			    ,offset))
 		   (%make-accessor name (cdr fields) (+ 1 offset)))))
 
@@ -317,6 +331,7 @@
 ;;; built-in types
 
 (define-structure <undefined>	())
+(define-structure <data>	())
 (define-structure <long>	(_bits))				(define-function long? (self) (= <long> (type-of self)))
 (define-structure <double>	(_bits))				(define-function double? (self) (= <double> (type-of self)))
 (define-structure <string>	(size _bits))
@@ -474,6 +489,7 @@
     (car args)))
 
 (define-method do-dump  <string> ()	(%dump self))
+(define-method do-dump  <array> ()	(%dump self))
 (define-method do-print <selector> ()	(print "<selector "(<selector>-name self)">"))
 
 (define-method do-print <pair> ()
@@ -610,6 +626,11 @@
       (cons (car a) (cons (car b) (list-zip (cdr a) (cdr b))))
     (or a b)))
 
+(define-function list-zip-assocs (a b)
+  (if (and (pair? a) (pair? b))
+      (cons (cons (car a) (car b)) (list-zip-assocs (cdr a) (cdr b)))
+    (or a b)))
+
 ;;; iteration
 
 (define-form for (var-init-limit-step . body)
@@ -735,19 +756,22 @@
   (%sort items string-at set-string-at (or (car options) <) 0 (- (string-length items) 1))
   items)
 
-(define-function array-search (arr obj compare)
+(define-function %search (items length at obj compare)
   (let ((lo 0)
-	(hi (- (array-length arr) 1))
+	(hi (- (length items) 1))
 	(ix ()))
-    (while (and (not ix) (<= lo hi))
+    (while (<= lo hi)
       (let* ((m (/ (+ lo hi) 2))
-	     (s (array-at arr m))
+	     (s (at items m))
 	     (c (compare obj s)))
 	(cond
-	 ((< c 0)	(set hi (- m 1)))
-	 ((> c 0)	(set lo (+ m 1)))
-	 (else		(set ix m)))))
+	  ((< c 0)	(set hi (- m 1)))
+	  ((> c 0)	(set lo (+ m 1)))
+	  (else		(let () (set ix m) (set lo (+ hi 1)))))))
     ix))
+
+(define-function array-search  (arr obj . options)	(%search arr array-length  array-at  obj (or (car options) -)))
+(define-function string-search (str obj . options)	(%search str string-length string-at obj (or (car options) -)))
 
 (define-function max (a b)	(if (> a b) a b))
 (define-function min (a b)	(if (< a b) a b))
@@ -789,4 +813,21 @@
 
 ;;; load/save
 
-(define-function load (name) (list-do expr (read name) (eval expr)))
+(define-function pval (expr)
+  (and (> (verbose) 0) (println expr))
+  (let ((result (eval expr)))
+    (and (> (verbose) 1) (println "=> "result))
+    result))
+
+(define-function load (name)
+  (let ((exps (read name)))
+    (or exps (error "file not found or empty: "name))
+    (list-do expr exps (pval expr))))
+
+(define *loaded*)
+
+(define-function require (name)
+  (or (member? name *loaded*)
+      (let ()
+	(push *loaded* name)
+	(load name))))

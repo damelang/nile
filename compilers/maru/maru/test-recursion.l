@@ -5,9 +5,10 @@
 ;; interested, I'm wondering how a few example grammars behave under your preferred
 ;; left-recursive parsing technique, and how you think they should behave.
 
-(define peg-make-definition peg-make-definition-with-memo)
+(define peg-make-definition peg-make-definition-with-recursion)
 
-(define-function input-between (a b)	(list->string (list-from-to a b)))
+(define-function input-between (a b)
+  (list->string (list-from-to a b)))
 
 {
   sync    = (!"." .)* "." ;
@@ -48,7 +49,7 @@ hello.
   _ beg:b S {end b} | fail
 }
 
-a.
+aaaa.
 
 ;; Cranking up the evilness factor one notch with a mutually left-recursive grammar...
 ;;
@@ -64,13 +65,13 @@ a.
   _ beg:b S {end b} | fail
 }
 
-a.
+aaaa.
 
 ;; Do S and T behave the same way or differently?  Should they?
 
 { _ beg:b T {end b} | fail }
 
-a.
+aaaa.
 
 ;; Now, another grammar that's not necessarily evil but strange in a slightly different way:
 ;;
@@ -81,15 +82,29 @@ a.
 
 {
   S = S "a" "a" | "a" | -> () ;
-  _ beg:b S {end b} | fail
+  x = _ beg:b S {end b} | fail ;
+  x x
 }
 
 aaaa.
+aaaaaaaaaaaaa.
 
 ;; ---------------- OUTPUT FROM THIS PROGRAM ----------------
 ;;
 ;; could not match input
 ;; input matched: "a"
 ;; input matched: ""
-;; input matched: "a"
-;; input matched: "a"
+;; input matched: "aaaa"
+;; input matched: "aaaaaaaaaaaaa"
+
+{
+  digit = [0-9]:d		-> (- d ?0) ;
+
+  term  = term:a "+" digit:b	-> (println `(add ,a ,b))
+        | digit
+        ;
+
+  _ term:t			-> (println t)
+}
+
+0+1+2+3+4+5+6+7+8+9

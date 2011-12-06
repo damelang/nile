@@ -1,31 +1,4 @@
-(define-structure <port> (buffer column))
-
-(define-function port () (new <port> (array) 0))
-
-(define-method do-print <port> () (print "<port "(array-length self.buffer)":"self.column">"))
-
-(define-method port-put <port> (char)
-  (array-append self.buffer char)
-  (set self.column
-       (if (or (= char ?\n) (= char ?\r))
-	   0
-	 (+ self.column 1)))
-  char)
-
-(define-method port-write <port> seqs
-  (list-do seq seqs
-    (for-each seq (lambda (x) (port-put self x)))))
-
-(define-method port-newline <port> ()
-  (and (> self.column 0)
-       (port-put self ?\n)))
-
-(define-method port-indent <port> (col)
-  (for (i 0 col) (port-put self ? )))
-
-(define-method port-newline-indent <port> (col)
-  (port-newline self)
-  (port-indent self col))
+(require "port.l")
 
 (define pretty-on) ;; forward
 
@@ -76,7 +49,7 @@
   (do-pretty obj p col))
 
 (define-function pretty-string (obj)
-  (let ((p (port)))
+  (let ((p (string-port)))
     (pretty-on obj p 0)
     (array->string (<port>-buffer p))))
 

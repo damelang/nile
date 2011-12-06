@@ -334,7 +334,7 @@
 
 ;;;----------------------------------------------------------------
 
-(define peg-grammar-string (input-stream-up-to (input-stream (open "peg.g")) *end*))
+(define peg-grammar-string (input-stream-up-to (input-stream (open "peg.g") "peg.g") *end*))
 
 ;;;----------------
 

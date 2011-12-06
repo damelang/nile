@@ -1,3 +1,5 @@
+(define *recurred* '(*recurred*))
+
 ;; (define %make-accessor %make-unsafe-accessor)
 
 (define-structure <*end-of-stream-marker*> ())
@@ -72,6 +74,11 @@
 							(unit-assert (= *end* ($peek s)))
 							(unit-assert (= *end* ($next s)))))
 
+(define-method $source-position <undefined> ())
+
+(define-method $source-position <string-stream> ()
+  (cons "<string>" self.position))
+
 ;;;----------------------------------------------------------------
 
 (define-structure <list-stream> (source))
@@ -107,13 +114,16 @@
 							(unit-assert (= *end* ($peek s)))
 							(unit-assert (= *end* ($next s)))))
 
+(define-method $source-position <list-stream> () ())
+
 ;;;----------------------------------------------------------------
 
-(define-structure <input-stream> (source pending))
+(define-structure <input-stream> (source pending srcpos))
 
-(define-function input-stream (source)
+(define-function input-stream (source path)
   (let ((self (new <input-stream>)))
     (set (<input-stream>-source self) source)
+    (set (<input-stream>-srcpos self) (cons path 0))
     self))
 
 (define-method $at-end <input-stream> ()
@@ -124,7 +134,9 @@
       (if self.source
 	  (let ((c (getc self.source)))
 	    (if c
-		(set self.pending c)
+		(let ()
+		  (and (= ?\n c) (set self.srcpos (cons (car self.srcpos) (+ 1 (cdr self.srcpos)))))
+		  (set self.pending c))
 	      (or (= self.source *input*) (close self.source))
 	      (set self.source ())
 	      (set self.pending *end*)))
@@ -134,6 +146,9 @@
   (let ((c ($peek self)))
     (set (<input-stream>-pending self) ())
     c))
+
+(define-method $source-position <input-stream> ()
+  self.srcpos)
 
 (define-function input-stream-up-to (self delimiter)
   (let ((a (array)))
@@ -157,14 +172,24 @@
 ;(define <token>-value car)	(define set-<token>-value set-car)
 ;(define <token>-tail  cdr)	(define set-<token>-tail  set-cdr)
 
-(define-structure <token> (value tail notes))
+(define-structure <token> (value tail position notes index))
 
 (define-function new-<token> () (new <token>))
 
-(define-function token (value)
+(define-function token (value index srcpos)
   (let ((self (new <token>)))
-    (set (<token>-value self) value)
+    (set (<token>-value    self) value)
+    (set (<token>-index    self) index)
+    (set (<token>-position self) srcpos)
     self))
+
+(define-method do-print <token> ()
+  (print "<token "self.index" "(format "%c" self.value))
+  (map (lambda (x)
+	 (and (symbol? (car x))
+	      (print " "(car x))))
+       self.notes)
+  (print ">"))
 
 ;(define <token> <pair>)		;(define token cons)			;(define new-<token> cons)
 ;(define <token>-value car)	(define set-<token>-value set-car)
@@ -211,12 +236,13 @@
       (set tok (<token>-tail tok)))
     len))
 
-(define-function group-append (self value)
+(define-function group-append (self value . stream)
   (let ((tok  (new-<token>))
 	(last (<group>-last self)))
-    (set (<token>-value last) value)
-    (set (<token>-tail  last) tok)
-    (set (<group>-last  self) tok)))
+    (set (<token>-value    last) value)
+    (set (<token>-tail     last) tok)
+    (set (<token>-position last) ($source-position (car stream)))
+    (set (<group>-last     self) tok)))
 
 ;; (define-function group-append-all (self value)
 ;;   (let ((tok (<group>-first value))
@@ -243,10 +269,17 @@
 
 (define-selector group->list (self) self)
 
+(define-function set-pair-source-position (obj pos)
+  (set (<pair>-source obj) pos)
+  obj)
+
 (define-function make-group->list (first last)
   (and (!= first last)
-       (cons (<token>-value first) ;(group->list (<token>-value first))
-	     (make-group->list (<token>-tail first) last))))
+       (set-pair-source-position
+	 (cons (<token>-value first) ;(group->list (<token>-value first))
+	       (make-group->list (<token>-tail first) last))
+	  (<token>-position first)
+	  )))
 
 (define-method group->list <group> ()
   (make-group->list (<group>-first self) (<group>-last self)))
@@ -282,7 +315,7 @@
 
 ;;;----------------------------------------------------------------
 
-(define-structure <parser-stream> (source position))
+(define-structure <parser-stream> (source position index))
 
 ;;(define-function parser-stream (source)
 ;;  (let ((self (new <parser-stream>)))
@@ -293,7 +326,8 @@
 (define-function parser-stream (source)
   (let ((self (new <parser-stream>)))
     (set (<parser-stream>-source self)   source)
-    (set (<parser-stream>-position self) (token ($next source)))
+    (set (<parser-stream>-position self) (token ($next source) 0 ($source-position (<parser-stream>-source self))))
+    (set (<parser-stream>-index self) 0)
     self))
 
 (define-function parser-stream-at-end (self)
@@ -311,7 +345,10 @@
 	(let ((tail (<token>-tail here)))
 	  (set (<parser-stream>-position self)
 	       (or tail (set (<token>-tail here)
-			     (token ($next (<parser-stream>-source self))))))))
+			     (token ($next (<parser-stream>-source self))
+				    (incr (<parser-stream>-index self) 1)
+				    ($source-position (<parser-stream>-source self))
+				    ))))))
     here))
 
 (define-function parser-stream-next (self)
@@ -322,7 +359,7 @@
   (set (<parser-stream>-position self) token))
 
 (define-function parser-stream-push (self value)
-  (parser-stream-push-token self (token value)))
+  (parser-stream-push-token self (token value (<parser-stream>-index self) ($source-position (<parser-stream>-source self)))))
 
 (define-function parser-stream-match-object (self value)
   (and (= value (parser-stream-peek self))
@@ -382,12 +419,14 @@
     (and (> (array-length a) 0)
 	 (string-do c "[31;1m<!>[30;0m" (array-append a c)))
     (for (i 0 32)
-	 (if (!= *end* (parser-stream-peek self))
-	     (array-append a (parser-stream-next self))
-	   (string-do c "[34;1m<EOF>[30;0m" (array-append a c))
-	   (set i 999)))
+      (if (!= *end* (parser-stream-peek self))
+	  (array-append a (parser-stream-next self))
+	(string-do c "[34;1m<EOF>[30;0m" (array-append a c))
+	(set i 999)))
     ;;(array-do x a (println x))
     (array->string a)))
+
+(define-method $source-position <parser-stream> () ($source-position self.source))
 
 ;;;----------------
 
@@ -625,3 +664,48 @@
 (define-class <peg> <parser> ())
 
 (define %make-accessor %make-safe-accessor)
+
+;;;----------------------------------------------------------------
+
+(define-function %set-list-source (x y)
+  (and (pair? x)
+       (let ()
+	 (and (pair? y) (set (<pair>-source x) (<pair>-source y)))
+	 (%set-list-source (cdr x) (cdr y))))
+  x)
+
+(define-function set-list-source (x pos)
+  ;;(println "SET LIST "x" SOURCE "pos)
+  (%set-list-source x pos) ;; ($source-position pos))
+  x)
+
+;;;----------------------------------------------------------------
+
+(define *outer* '(*outer*))
+(define *inner* '(*inner*))
+(define *recur* '(*recur*))
+
+(define-structure <memo> (success result position))
+
+(define-method do-print <memo> ()
+  (if (long? self.success)
+      (print "#"self.success)
+    (print "<memo>")))
+
+(define-function memoise (self success result position)
+  (with-instance-accessors <memo>
+    (set self.success  success)
+    (set self.result   result)
+    (set self.position position)))
+
+(define %cookies 0)
+
+(define-form put (where key val)	`(set ,where (cons (cons ,key ,val) ,where)))
+(define-form get (where key)		`(cdr (assq ,key ,where)))
+(define-form rem (where key)		`(set ,where (%rm ,where ,key)))
+
+(define-function %rm (where key)
+  (and (pair? where)
+       (if (= key (caar where))
+	   (cdr where)
+	 (cons (car where) (%rm (cdr where) key)))))

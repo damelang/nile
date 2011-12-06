@@ -1,0 +1,9 @@
+#!/bin/sh
+
+set -ex
+
+./eval repl.l test-pepsi.l
+./eval repl.l test-recursion.l
+./eval test-pegen.k
+./eval test-earley.k
+./eval test-call.k

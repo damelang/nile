@@ -1,4 +1,4 @@
-// last edited: 2011-10-17 10:46:14 by piumarta on debian.piumarta.com
+// last edited: 2011-10-28 14:47:23 by piumarta on debian.piumarta.com
 
 #define _ISOC99_SOURCE 1
 
@@ -36,8 +36,9 @@ typedef oop (*imp_t)(oop args, oop env);
 
 #define nil ((oop)0)
 
-enum { Undefined, Long, Double, String, Symbol, Pair, _Array, Array, Expr, Form, Fixed, Subr, Variable, Env, Context };
+enum { Undefined, Data, Long, Double, String, Symbol, Pair, _Array, Array, Expr, Form, Fixed, Subr, Variable, Env, Context };
 
+struct Data	{ };
 struct Long	{ long	   bits; };
 struct Double	{ double   bits; };
 struct String	{ oop      size;  wchar_t *bits; };	/* bits is in managed memory */
@@ -53,6 +54,7 @@ struct Env	{ oop 	   parent, level, offset, bindings, stable; };
 struct Context	{ oop 	   home, env, bindings, callee, pc; };
 
 union Object {
+  struct Data		Data;
   struct Long		Long;
   struct Double		Double;
   struct String		String;
@@ -125,6 +127,8 @@ static oop globals= nil, expanders= nil, encoders= nil, evaluators= nil, applica
 static oop arguments= nil, backtrace= nil, input= nil;
 
 static int opt_b= 0, opt_g= 0, opt_p= 0, opt_v= 0;
+
+static oop newData(size_t len)		{ return _newBits(Data, len); }
 
 #if (TAG_INT)
   static inline int  isLong(oop x)	{ return (((long)x & 1) || Long == getType(x)); }
@@ -745,6 +749,13 @@ static void doprint(FILE *stream, oop obj, int storing)
   }
   switch (getType(obj)) {
     case Undefined:	fprintf(stream, "UNDEFINED");		break;
+    case Data: {
+	int i, j= GC_size(obj);
+	fprintf(stream, "<data[%i]", (int)GC_size(obj));
+	for (i= 0;  i < j;  ++i) fprintf(stream, " %02x", ((unsigned char *)obj)[i]);
+	fprintf(stream, ">");
+	break;
+    }
     case Long:		fprintf(stream, "%ld", getLong(obj));	break;
     case Double:	fprintf(stream, "%lf", getDouble(obj));	break;
     case String: {
@@ -856,8 +867,10 @@ static void doprint(FILE *stream, oop obj, int storing)
       break;
     }
     case Env: {
+      oop level= get(obj, Env,level);
+      oop offset= get(obj, Env,offset);
       fprintf(stream, "Env%s%s<%ld+%ld:", ((nil == get(obj, Env,parent)) ? "*" : ""), ((nil == get(obj, Env,stable)) ? "=" : ""),
-	      getLong(get(obj, Env,level)), getLong(get(obj, Env,offset)));
+	      is(Long, level) ? getLong(level) : -1, is(Long, offset) ? getLong(offset) : -1);
 #if 0
       oop bnd= get(obj, Env,bindings);
       int idx= arrayLength(bnd);
@@ -1128,7 +1141,7 @@ static void fatal(char *reason, ...)
     while (i--) {
       //printf("%3d: ", i);
       oop exp= arrayAt(traceStack, i);
-      printf("[31m[?7l");
+      printf("[32m[?7l");
       int l= printSource(exp);
       if (l >= j) j= l;
       if (!l) while (l < 3) l++, putchar('.');
@@ -1191,7 +1204,8 @@ static oop evlist(oop obj, oop ctx)
   if (!is(Pair, obj)) return obj;
   oop head= eval(getHead(obj), ctx);		GC_PROTECT(head);
   oop tail= evlist(getTail(obj), ctx);		GC_PROTECT(tail);
-  head= newPairFrom(head, tail, obj);		GC_UNPROTECT(tail);  GC_UNPROTECT(head);
+  //head= newPairFrom(head, tail, obj);		GC_UNPROTECT(tail);  GC_UNPROTECT(head);
+  head= newPair(head, tail);		GC_UNPROTECT(tail);  GC_UNPROTECT(head);
   return head;
 }
 
@@ -1410,8 +1424,10 @@ static subr(define)
     fatal(0);
   }
   oop value= eval(cadr(args), ctx);
-  if (is(Expr, value) && (nil == get(value, Expr,name))) set(value, Expr,name, get(var, Variable,name));
   set(var, Variable,value, value);
+  oop expr= value;
+  if (is(Form, expr)) expr= get(value, Form,function);
+  if (is(Expr, expr) && (nil == get(expr, Expr,name))) set(expr, Expr,name, get(var, Variable,name));
   return value;
 }
 
@@ -1627,7 +1643,7 @@ static subr(exit)
 
 static subr(abort)
 {
-  fatal("aborted");
+  fatal(0);
   return nil;
 }
 
@@ -1784,6 +1800,7 @@ static subr(format)
       free(p);
       break;
     }
+    if (n < 0 && errno == EILSEQ) return nil;
     if (n >= 0)	size= n + 1;
     else	size *= 2;
     if (!(np= realloc(p, sizeof(wchar_t) * size))) {
@@ -1810,7 +1827,7 @@ static subr(cons)
 {
   oop lhs= car(args);
   oop rhs= cadr(args);
-  return is(Pair, args) ? newPairFrom(lhs, rhs, args) : newPair(lhs, rhs);
+  return newPair(lhs, rhs);	// (is(Pair, rhs) ? newPairFrom(lhs, rhs, rhs) : newPair(lhs, rhs));
 }
 
 static subr(pairP)
@@ -2010,6 +2027,100 @@ static subr(set_array_at)
   return arrayAtPut(arr, getLong(arg), val);
 }
 
+static subr(data)
+{
+    oop arg= car(args);
+    int num= isLong(arg) ? getLong(arg) : 0;
+    return newData(num);
+}
+
+#define accessor(name, type)										\
+    static subr(name##_at)										\
+    {													\
+	arity2(args, #name"-at");									\
+	oop obj= getHead(args);										\
+	oop arg= getHead(getTail(args));		if (!isLong(arg)) return nil;			\
+	int idx= getLong(arg);										\
+	if (is(Long, obj))										\
+	    return newLong(((type *)getLong(obj))[idx]);						\
+	if ((unsigned)idx >= (unsigned)GC_size(obj) / sizeof(type)) return nil;				\
+	return newLong(((type *)obj)[idx]);								\
+    }													\
+													\
+    static subr(set_##name##_at)									\
+    {													\
+	arity3(args, "set-"#name"-at");									\
+	oop obj= getHead(args);										\
+	oop arg= getHead(getTail(args));								\
+	oop val= getHead(getTail(getTail(args)));	if (!isLong(arg) || !isLong(val)) return nil;	\
+	int idx= getLong(arg);										\
+	if (is(Long, obj))										\
+	    ((type *)getLong(obj))[idx]= getLong(val);							\
+	else {												\
+	    if ((unsigned)idx >= (unsigned)GC_size(obj) / sizeof(type)) return nil;			\
+	    ((type *)obj)[idx]= getLong(val);								\
+	}												\
+	return val;											\
+    }
+
+accessor(byte,  unsigned char)
+accessor(long,  long)
+
+#undef accessor
+
+static subr(call)
+{
+    oop  obj= car(args);
+    struct { long l[34]; } argv;
+    int  argc= 0;
+    args= cdr(args);
+    while (is(Pair, args) && argc < 32)
+    {
+	oop arg= getHead(args);
+	args= getTail(args);
+	switch (getType(arg))
+	{
+	    case Undefined:	argv.l[argc]= 0;						break;
+	    case Long:		argv.l[argc]= getLong(arg);					break;
+ 	    case Double:	argc= (argc + 1) & -2;  argv.l[argc++]= ((long *)arg)[0];
+				argv.l[argc]= ((long *)arg)[1];					break;
+ 	    case String:	argv.l[argc]= (long)wcs2mbs(get(arg, String,bits));		break;
+	    case Subr:		argv.l[argc]= (long)get(arg, Subr,imp);				break;
+	    default:		argv.l[argc]= (long)arg;					break;
+	}
+	++argc;
+    }
+    void *addr= 0;
+    switch (getType(obj))
+    {
+	case Data:	addr= obj;			break;
+	case Long:	addr= (void *)getLong(obj);	break;
+	case Subr:	addr= get(obj, Subr,imp);	break;
+	default:	fatal("call: cannot call object of type %i", getType(obj));
+    }
+    return newLong(((int (*)())addr)(argv));
+}
+
+#define __USE_GNU
+#include <dlfcn.h>
+#undef __USE_GNU
+
+static subr(subr)
+{
+    oop ptr= car(args);
+    wchar_t *name= 0;
+    switch (getType(ptr))
+    {
+	case String:	name= get(ptr, String,bits);  break;
+	case Symbol:	name= (wchar_t *)ptr;  break;
+	default:	fatal("subr: argument must be string or symbol");
+    }
+    char *sym= wcs2mbs(name);
+    void *addr= dlsym(RTLD_DEFAULT, sym);
+    if (!addr) fatal("could not find symbol: %s", sym);
+    return newSubr(addr, name);
+}
+
 static subr(allocate)
 {
   arity2(args, "allocate");
@@ -2044,8 +2155,10 @@ static subr(not)
 
 static subr(verbose)
 {
-  oop obj= getHead(args);
-  if (isLong(obj)) opt_v= getLong(obj);
+  oop obj= car(args);
+  if (nil == obj) return newLong(opt_v);
+  if (!isLong(obj)) return nil;
+  opt_v= getLong(obj);
   return obj;
 }
 
@@ -2089,6 +2202,12 @@ static subr(log)
     fatal(0);
   }
   return newDouble(log(arg));
+}
+
+static subr(address_of)
+{
+  oop arg= car(args);
+  return newLong((long)arg);
 }
 
 #undef subr
@@ -2358,6 +2477,13 @@ int main(int argc, char **argv)
       { " array-length",   subr_array_length },
       { " array-at",	   subr_array_at },
       { " set-array-at",   subr_set_array_at },
+      { " data",	   subr_data },
+      { " byte-at",	   subr_byte_at },
+      { " set-byte-at",    subr_set_byte_at },
+      { " long-at",        subr_long_at },
+      { " set-long-at",    subr_set_long_at },
+      { " call",	   subr_call },
+      { " subr",	   subr_subr },
       { " allocate",	   subr_allocate },
       { " oop-at",	   subr_oop_at },
       { " set-oop-at",	   subr_set_oop_at },
@@ -2366,6 +2492,7 @@ int main(int argc, char **argv)
       { " sin",		   subr_sin },
       { " cos",		   subr_cos },
       { " log",		   subr_log },
+      { " address-of",	   subr_address_of },
       { 0,		   0 }
     };
     for (ptr= subrs;  ptr->name;  ++ptr) {

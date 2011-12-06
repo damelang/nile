@@ -10,10 +10,10 @@ run : eval
 	rlwrap ./eval
 
 eval : eval.c gc.c gc.h buffer.c chartab.h wcs.c
-	$(CC) -g $(CFLAGS) -o eval eval.c -lm
+	$(CC) -g $(CFLAGS) -o eval eval.c -lm -ldl
 
 gceval : eval.c libgc.c buffer.c chartab.h wcs.c
-	$(CC) -g $(CFLAGS) -DLIB_GC=1 -o gceval eval.c -lm -lgc
+	$(CC) -g $(CFLAGS) -DLIB_GC=1 -o gceval eval.c -lm -ldl -lgc
 
 debug : .force
 	$(MAKE) OFLAGS="-O0"
@@ -25,6 +25,12 @@ profile : .force
 	$(MAKE) clean eval CFLAGS="$(CFLAGS) -O3 -fno-inline-functions -DNDEBUG"
 #	shark -q -1 -i ./eval emit.l eval.l eval.l eval.l eval.l eval.l eval.l eval.l eval.l eval.l eval.l > test.s
 	shark -q -1 -i ./eval repl.l test-pepsi.l
+
+cg : eval .force
+	./eval codegen5.l | tee test.s
+	as test.s
+	ld  --build-id --eh-frame-hdr -m elf_i386 --hash-style=both -dynamic-linker /lib/ld-linux.so.2 -o test /usr/lib/gcc/i486-linux-gnu/4.4.5/../../../../lib/crt1.o /usr/lib/gcc/i486-linux-gnu/4.4.5/../../../../lib/crti.o /usr/lib/gcc/i486-linux-gnu/4.4.5/crtbegin.o -L/usr/lib/gcc/i486-linux-gnu/4.4.5 -L/usr/lib/gcc/i486-linux-gnu/4.4.5 -L/usr/lib/gcc/i486-linux-gnu/4.4.5/../../../../lib -L/lib/../lib -L/usr/lib/../lib -L/usr/lib/gcc/i486-linux-gnu/4.4.5/../../.. a.out -lgcc --as-needed -lgcc_s --no-as-needed -lc -lgcc --as-needed -lgcc_s --no-as-needed /usr/lib/gcc/i486-linux-gnu/4.4.5/crtend.o /usr/lib/gcc/i486-linux-gnu/4.4.5/../../../../lib/crtn.o
+	./test
 
 test : emit.l eval.l eval
 	time ./emit.l eval.l > test.s && $(CC32) -c -o test.o test.s && size test.o && $(CC32) -o test test.o

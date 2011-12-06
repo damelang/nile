@@ -22,8 +22,11 @@
 
 (define-class <temp-grammar> <parser> ())
 
+(load "port.l")
+(load "pretty-print.l")
+
 (define-form grammar-eval (rules expr)
-  ;;(println "GRAMMAR EVAL "rules" -> "expr)
+  ;;(println "GRAMMAR EVAL ")  (pretty-print (expand rules))
   (peg-compile-rules '<temp-grammar> rules)
   (and expr (peg-compile-rules '<temp-grammar> (list (list 'start expr))))
   ;;(println "GRAMMAR "*temp-grammar*)
@@ -51,8 +54,8 @@
     v))
 
 (define-function repl-stream (stream prompt)	(repl-parser-stream (parser-stream stream) prompt))
-(define-function repl-file   (file prompt)	(repl-stream (input-stream file) prompt))
-(define-function repl-path   (path prompt)	(repl-file (or (open path) (error "cannot open: "path)) prompt))
+(define-function repl-file   (file prompt path)	(repl-stream (input-stream file path) prompt))
+(define-function repl-path   (path prompt)	(repl-file (or (open path) (error "cannot open: "path)) prompt path))
 
 (map-with repl-path *arguments* ())
 
