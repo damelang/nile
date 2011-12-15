@@ -1,3 +1,11 @@
+(define nile-TYPE-UNKNOWN) 
+
+(load "nile-ast.l")
+
+(define peg-make-definition peg-make-definition-with-memo)
+;(define peg-make-definition peg-make-definition-with-recursion)
+;(load "nile-parser.l")
+
 (define nile-indentation 0)
 
 { <nile-parser> : <parser> ()
@@ -127,3 +135,38 @@
   error         = -> (error "error in Nile program near: "(parser-stream-context self.source)) ;
   program       = (EOL* definition)*:defs EOL* (!. | error) -> defs ;
 }
+
+(define nile-TYPE-UNKNOWN (nile-typedef "UNKNOWN" ()))
+
+(define nile-prelude (list
+    (nile-typedef "Real" ())
+    (nile-opdef (nile-opsig "-" (list (nile-typedvar "a" "Real"))                            "Real") () ())
+    (nile-opdef (nile-opsig "<" (list (nile-typedvar "a" "Real") (nile-typedvar "b" "Real")) "Real") () ())
+    (nile-processdef (nile-processsig "DupZip" (list (nile-typedvar "p1" nile-TYPE-UNKNOWN)
+                                                     (nile-typedvar "p2" nile-TYPE-UNKNOWN)) nile-TYPE-UNKNOWN) () () ())
+    (nile-processdef (nile-processsig "Passthrough" () nile-TYPE-UNKNOWN) () () ())
+    (nile-processdef (nile-processsig "SortBy" (list (nile-typedvar "e" "Real")) nile-TYPE-UNKNOWN) () () ())))
+
+(define-function nile-compile (program)
+    (let ((defs (concat-list nile-prelude program))
+          (globals (map (lambda (def) (cons (name def) def)) defs))
+          (_ (list-do def defs (resolve-refs def globals)))
+          )
+     defs))
+
+(define-function concat-files (files)
+  (foldr (lambda (file string)
+    (let ((contents (input-stream-up-to (input-stream (open file) file) *end*)))
+      (concat-string contents string)))
+  "" files))
+
+(define nile-program
+  (let ((pstream (parser-stream (string-stream (concat-files *arguments*))))
+        (nparser (parser <nile-parser> pstream)))
+    (set *arguments* ())
+    ($program nparser)
+    (<parser>-result nparser)))
+
+(define nile-compiled-program (nile-compile nile-program))
+
+(map-with print-structure nile-compiled-program 0)
