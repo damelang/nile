@@ -1,4 +1,4 @@
-// last edited: 2011-10-28 14:47:23 by piumarta on debian.piumarta.com
+// last edited: 2011-12-13 14:12:22 by piumarta on emilia
 
 #define _ISOC99_SOURCE 1
 
@@ -2507,7 +2507,7 @@ int main(int argc, char **argv)
   while (--argc) {
     tmp= newPair(nil, tmp);
     setHead(tmp, newString(mbs2wcs(argv[argc])));
-  }	    
+  }
   arguments= define(get(globals, Variable,value), intern(L"*arguments*"), tmp);
 
   tmp= nil;		GC_UNPROTECT(tmp);
@@ -2533,35 +2533,43 @@ int main(int argc, char **argv)
 #endif
 
   while (is(Pair, get(arguments, Variable,value))) {
-    oop argl= get(arguments, Variable,value);
-    oop args= getHead(argl);				GC_PROTECT(args);
-    set(arguments, Variable,value, getTail(argl));
+    oop argl= get(arguments, Variable,value);		GC_PROTECT(argl);
+    oop args= getHead(argl);
+    oop argt= getTail(argl);
     wchar_t *arg= get(args, String,bits);
     if 	    (!wcscmp (arg, L"-v"))	{ ++opt_v; }
     else if (!wcscmp (arg, L"-b"))	{ ++opt_b; }
     else if (!wcscmp (arg, L"-g"))	{ ++opt_g;  opt_p= 0; }
-#if (!LIB_GC)
+#  if (!LIB_GC)
     else if (!wcsncmp(arg, L"-p", 2)) {
 	opt_g= 0;
 	opt_p= wcstoul(arg + 2, 0, 0);
 	if (!opt_p) opt_p= 1;
 	printf("profiling every %i mSec(s)\n", opt_p);
     }
-#endif
-    else {
-      if (!opt_b) {
-	replPath(L"boot.l");
-	opt_b= 1;
-      }
-#if (!LIB_GC)
-      if (opt_p) profilingEnable();
-#endif
-      replPath(arg);
-      repled= 1;
-#if (!LIB_GC)
-      if (opt_p) profilingDisable(0);
-#endif
-    }							GC_UNPROTECT(args);
+#  endif
+    else
+    {
+	if (!opt_b)
+	{
+	    replPath(L"boot.l");
+	    opt_b= 1;
+	}
+	else
+	{
+#          if (!LIB_GC)
+	    if (opt_p) profilingEnable();
+#	   endif
+	    set(arguments, Variable,value, argt);
+	    replPath(arg);
+	    repled= 1;
+#	   if (!LIB_GC)
+	    if (opt_p) profilingDisable(0);
+#	   endif
+	}
+	argt= get(arguments, Variable,value);
+    }
+    set(arguments, Variable,value, argt);		GC_UNPROTECT(argl);
   }
 
   if (opt_v) {

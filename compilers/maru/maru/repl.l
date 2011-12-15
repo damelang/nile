@@ -22,7 +22,7 @@
 
 (define-class <temp-grammar> <parser> ())
 
-(load "port.l")
+;;(load "port.l")
 (load "pretty-print.l")
 
 (define-form grammar-eval (rules expr)
@@ -57,6 +57,6 @@
 (define-function repl-file   (file prompt path)	(repl-stream (input-stream file path) prompt))
 (define-function repl-path   (path prompt)	(repl-file (or (open path) (error "cannot open: "path)) prompt path))
 
-(map-with repl-path *arguments* ())
+(while *arguments* (repl-path (next-argument) ()))
 
 (exit 0)

@@ -8,14 +8,17 @@
 (define-function indent (n . objs)
   (for (i 0 n) (print "  "))
   (and objs (apply print objs)))
-      
+
 (define print-structure-fields) ;; forward
 
-(define-selector print-structure (self n)	;; <--- this is the entry point, n = indentation level
+(define-function default-print-structure (self n)
   (let ((t (type-of self)))
     (if (<= t <context>)
 	(dumpln self)
       (print-structure-fields self (+ n 1) (array-at %structure-fields t)))))
+
+(define-selector print-structure (self n)	;; <--- this is the entry point, n = indentation level
+  (default-print-structure self n))
 
 (define-selector print-structure-simply? (self) ())
 

@@ -194,9 +194,9 @@
       (let ((head (apply function (map car lists))))
 	(cons head (apply map* (cons function (map cdr lists)))))))
 
-(define-function inject (op value list)
+(define-function foldr (op value list)
   (if (pair? list)
-      (op (car list) (inject op value (cdr list)))
+      (op (car list) (foldr op value (cdr list)))
     value))
 
 (set *expanders*   (array))	(define-form define-expand (type args . body)	`(set-array-at *expanders*   ,type (lambda ,args ,@body)))
@@ -811,6 +811,17 @@
 
 (define-form namespace (name)			`(set *globals* ,name))
 
+;;; command line
+
+(define *load-path*)
+
+(and (= "-L" (car *arguments*))
+     (let ()
+       (pop *arguments*)
+       (set *load-path* (pop *arguments*))))
+
+(define-form next-argument () '(pop *arguments*))
+
 ;;; load/save
 
 (define-function pval (expr)
@@ -819,8 +830,12 @@
     (and (> (verbose) 1) (println "=> "result))
     result))
 
+(define-function find-and-read (name)
+  (or (and *load-path* (read (concat-string *load-path* name)))
+      (read name)))
+
 (define-function load (name)
-  (let ((exps (read name)))
+  (let ((exps (find-and-read name)))
     (or exps (error "file not found or empty: "name))
     (list-do expr exps (pval expr))))
 

@@ -1,4 +1,4 @@
-;;(require "port.l")
+(require "port.l")
 
 (define pretty-on) ;; forward
 
