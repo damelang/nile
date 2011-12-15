@@ -1,6 +1,8 @@
-(define nile-TYPE-UNKNOWN) 
+(load "misc.l")
 
+(define nile-TYPE-UNKNOWN) 
 (load "nile-ast.l")
+(define nile-TYPE-UNKNOWN (nile-typedef "UNKNOWN" ()))
 
 (define peg-make-definition peg-make-definition-with-memo)
 ;(define peg-make-definition peg-make-definition-with-recursion)
@@ -133,12 +135,10 @@
   # Top level
   definition    = typedef | opdef | processdef ;
   error         = -> (error "error in Nile program near: "(parser-stream-context self.source)) ;
-  program       = (EOL* definition)*:defs EOL* (!. | error) -> defs ;
+  start         = (EOL* definition)*:defs EOL* (!. | error) -> defs ;
 }
 
-(define nile-TYPE-UNKNOWN (nile-typedef "UNKNOWN" ()))
-
-(define nile-prelude (list
+(define nile-prelude-ast (list
     (nile-typedef "Real" ())
     (nile-opdef (nile-opsig "-" (list (nile-typedvar "a" "Real"))                            "Real") () ())
     (nile-opdef (nile-opsig "<" (list (nile-typedvar "a" "Real") (nile-typedvar "b" "Real")) "Real") () ())
@@ -147,26 +147,16 @@
     (nile-processdef (nile-processsig "Passthrough" () nile-TYPE-UNKNOWN) () () ())
     (nile-processdef (nile-processsig "SortBy" (list (nile-typedvar "e" "Real")) nile-TYPE-UNKNOWN) () () ())))
 
-(define-function nile-compile (program)
-    (let ((defs (concat-list nile-prelude program))
+(define-function nile-compile-ast (ast)
+    (let ((defs (concat-list nile-prelude-ast ast))
           (globals (map (lambda (def) (cons (name def) def)) defs))
           (_ (list-do def defs (resolve-refs def globals)))
           )
-     defs))
+        defs))
 
-(define-function concat-files (files)
-  (foldr (lambda (file string)
-    (let ((contents (input-stream-up-to (input-stream (open file) file) *end*)))
-      (concat-string contents string)))
-  "" files))
+(let ((stream (string-stream (concat-files *arguments*)))
+      (ast (invoke-parser <nile-parser> $start stream))
+      (result (nile-compile-ast ast)))
+    (map-with print-structure result 0))
 
-(define nile-program
-  (let ((pstream (parser-stream (string-stream (concat-files *arguments*))))
-        (nparser (parser <nile-parser> pstream)))
-    (set *arguments* ())
-    ($program nparser)
-    (<parser>-result nparser)))
-
-(define nile-compiled-program (nile-compile nile-program))
-
-(map-with print-structure nile-compiled-program 0)
+(set *arguments* ())

@@ -1,0 +1,11 @@
+(define-function concat-files (files)
+  (foldr (lambda (file string)
+    (let ((contents (input-stream-up-to (input-stream (open file) file) *end*)))
+      (concat-string contents string)))
+  "" files))
+
+(define-function invoke-parser (parser-class rule stream)
+    (let ((pstream (parser-stream stream))
+          (p (parser parser-class pstream)))
+        (rule p)
+        (<parser>-result p)))
