@@ -16,10 +16,10 @@
 #define INPUT_MAX (2 * INPUT_QUOTA)
 
 typedef enum {
-    NILE_BLOCKED_ON_GATE,
+    NILE_NOT_BLOCKED,
     NILE_BLOCKED_ON_PRODUCER,
     NILE_BLOCKED_ON_CONSUMER,
-    NILE_NOT_BLOCKED,
+    NILE_BLOCKED_ON_GATE,
 } nile_ProcessState_t;
 
 struct nile_Process_ {
@@ -189,6 +189,8 @@ static int
 nile_Process_block_on_producer (nile_Process_t *p)
 {
     nile_ProcessState_t pstate = -1;
+    if (!p->producer)
+        return 0;
     nile_Lock_acq (&p->lock);
         p->state = NILE_BLOCKED_ON_PRODUCER;
         pstate = p->producer ? p->producer->state : pstate;
@@ -199,12 +201,17 @@ nile_Process_block_on_producer (nile_Process_t *p)
 static nile_Heap_t
 nile_Process_remove (nile_Process_t *p, nile_Thread_t *thread, nile_Heap_t heap);
 
+static nile_Buffer_t *
+nile_Funnel_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out);
+
 static nile_Heap_t
 nile_Process_schedule (nile_Process_t *p, nile_Thread_t *thread, nile_Heap_t heap)
 {
     if (!p->body)
         return nile_Process_remove (p, thread, heap);
-    if (p->input.n >= INPUT_QUOTA || !p->producer || !nile_Process_block_on_producer (p)) {
+    if (p->body == nile_Funnel_body)
+        p->state = NILE_NOT_BLOCKED;
+    else if (p->input.n >= INPUT_QUOTA || !nile_Process_block_on_producer (p)) {
         p->state = NILE_NOT_BLOCKED;
         nile_Thread_append_to_q (thread, p);
     }
@@ -338,7 +345,7 @@ nile_Process_swap (nile_Process_t *p, nile_Process_t *sub, nile_Buffer_t *out)
         nile_Process_pipe (p, sub, consumer, NILE_NULL);
     }
     p->body = NULL;
-    if (!p->producer || !nile_Process_block_on_producer (p))
+    if (!nile_Process_block_on_producer (p))
         thread->private_heap = nile_Process_remove (p, thread, thread->private_heap);
     return NULL;
 }
@@ -364,7 +371,7 @@ nile_Process_handle_out_of_input (nile_Process_t *p, nile_Buffer_t *out)
 {
     nile_Thread_t *thread = nile_Process_deactivate (p, out);
 
-    if (p->producer && nile_Process_block_on_producer (p))
+    if (nile_Process_block_on_producer (p))
         return;
     else if (p->producer)
         thread->private_heap = nile_Process_schedule (p->producer, thread, thread->private_heap);
@@ -427,9 +434,9 @@ nile_Process_run (nile_Process_t *p, nile_Thread_t *thread)
         out = p->body (p, NODE_TO_BUFFER (p->input.head), out);
         if (!out)
             return;
+        nile_Process_pop_input (p);
         if (out->tag == NILE_TAG_OOM)
             return (void) nile_Process_deactivate (p, NULL);
-        nile_Process_pop_input (p);
         if (out->tag == NILE_TAG_QUOTA_HIT)
             return nile_Process_handle_backpressure (p, out);
     }
@@ -534,62 +541,53 @@ nile_Identity (nile_Process_t *p, int quantum)
 /* Funnel process */
 
 typedef struct {
-    int            *i;
-    float          *data;
-    int             n;
+    int   *i;
+    float *data;
+    int    n;
 } nile_Funnel_vars_t;
 
 static nile_Buffer_t *
 nile_Funnel_prologue (nile_Process_t *p, nile_Buffer_t *out)
 {
+    nile_Process_prefix_input (p, NULL);
+    return out;
+}
+
+static nile_Buffer_t *
+nile_Funnel_body (nile_Process_t *p, nile_Buffer_t *in, nile_Buffer_t *out)
+{
     nile_Funnel_vars_t *vars = nile_Process_vars (p);
     nile_Funnel_vars_t v = *vars;
-    nile_Thread_t *thread = p->thread;
-    int quantum = p->consumer ? p->consumer->quantum : p->quantum;;
+    int quantum = p->consumer ? p->consumer->quantum : p->quantum;
     int m = (out->capacity / quantum) * quantum;
     int i = *(v.i);
 
-    for (;;) {
-        int q = (m < v.n - i) ? m : v.n - i;
+    while (i < v.n && !nile_Buffer_quota_hit (out)) {
+        int q = v.n - i;
+        q = m < q ? m : q;
         while (q--)
             nile_Buffer_push_tail (out, nile_Real (v.data[i++]));
-        if (i == v.n)
-            break;
-        out = nile_Process_append_output (p, out);
-        if (out->tag == NILE_TAG_QUOTA_HIT && p->consumer->input.n >= INPUT_QUOTA) {
-            if (p->consumer->state == NILE_BLOCKED_ON_PRODUCER)
-                p->heap = nile_Process_schedule (p->consumer, thread, p->heap);
-            else
-                break;
-        }
+        if (i < v.n)
+            out = nile_Process_append_output (p, out);
     }
-
     *(vars->i) = i;
-    if (i == v.n && !p->producer) {
+    if (i == v.n)
         out->tag = NILE_TAG_NONE;
-        return out;
-    }
-    nile_Process_deactivate (p, out);
-    return NULL;
+    return out;
 }
 
 nile_Process_t *
 nile_Funnel (nile_Process_t *init)
-{
-    nile_Process_t *p = nile_Process (init, 1, 0, nile_Funnel_prologue, NULL, NULL);
-    if (p)
-        p->state = NILE_BLOCKED_ON_GATE;
-    return p;
-}
+    { return nile_Process (init, 1, 0, NULL, nile_Funnel_body, NULL); }
 
 void
 nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
 {
-    int i = 0;
-    nile_Funnel_vars_t *vars;
-    nile_Thread_t *liaison;
+    nile_Funnel_vars_t *vars = nile_Process_vars (p);
     nile_Process_t *init;
-    if (!p || p->parent->thread->abort)
+    nile_Thread_t *liaison;
+    int i = 0;
+    if (!p)
         return;
     init = p->parent;
     liaison = nile_Process_deactivate (init, NULL);
@@ -597,16 +595,17 @@ nile_Funnel_pour (nile_Process_t *p, float *data, int n, int EOS)
         nile_Thread_work_until_below (liaison, &liaison->ngated, 2 * liaison->nthreads);
     if (liaison->q.n > 4 * liaison->nthreads)
         nile_Thread_work_until_below (liaison, &liaison->q.n, 2 * liaison->nthreads);
-    vars = nile_Process_vars (p);
     vars->i = &i;
     vars->data = data;
     vars->n = n;
     p->producer = EOS ? NULL : p->producer;
-    nile_Process_run (p, liaison);
-    if (i != n) {
-        nile_Thread_work_until_below (liaison, &p->consumer->input.n, INPUT_MAX);
-        nile_Process_activate (init, liaison);
-        return nile_Funnel_pour (p, data + i, n - i, EOS);
+    for (;;) {
+        p->prologue = nile_Funnel_prologue;
+        nile_Process_run (p, liaison);
+        if (i == n || liaison->abort)
+            break;
+        if (p->consumer->input.n > INPUT_MAX)
+            nile_Thread_work_until_below (liaison, (int *)&p->state, NILE_BLOCKED_ON_CONSUMER);
     }
     nile_Process_activate (init, liaison);
 }
