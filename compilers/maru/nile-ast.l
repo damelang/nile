@@ -12,7 +12,6 @@
 
 (define-function make-structure-method (spec struct-name)
   (let ((name (car spec)) (args (cadr spec)) (body (cddr spec)))
-    (println `(define-method ,name ,struct-name ,args ,body))
     `(define-method ,name ,struct-name ,args ,@body)))
 
 (define-form define-ast-node (name fields . methods)
@@ -24,27 +23,25 @@
 
 (define-method resolve-refs <string> (env)
   (or (cdr (assq self env)) (error self " is undefined")))
+(define-method get-decls <string> () ())
+
+(define-method resolve-refs <undefined> (env) self)
+(define-method get-decls <undefined> () ())
+
+(define-method get-decls <pair> ()
+  (foldr (lambda (e decls) (concat-list (get-decls e) decls))
+         () self))
 
 ;;;;;;;;;;;;;;;;;; AST NODES ;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-ast-node nile-typedvar (name type)
+(define-ast-node nile-vardecl (name type)
   (do-print () (print self.name":"self.type))
   (print-structure (n) (print self))
-  (name     () self.name)
+  (name () self.name)
+  (get-decls () (list (list self.name self)))
   (resolve-refs (env)
     (set self.type (resolve-refs self.type env))
-    self)
-  (resolve-types (env) self.type self))
-
-(define-method get-defs <string> ()
-  (list (cons self (nile-typedvar self nile-TYPE-UNKNOWN))))
-
-(define-ast-node nile-pattern (elements)
-  (do-print () (print self.elements))
-  (print-structure (n) (print self))
-  (get-defs () (foldr
-    (lambda (e defs) (concat-list (get-defs e) defs))
-    () self.elements)))
+    self))
 
 (define-ast-node nile-realexpr (real)
   (do-print () (print self.real))
@@ -91,35 +88,35 @@
     (set self.args (map-with resolve-refs self.args env))
     self))
 
-(define-ast-node nile-vardef (pattern value)
-  (get-defs () (get-defs self.pattern))
+(define-ast-node nile-vardef (decl value)
+  (get-decls () (get-decls self.decl))
   (resolve-refs (env)
     (set self.value (resolve-refs self.value env))
     self))
 
 (define-ast-node nile-instmt (values)
-  (get-defs () ())
+  (get-decls () ())
   (resolve-refs (env)
     (set self.values (map-with resolve-refs self.values env))
     self))
 
 (define-ast-node nile-outstmt (values)
-  (get-defs () ())
+  (get-decls () ())
   (resolve-refs (env)
     (set self.values (map-with resolve-refs self.values env))
     self))
 
 (define-ast-node nile-ifstmt (condition iftrue iffalse)
-  (get-defs () ())
+  (get-decls () ())
   (resolve-refs (env)
     (let ((tenv env) (fenv env))
       (set self.condition (resolve-refs self.condition env))
       (list-do stmt self.iftrue
         (resolve-refs stmt tenv)
-        (set tenv (concat-list (get-defs stmt) tenv)))
+        (set tenv (concat-list (get-decls stmt) tenv)))
       (list-do stmt self.iffalse
         (resolve-refs stmt fenv)
-        (set fenv (concat-list (get-defs stmt) fenv))))
+        (set fenv (concat-list (get-decls stmt) fenv))))
     self))
 
 (define-ast-node nile-tupletype (elements)
@@ -169,7 +166,7 @@
   (print-structure (n)
     (if (< n 2) (default-print-structure self n) (print self)))
   (name     () self.name)
-  (get-defs () (map (lambda (arg) (cons (name arg) arg)) self.args))
+  (get-decls () (get-decls self.args))
   (resolve-refs (env)
     (set self.args (map-with resolve-refs self.args env))
     (set self.type (resolve-refs self.type env))
@@ -182,28 +179,28 @@
   (name     () (name self.sig))
   (resolve-refs (env)
     (set self.sig (resolve-refs self.sig env))
-    (set env (concat-list (get-defs self.sig) env))
+    (set env (concat-list (get-decls self.sig) env))
     (list-do stmt self.stmts
       (resolve-refs stmt env)
-      (set env (concat-list (get-defs stmt) env)))
+      (set env (concat-list (get-decls stmt) env)))
     (if self.result (set self.result (resolve-refs self.result env)))
     self))
 
 (define-ast-node nile-processsig (name args type)
   (do-print () (print self.name))
   (name     () self.name)
-  (get-defs () (map (lambda (arg) (cons (name arg) arg)) self.args))
+  (get-decls () (get-decls self.args))
   (resolve-refs (env)
     (set self.args (map-with resolve-refs self.args env))
     (set self.type (resolve-refs self.type env))
     self))
 
-(define-ast-node nile-processbody (pattern stmts)
+(define-ast-node nile-processbody (vardecl stmts)
   (resolve-refs (env)
-    (set env (concat-list (get-defs self.pattern) env))
+    (set env (concat-list (get-decls self.vardecl) env))
     (list-do stmt self.stmts
       (resolve-refs stmt env)
-      (set env (concat-list (get-defs stmt) env)))
+      (set env (concat-list (get-decls stmt) env)))
     self))
 
 (define-ast-node nile-processdef (sig prologue body epilogue)
@@ -213,14 +210,14 @@
   (name     () (name self.sig))
   (resolve-refs (env)
     (set self.sig (resolve-refs self.sig env))
-    (set env (concat-list (get-defs self.sig) env))
+    (set env (concat-list (get-decls self.sig) env))
     (list-do stmt self.prologue
       (resolve-refs stmt env)
-      (set env (concat-list (get-defs stmt) env)))
+      (set env (concat-list (get-decls stmt) env)))
     (if self.body (set self.body (resolve-refs self.body env)))
     (list-do stmt self.epilogue
       (resolve-refs stmt env)
-      (set env (concat-list (get-defs stmt) env)))
+      (set env (concat-list (get-decls stmt) env)))
     self))
 
 (define-ast-node nile-processinst (name args)
@@ -235,7 +232,7 @@
     self))
 
 (define-ast-node nile-substmt (pexpr)
-  (get-defs () ())
+  (get-decls () ())
   (resolve-refs (env)
     (set self.pexpr (resolve-refs self.pexpr env))
     self))

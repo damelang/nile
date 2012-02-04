@@ -1,0 +1,40 @@
+- finish type resolution
+- still need to clean up gezira source code:
+    - bezier.nl is a bit of a mess
+    - clean up compositor.nl
+    - rewrite filter.nl
+- add the infinity symbol to the nile grammar
+- add epsilon to nile grammar, to be used a a variable name (and other letters like it? alpha, etc.)
+- have a verification pass on the AST to:
+    - restrict stmts to vardefs in operator definitions
+    - enforce single assignmen
+    - the "if" stmt is only allowed to appear as the last statement in a list of statements
+    - ???
+- several places should use symbols instead of strings
+- make ast nodes simply lists with a symbol at the head?
+  Then use pattern matching instead of method lookup?
+
+- maru-related
+    - we can speed up parsing significantly with memoization
+    - adding a profiler would help to address performance issues in an informed way
+    - rename concat-symbol to symbol-concat (and others like it)
+      There may be more function/method names that are inconsistent
+    - for map, inject, etc. what about making the function the last arg?
+      right now the other args, coming after, are lost visually.
+    - get left recursion to work?
+    - make it easier to go from file to string
+        (file->string "file")
+        or (file->string (open "file"))
+        or (string-from-file...
+        or (file-read-contents "file")
+    - make it easier to instantiate parser, run it, and get result?
+      (see my "invoke-parser" function)
+      Random ideas:
+
+        parser := NileParser new.
+        result := parser parse: stream. " 'start' rule implied "
+        result := parser parse: stream start: #start.
+        result := parser parse: (FileStream on: 'filename').
+        result := parser parse: (FileStream on: 'filename') start: #start.
+
+        (let ((result ($start (new <nile-parser> stream)))))
