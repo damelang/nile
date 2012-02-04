@@ -11,8 +11,15 @@ nile_startup (char *memory, int nbytes, int nthreads);
 void
 nile_sync (nile_Process_t *init);
 
-int
-nile_error (nile_Process_t *init);
+typedef enum {
+    NILE_STATUS_OK,
+    NILE_STATUS_OUT_OF_MEMORY,
+    NILE_STATUS_BAD_ARG,
+    NILE_STATUS_SHUTTING_DOWN
+} nile_Status_t;
+
+nile_Status_t
+nile_status (nile_Process_t *init);
 
 void
 nile_print_leaks (nile_Process_t *init);
