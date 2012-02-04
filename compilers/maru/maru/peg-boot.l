@@ -362,7 +362,7 @@
 
 ;; (map eval GEN)
 
-(define-class <peg> <parser> ())
+(define-class <peg> <parser> (grammar-name))
 
 (define GEN (peg-compile-rules '<peg> BEG))
 
@@ -370,13 +370,14 @@
 
 (define PEG)
 
-(define-function peg (stream)
+(define-function peg (stream name)
   (let ((self (new <peg>)))
-    (set (<peg>-source self) stream)
+    (set (<peg>-source       self) stream)
+    (set (<peg>-grammar-name self) stream)
     self))
 
 (let* ((s (parser-stream (string-stream peg-grammar-string)))
-       (p (peg s)))
+       (p (peg s '<peg>)))
   (while ($definition p)
     (set PEG (cons (<peg>-result p) PEG)))
   ($space p)
@@ -396,7 +397,7 @@
 
 (progress "dumping generated parser")
 
-(println "(define-class <peg> <parser> ())")
+(println "(define-class <peg> <parser> (grammar-name))")
 (map dumpln GEN)
 
 (progress "parser bootstrap complete")

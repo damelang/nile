@@ -661,7 +661,13 @@
 
 ;;;----------------------------------------------------------------
 
-(define-class <peg> <parser> ())
+(define-class <peg> <parser> (grammar-name))
+
+(define-function peg (name stream)
+  (let ((self (new <peg>)))
+    (set (<parser>-source self) stream)
+    (set (<peg>-grammar-name self) name)
+    self))
 
 (define %make-accessor %make-safe-accessor)
 
@@ -709,3 +715,19 @@
        (if (= key (caar where))
 	   (cdr where)
 	 (cons (car where) (%rm (cdr where) key)))))
+
+;;;----------------------------------------------------------------
+
+(define-function parse-file (grammar rule path)
+  (let* ((handle  (or (open path) (error "cannot open: "path)))
+	 (stream  (parser-stream (input-stream handle path)))
+	 (p       (parser grammar stream)))
+    (or (rule p)
+	(let ()
+	  (print "\nfailed to parse with gramamr "(name-of-type grammar)"."(<selector>-name rule)" near: ")
+	  (until (parser-stream-at-end stream)
+	    (print (format "%c" (parser-stream-next stream))))
+	  (println "<EOF>")
+	  (error "abort")))
+    (close handle)
+    (<parser>-result p)))

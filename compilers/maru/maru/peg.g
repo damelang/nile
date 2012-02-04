@@ -60,7 +60,7 @@ sexpr		= ("-"? digit+) @$#
 		| symbol
 		| "?".
 		| "\""  (!"\""  char)* $:e "\""					-> e
-		| "("  sexpression*:e (space dot sexpression:f)? space ")"	-> (set-list-source `(,@e ,@f) e)
+		| "("  sexpression*:e (space dot sexpression:f)? sspace ")"	-> (set-list-source `(,@e ,@f) e)
 		| "'"  sexpression:e						-> (list 'quote e)
 		| "`"  sexpression:e						-> (list 'quasiquote e)
 		| ",@" sexpression:e						-> (list 'unquote-splicing e)
@@ -114,27 +114,40 @@ expression	= sequence:s	( (bar sequence)+:t		-> `(match-first ,s ,@t)
 
 definition	= space identifier:id equals expression:e ";"	-> `(,id ,e) ;
 
-start		= definition ;
+start		= space
+		  (parser_spec | definition*):result
+		  ;
+
+varname		= symbol:s space -> s ;
+
+parser_spec	= varname:name colon varname:parent lparen (varname*):vars rparen
+		  definition*:definitions
+		  space (!. |					-> (error "error in grammar near: "(parser-stream-context self.source))
+                        )
+		  {gen_cola_parser name parent vars definitions}
+		;
 
 #----------------------------------------------------------------
 
+gen_cola_parser	= .:name .:parent .:vars .:definitions		-> (set (<peg>-grammar-name self) name)
+		  {gen_cola definitions}:definitions		-> `((define-class ,name ,parent ,vars) ,@definitions) ;
 
 gen_cola		= &gen_cola_value_declarations:a
 			  &gen_cola_effect_declarations:b
 			  &gen_cola_value_definitions:c
 			   gen_cola_effect_definitions:d	-> `( ,@a ,@b ,@c ,@d ) ;
 
-gen_cola_value_declarations	= gen_cola_value_declaration* ;
-gen_cola_effect_declarations	= gen_cola_effect_declaration* ;
+gen_cola_value_declarations	= `( gen_cola_value_declaration* :d ) -> d ;
+gen_cola_effect_declarations	= `( gen_cola_effect_declaration*:d ) -> d ;
 
 gen_cola_value_declaration	= `( .:id )			-> `(define-selector ,(concat-symbol '$ id)) ;
 gen_cola_effect_declaration	= `( .:id )			-> `(define-selector ,(concat-symbol '$$ id)) ;
 
-gen_cola_value_definitions	= gen_cola_value_definition* ;
-gen_cola_effect_definitions	= gen_cola_effect_definition* ;
+gen_cola_value_definitions	= `( gen_cola_value_definition* :d ) -> d ;
+gen_cola_effect_definitions	= `( gen_cola_effect_definition*:d ) -> d ;
 
-gen_cola_value_definition	= `( .:id &{findvars ()}:vars value:exp )  -> `(define-method ,(concat-symbol '$ id) <peg> () (let ,vars ,exp)) ;
-gen_cola_effect_definition	= `( .:id &{findvars ()}:vars effect:exp ) -> `(define-method ,(concat-symbol '$$ id) <peg> () (let ,vars ,exp)) ;
+gen_cola_value_definition	= `( .:id &{findvars ()}:vars value:exp )  -> `(define-method ,(concat-symbol  '$ id) ,(<peg>-grammar-name self) () (let ,vars ,exp)) ;
+gen_cola_effect_definition	= `( .:id &{findvars ()}:vars effect:exp ) -> `(define-method ,(concat-symbol '$$ id) ,(<peg>-grammar-name self) () (let ,vars ,exp)) ;
 
 findvars = .:vars `( 'assign-result .:name {findvars vars}:vars		   -> (if (assq name vars) vars (cons (cons name) vars))
 		   | 'result-expr		-> vars
@@ -143,10 +156,10 @@ findvars = .:vars `( 'assign-result .:name {findvars vars}:vars		   -> (if (assq
 		   ) ;
 
 value =
-`( 'match-rule .:name .+:args		-> `(let ()
+`( 'match-rule .:name .+:args		-> `(let ((pos (<parser-stream>-position self.source)))
    	       	      			      ,@(map (lambda (arg) (list 'parser-stream-push 'self.source arg)) args)
 					      (or (,(concat-symbol '$ name) self)
-					      (let () (set (<parser-stream>-position self.source) pos) ())))
+						  (let () (set (<parser-stream>-position self.source) pos) ())))
  | 'match-rule .:name			-> `(,(concat-symbol '$ name) self)
  | 'match-rule-in .:type .:name .+:args	-> `(let ((pos (<parser-stream>-position self.source))
 						  (_p  (parser ,(concat-symbol '< (concat-symbol type '>)) self.source)))
@@ -206,7 +219,7 @@ value =
  ) ;
 
 effect =
-`( 'match-rule .:name .+:args		-> `(let ()
+`( 'match-rule .:name .+:args		-> `(let ((pos (<parser-stream>-position self.source)))
    	       	      			      ,@(map (lambda (arg) (list 'parser-stream-push 'self.source arg)) args)
 					      (or (,(concat-symbol '$$ name) self)
 					      (let () (set (<parser-stream>-position self.source) pos) ())))

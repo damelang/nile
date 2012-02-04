@@ -6,7 +6,7 @@
   (if args
       `(match-save
 	 (let ()
-	   ,@(map (lambda (arg) (list 'parser-stream-push 'self.source arg)) args)
+	   ,@(list-reverse! (map (lambda (arg) (list 'parser-stream-push 'self.source arg)) args))
 	   (or (,(concat-symbol '$ name) self)
 	       (match-ko))))
     `(,(concat-symbol '$ name) self)))
@@ -17,13 +17,13 @@
     (if args
      `(match-save
         (let ((_p (parser ,tname self.source)))
-	  ,@(map (lambda (arg) (list 'parser-stream-push 'self.source arg)) args)
+	  ,@(list-reverse! (map (lambda (arg) (list 'parser-stream-push 'self.source arg)) args))
           (let ((_s (,rname _p)))
 	    (if _s
 		(let () (set self.result (<parser>-result _p)) _s))
 	    (match-ko))))
      `(let ((_p (parser ,tname self.source)))
-	,@(map (lambda (arg) (list 'parser-stream-push 'self.source arg)) args)
+	,@(list-reverse! (map (lambda (arg) (list 'parser-stream-push 'self.source arg)) args))
 	(let ((_s (,rname _p)))
 	  (and _s
 	       (let () (set self.result (<parser>-result _p)) _s)))))))
