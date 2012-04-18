@@ -1,0 +1,107 @@
+<html>
+
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/> 
+    <title>
+      Nile Compiler
+    </title>
+
+    <script src="prototype.js"></script>
+    <script src="ometa-lib.js"></script>
+    <script src="ometa-base.js"></script>
+    <script src="ometa-parser.js"></script>
+    <script src="bs-js-compiler.js"></script>
+    <script src="bs-ometa-compiler.js"></script>
+    <script src="bs-ometa-optimizer.js"></script>
+    <script src="bs-ometa-js-compiler.js"></script>
+
+    <script src="nile-ast.js"></script>
+
+    <script type="text/javascript">
+      var nileGrammarFile = "nile-grammar.ojs";
+
+      function translateGrammar(grammar) {
+          var tree = BSOMetaJSParser.matchAll(grammar, "topLevel", undefined,
+            function(m, i) { throw objectThatDelegatesTo(fail, {errorPos: i}) });
+          var code = BSOMetaJSTranslator.match(tree, "trans", undefined,
+            function(m, i) { throw "Error translating OMeta grammar!"; });
+          eval(code);
+      }
+
+      new Ajax.Request(nileGrammarFile, {
+        method: 'get',
+        onException: function(request, error) { alert("Error compiling grammar:" + error); },
+        onSuccess:   function(transport)      { translateGrammar(transport.responseText); }
+      });
+
+      function compile() {
+        var source = document.getElementById('sourcecode').value;
+        var tree = NileParser.matchAll(source, 'start');
+        document.getElementById('ast').value = tree.join("");
+      }
+    </script>
+  </head>
+
+  <body>
+
+    <textarea id="sourcecode" cols="80" rows="40">
+-- Types
+
+type Boolean
+type Integer
+type Real
+
+-- Operators
+
+¬(a:Boolean) : Boolean
+
+(a:Boolean ∨ b:Boolean) : Boolean
+
+(a:Boolean ∧ b:Boolean) : Boolean
+
+-(a:Real) : Real
+
+√(a:Real) : Real
+
+⌈(a:Real)⌉ : Real
+
+⌊(a:Real)⌋ : Real
+
+(a:Real + b:Real) : Real
+
+(a:Real - b:Real) : Real
+
+(a:Real   b:Real) : Real
+
+(a:Real / b:Real) : Real
+
+(a:Real = b:Real) : Boolean
+
+(a:Real ≠ b:Real) : Boolean
+
+(a:Real < b:Real) : Boolean
+
+(a:Real ≤ b:Real) : Boolean
+
+(a:Real > b:Real) : Boolean
+
+(a:Real ≥ b:Real) : Boolean
+
+-- Processes
+
+Passthrough () : α >> α
+
+Reverse () : α >> α
+
+SortBy (f:Integer) : α >> α
+
+DupZip (p1:α >> β, p2:α >> γ) : α >> (β, γ)
+
+DupCat (p1:α >> β, p2:α >> β) : α >> β
+    </textarea>
+    <button type="button" onclick="compile();">Compile</button>
+    <textarea id="ast" cols="100" rows="40"></textarea>
+
+  </body>
+
+</html>
