@@ -98,6 +98,441 @@ SortBy (f:Integer) : α >> α
 DupZip (p1:α >> β, p2:α >> γ) : α >> (β, γ)
 
 DupCat (p1:α >> β, p2:α >> β) : α >> β
+
+type Color  = (a:Real, r:Real, g:Real, b:Real)
+type Point  = (x:Real, y:Real)
+type Vector = (x:Real, y:Real)
+type Matrix = (a:Real, b:Real, c:Real, d:Real, e:Real, f:Real)
+type Bezier = (A:Point, B:Point, C:Point)
+type EdgeSample    = (x:Real, y:Real, a:Real, h:Real)
+type EdgeSpan      = (x:Real, y:Real, c:Real, l:Real)
+type PixelCoverage = (x:Real, y:Real, c:Real, i:Real)
+
+type Texture    = Point >> Color
+type Compositor = (Color, Color) >> Color
+type ColorSpans = (Real, Color) >> (Real, Color)
+
+|(a:Real)| : Real
+    { -a, if a < 0; a }
+
+(a:Real ? b:Real) : Real
+    { a, if a ≠ 0; b }
+
+(a:Real % n:Real) : Real
+    b = a / (n ? 1)
+    a - ⌊b⌋n
+
+(a:Real ◁ b:Real) : Real
+    { a, if a < b; b }
+
+(a:Real ▷ b:Real) : Real
+    { a, if a > b; b }
+
+(a:Real ~ b:Real) : Real
+    (a + b) / 2
+
+(A:Color + B:Color) : Color
+    (A.a + B.a, A.r + B.r, A.g + B.g, A.b + B.b)
+
+(s:Real A:Color) : Color
+    (a, r, g, b) = A
+    (sa, sr, sg, sb)
+
+(A:Color ⊕ B:Color) : Color
+    (1 - B.a)A + (1 - A.a)B
+
+(u:Vector ≠ v:Vector) : Boolean
+    ((x1, y1), (x2, y2)) = (u, v)
+    x1 ≠ x2 ∨ y1 ≠ y2
+
+(u:Vector ? v:Vector) : Vector
+    { u, if u ≠ 0; v }
+
+(u:Vector ∙ v:Vector) : Real
+    ((x1, y1), (x2, y2)) = (u, v)
+    x1y1 + x2y2
+
+‖(u:Vector)‖ : Real
+    √(u ∙ u) 
+
+(u:Vector / s:Real) : Vector
+    (u.x / s, u.y / s)
+
+^(u:Vector) : Vector
+    { u / ‖u‖, if ‖u‖ ≠ 0; 0 }
+
+(A:Point ⟂ B:Point) : Vector
+    ((x1, y1), (x2, y2)) = (A, B)
+    v:Vector = (y1 - y2, x2 - x1)
+    ^v
+
+(M:Matrix P:Point) : Point
+    (a, b, c, d, e, f) = M
+    (x, y) = P
+    (ax + cy + e, bx + dy + f)
+
+DecomposeBeziers () : Bezier >> EdgeSample
+    ∀ (A, B, C)
+        ("inx", "iny") = (⌊A⌋ = ⌊C⌋ ∨ ⌈A⌉ = ⌈C⌉)
+        if "inx" ∧ "iny"
+            P = ⌊A⌋ ◁ ⌊C⌋
+            w = P.x + 1 - (C.x ~ A.x)
+            h = C.y - A.y
+            >> (P.x + 0.5, P.y + 0.5, wh, h)
+        else
+            M = (A ~ B) ~ (B ~ C)
+            ("min", "max") = (⌊M⌋, ⌈M⌉)
+            N = { "min", if |(M - "min")| < 0.1
+                  "max", if |(M - "max")| < 0.1
+                      M,               otherwise }
+            << (N, B ~ C, C) << (A, A ~ B, N) 
+
+CombineEdgeSamples () : EdgeSample >> EdgeSpan
+    (x, y, A, H) = (0, 0, 0, 0)
+    ∀ (x', y', a, h)
+        if y = y'
+            if x = x'
+                (A', H') = (A + a, H + h)
+            else
+                (A', H') = (H + a, H + h)
+                l = {x' - x - 1, if |H| > 0.5; 0}
+                >> (x, y, |A| ◁ 1, l)
+        else
+            (A', H') = (a, h)
+            >> (x, y, |A| ◁ 1, 0)
+    >> (x, y, |A| ◁ 1, 0)
+
+Rasterize () : Bezier >> EdgeSpan
+    → DecomposeBeziers () → SortBy (1) → SortBy (2) → CombineEdgeSamples ()
+
+RectangleSpans ("min":Point, "max":Point) : Point >> EdgeSpan
+    l = ("max" - "min").x - 1
+    << "min" + 0.5
+    ∀ (x, y)
+        if y < "max".y
+            >> (x, y, 1, l)
+            << (x, y + 1)
+
+LinearGradient (s00:Real, "dsdx":Real, "dsdy":Real) : Point >> Real
+    ∀ (x, y)
+        >> s00 + x"dsdx" + y"dsdy"
+
+RadialGradient (C:Point, r:Real) : Point >> Real
+    ∀ P
+        >> ‖(P - C)‖ / r
+
+PadGradient () : Real >> Real
+    ∀ s
+        >> 0 ▷ s ◁ 1
+
+RepeatGradient () : Real >> Real
+    ∀ s
+        >> s - ⌊s⌋
+
+ReflectGradient () : Real >> Real
+    ∀ s
+        >> |((|(s - 1)| % 2 - 1))|
+
+ColorSpansBegin () : Real >> (Real, Color)
+    ∀ s
+        >> (s, 0)
+
+ColorSpan (S1:Color, S2:Color, l:Real) : ColorSpans
+    d = (S2 - S1) / l
+    ∀ (s, C)
+        D = { S1 + sd, if s ≥ 0; C }
+        >> (s - l, D)
+
+ColorSpansEnd () : (Real, Color) >> Color
+    ∀ (_, (a, r, g, b))
+        >> (a, ar, ag, ab)
+
+ApplyColorSpans (s:ColorSpans) : Real >> Color
+    → ColorSpansBegin () → s → ColorSpansEnd ()
+
+CompositeClear () : Compositor
+    ∀ (A, B)
+        >> 0
+
+CompositeSrc () : Compositor
+    ∀ (A, B)
+        >> A
+
+CompositeDst () : Compositor
+    ∀ (A, B)
+        >> B
+
+CompositeOver () : Compositor
+    ∀ (A, B)
+        >> A + (1 - A.a)B 
+
+CompositeDstOver () : Compositor
+    ∀ (A, B)
+        >> B + (1 - B.a)A 
+
+CompositeSrcIn () : Compositor
+    ∀ (A, B)
+        >> B.a A 
+
+CompositeDstIn () : Compositor
+    ∀ (A, B)
+        >> A.a B
+
+CompositeSrcOut () : Compositor
+    ∀ (A, B)
+        >> (1 - B.a)A 
+
+CompositeDstOut () : Compositor
+    ∀ (A, B)
+        >> (1 - A.a)B 
+
+CompositeSrcAtop () : Compositor
+    ∀ (A, B)
+        >> B.a A + (1 - A.a)B 
+
+CompositeDstAtop () : Compositor
+    ∀ (A, B)
+        >> A.a B + (1 - B.a)A
+
+CompositeXor () : Compositor
+    ∀ (A, B)
+        >> A ⊕ B
+
+CompositePlus () : Compositor
+    ∀ (A, B)
+        >> (A + B) ◁ 1
+
+CompositeMultiply () : Compositor
+    ∀ (A, B)
+        >> AB + (A ⊕ B)
+
+CompositeScreen () : Compositor
+    ∀ (A, B)
+        >> A + B - AB
+
+CompositeOverlay () : Compositor
+    ∀ (A, B)
+        C = 2AB + (A ⊕ B)
+        D = A.a B.a - 2(B.a - B)(A.a - A) + (A ⊕ B)
+        >> {C, if 2B < B.a; D}
+
+CompositeDarken () : Compositor
+    ∀ (A, B)
+        >> (B.a A) ◁ (A.a B) + (A ⊕ B)
+
+CompositeLighten () : Compositor
+    ∀ (A, B)
+        >> (B.a A) ▷ (A.a B) + (A ⊕ B)
+
+CompositeColorDodge () : Compositor
+    ∀ (A, B)
+        C = A.a B.a + (A ⊕ B)
+        D = ((A.a B) / (1 - A / A.a) + (A ⊕ B)) ◁ 1
+        >> {C, if (B.a A) + (A.a B) ≥ (A.a B.a); D}
+
+CompositeColorBurn () : Compositor
+    ∀ (A, B)
+        C = B.a A + A.a B
+        D = A.a(C - A.a × B.a) / A + (A ⊕ B)
+        >> {A ⊕ B, if C ≤ A.a × B.a; D}
+
+CompositeHardLight () : Compositor
+    ∀ (A, B)
+        C = 2AB + (A ⊕ B)
+        D = (A.a B.a) - 2(B.a - B)(A.a - A) + (A ⊕ B)
+        >> {C, if 2A < A.a; D}
+
+CompositeSoftLight () : Compositor
+    ∀ (A, B)
+        C = (1 - B / B.a)(2A - A.a)
+        D = B(A.a - C) + (A ⊕ B)
+        E = B(A.a - C(3 - 8B / B.a)) + (A ⊕ B)
+        F = (A.a B) + (√(B / B.a)B.a - B)(2A - A.a) + (A ⊕ B)
+        >> {D, if 2A < A.a; E, if 8B ≤ B.a; F}
+
+CompositeDifference () : Compositor
+    ∀ (A, B)
+        C = A + B - 2((B.a A) ◁ (A.a B))
+        >> (C.a + (A.a B.a), C.r, C.g, C.b)
+
+CompositeExclusion () : Compositor
+    ∀ (A, B)
+        C = B.a A + A.a B - 2AB + (A ⊕ B)
+        >> (A.a B.a + C.a, C.r, C.g, C.b)
+
+CompositeSubtract () : Compositor
+    ∀ (A, B)
+        >> 0 ▷ (A + B - 1)
+
+CompositeInvert () : Compositor
+    ∀ (A, B)
+        >> (B.a, 1 - B.r, 1 - B.g, 1 - B.b)
+
+InverseOver (A : Real) : Color >> Color
+    ∀ C
+        D = C / (C.a ? 1)
+        E = A(1 - D) + D(1 - A)
+        >> (C.a, C.a E.r, C.a E.g, C.a E.b)
+
+TransformBeziers (M:Matrix) : Bezier >> Bezier
+    ∀ (A, B, C)
+        >> (MA, MB, MC)
+
+ClipBeziers ("min":Point, "max":Point) : Bezier >> Bezier
+    ∀ (A, B, C)
+        "bmin"    = A ◁ B ◁ C
+        "bmax"    = A ▷ B ▷ C
+        ("inx",  "iny" ) = "min"  ≤ "bmin" ∧ "bmax" ≤ "max"
+        ("outx", "outy") = "bmax" ≤ "min"  ∨ "max"  ≤ "bmin"
+        if "inx" ∧ "iny"
+            >> (A, B, C)
+        else if "outx" ∨ "outy"
+            A' = "min" ▷ A ◁ "max"
+            C' = "min" ▷ C ◁ "max"
+            >> (A', A' ~ C', C')
+        else
+            M = (A ~ B) ~ (B ~ C)
+            N = { "min",  if |(M - "min")| < 0.1
+                  "max",  if |(M - "max")| < 0.1
+                      M,                otherwise }
+            << (N, B ~ C, C) << (A, A ~ B, N) 
+
+CalculateBounds () : Bezier >> (Point, Point)
+    ("min":Point, "max":Point) = (∞, -∞)
+    ∀ (A, B, C)
+        if A.y ≠ B.y ∨ B.y ≠ C.y
+            "min'" = "min" ◁ A ◁ B ◁ C
+            "max'" = "max" ▷ A ▷ B ▷ C
+    >> ("min", "max")
+
+TransformPoints (M:Matrix) : Point >> Point
+    ∀ P
+        >> MP
+
+PadTexture (D:Point) : Point >> Point
+    ∀ P
+        >> 0 ▷ P ◁ D
+
+RepeatTexture (D:Point) : Point >> Point
+    ∀ P
+        Q = P / D
+        >> D (Q - ⌊Q⌋)
+
+ReflectTexture (D:Point) : Point >> Point
+    ∀ P
+        Q = P / D
+        R = |(Q - 1)| % 2 - 1
+        >> D |R|
+
+UniformColor (C:Color) : Texture
+    (a, r, g, b) = C
+    ∀ _
+        >> (a, ar, ag, ab)
+
+CompositeTextures (t1:Texture, t2:Texture, c:Compositor) : Texture
+    → DupZip (t1, t2) → c
+
+ExpandSpans () : EdgeSpan >> PixelCoverage
+    ∀ (x, y, c, l)
+        if c ≠ 0
+            >> (x, y, c, 1 - c)
+            if l > 0
+                << (x + 1, y, 1, l - 1)
+
+ExtractSamplePoints () : PixelCoverage >> Point
+    ∀ (x, y, _, _)
+        >> (x, y)
+
+ApplyTexture (t:Texture) : EdgeSpan >> (Color, PixelCoverage)
+    → ExpandSpans () → DupZip (→ ExtractSamplePoints () → t,
+                               → PassThrough ())
+
+OffsetBezier (o:Real, Z:Bezier) : Bezier >> Bezier
+    (A, B, C) = Z
+    (u, v) = (A ⟂ B, B ⟂ C)
+    M = (A ~ B) ~ (B ~ C)
+    if u ∙ v ≥ 0.9
+        w = (A ~ B) ⟂ (B ~ C)
+        D = A + ou
+        F = C + ov
+        N = M + ow
+        E = 2N - (D ~ F)
+        >> (D, E, F)
+    else if u ≠ 0 ∧ v ≠ 0
+        → OffsetBezier (o, (M, B ~ C, C)) → OffsetBezier (o, (A, A ~ B, M))
+
+MiterJoin (o:Real, l:Real, P:Point, u:Vector, v:Vector) : Bezier >> Bezier
+    (A, C) = (P + ou, P + ov)
+    w = (A ⟂ C) ? u
+    if u ∙ w ≥ 1 / l
+        p = o / (u ∙ w)
+        M = P + pw
+        >> (M, M ~ C, C) >> (A, A ~ M, M)
+    else
+        >> (A, A ~ C, C)
+
+RoundJoin (o:Real, P:Point, u:Vector, v:Vector) : Bezier >> Bezier
+    (A, C) = (P + ou, P + ov)
+    w = (A ⟂ C) ? u
+    if u ∙ w ≥ 0.9
+        N = P + ow
+        B = 2N - (A ~ C)
+        >> (A, B, C)
+    else
+        → RoundJoin (o, P, u, w) → RoundJoin (o, P, w, v)
+
+JoinBeziers (o:Real, l:Real, Y:Bezier, Z:Bezier) : Bezier >> Bezier
+    (u, v) = (Y.B ⟂ Y.C, Z.A ⟂ Z.B)
+    if l < 1
+        → RoundJoin (o, Y.C, u, v)
+    else
+        → MiterJoin (o, l, Y.C, u, v)
+
+CapBezier (o:Real, c:Real, Z:Bezier) : Bezier >> Bezier
+    (A, B, C) = Z
+    u = B ⟂ C
+    v:Vector = (u.y, -u.x)
+    if c < 0
+        → RoundJoin (o, C, u, -u)
+    else
+        D = C + ou
+        G = C - ou
+        E = D + cv
+        F = G + cv
+        >> (D, D ~ E, E) >> (E, E ~ F, F) >> (F, F ~ G, G)
+
+OffsetAndJoin (o:Real, l:Real, c:Real, Z1:Bezier, Y:Bezier) : Bezier >> Bezier
+    ∀ Z
+        → OffsetAndJoin (o, l, c, Z1, Z) → JoinBeziers (o, l, Y, Z) → OffsetBezier (o, Y)
+    if Y.C.x = Z1.A.x ∧ Y.C.y = Z1.A.y
+        → JoinBeziers (o, l, Y, Z1) → OffsetBezier (o, Y)
+    else
+        → CapBezier (o, c, Y) → OffsetBezier (o, Y)
+
+StrokeOneSide (w:Real, l:Real, c:Real) : Bezier >> Bezier
+    ∀ Z1
+        → OffsetAndJoin (w / 2, l, c, Z1, Z1)
+
+ReverseBeziers () : Bezier >> Bezier
+    ∀ (A, B, C)
+        >> (C, B, A)
+
+SanitizeBezierPath () : Bezier >> Bezier
+    ∀ (A, B, C)
+        (u, v) = (A ⟂ B, B ⟂ C)
+        M = A ~ C
+        if u ∙ v < -0.9999
+            << (A, M, C)
+        else if u ≠ 0 ∧ v ≠ 0
+            >> (A, B, C)
+        else if (A ⟂ M) ≠ 0 ∧ (M ⟂ C) ≠ 0
+            >> (A, M, C)
+
+StrokeBezierPath (w:Real, l:Real, c:Real) : Bezier >> Bezier
+    → SanitizeBezierPath () →
+      DupCat (→ StrokeOneSide (w, l, c),
+              → Reverse () → ReverseBeziers () → StrokeOneSide (w, l, c))
+
     </textarea>
     <button type="button" onclick="compile();">Compile</button>
     <textarea id="ast" cols="100" rows="40"></textarea>
