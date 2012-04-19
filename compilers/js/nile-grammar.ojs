@@ -33,7 +33,8 @@ intliteral    = <digit+ | "∞"> ,
 realliteral   = <digit+ "." digit+> ,
 typename      = <alphanum+> ,
 processname   = <alphanum+> ,
-opname        = ~"--" <opsym+ | "\\"alphanum+> ,
+opname        = ~"--" ~"<<" ~">>"
+                <opsym+ | "\\"alphanum+> ,
 varname       = <alpha digit* "'"?>
               | DQUOTE <(~DQUOTE anything)+>:n DQUOTE -> n ,
 null          = -> null ,
