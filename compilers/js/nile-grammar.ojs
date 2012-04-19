@@ -4,7 +4,6 @@ ometa NileParser {
 range :x :y   = char:c ?(x <= c && c <= y)   -> c ,
 class :s      = char:c ?(s.indexOf(c) != -1) -> c,
 token :xs     = seq(xs) ,
-null          = -> null ,
 
 // Lexical rules
 CRLF          = "\n""\r"* | "\r""\n"* ,
@@ -36,6 +35,7 @@ processname   = <alphanum+> ,
 opname        = ~"--" <opsym+ | "\\"alphanum+> ,
 varname       = <alpha digit* "'"?>
               | DQUOTE <(~DQUOTE anything)+>:n DQUOTE -> n ,
+null          = -> null ,
 
 // Indentation rules
 EOL           = _ comment? CRLF _:spaces -> (self.col = spaces.length),
