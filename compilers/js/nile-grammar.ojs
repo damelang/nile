@@ -18,7 +18,8 @@ DQUOTE        = "\"" ,
 comment       = "--" (~CRLF anything)* ,
 opsym1        = class("∧∨") ,
 opsym2        = class("<>≤≥≠=") ,
-opsym3        = ~opsym1 ~opsym2 ~opsym4 class("-~!@#$%^&*+|¬²³‖⌈⌉⌊⌋▷◁⟂") |
+opsym3        = ~opsym1 ~opsym2 ~opsym4
+                class("-~!@#$%^&*+|¬²³‖⌈⌉⌊⌋▷◁⟂") |
                 range("\u2201", "\u221D") |
                 range("\u221F", "\u22FF") |
                 "?" | "[" | "]" ,
