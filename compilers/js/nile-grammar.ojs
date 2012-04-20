@@ -35,8 +35,7 @@ typename      = <alphanum+> ,
 processname   = <alphanum+> ,
 opname        = ~"--" ~"<<" ~">>"
                 <opsym+ | "\\"alphanum+> ,
-varname       = <alpha digit* "'"?>
-              | DQUOTE <(~DQUOTE anything)+>:n DQUOTE -> n ,
+varname       = <alpha alphanum* "'"?> ,
 null          = -> null ,
 
 // Indentation rules
