@@ -48,6 +48,7 @@ nile.defineASTNode = function(name, fieldnames) {
 }
 
 nile.defineASTNode("vardecl",      ["name", "type"]);
+nile.defineASTNode("primtype",     []);
 nile.defineASTNode("tupletype",    ["types"]);
 nile.defineASTNode("recordtype",   ["fields"]);
 nile.defineASTNode("processtype",  ["intype", "outtype"]);
@@ -59,8 +60,8 @@ nile.defineASTNode("condcase",     ["value", "condition"]);
 nile.defineASTNode("condexpr",     ["cases", "default"]);
 nile.defineASTNode("recfieldexpr", ["record", "field"]);
 nile.defineASTNode("opexpr",       ["op", "args"]);
-nile.defineASTNode("processinst",  ["process", "args"]);
-nile.defineASTNode("pipeline",     ["process", "downstream"]);
+nile.defineASTNode("processinst",  ["processdef", "args"]);
+nile.defineASTNode("pipeline",     ["producer", "consumer"]);
 nile.defineASTNode("varpat",       ["decls"]);
 nile.defineASTNode("vardef",       ["pat", "value"]);
 nile.defineASTNode("instmt",       ["values"]);
