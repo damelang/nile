@@ -87,7 +87,7 @@ opexpr1       = opexpr1:a " "+ &opsym1 opname:n " "+ opexpr2:b -> nile.opexpr(n,
 // Process pipelines
 processinst   = processname:n _(args|emptylist):as  -> nile.processinst(n, as) ,
 process       = processinst | varname ,
-pipeline      = RARROW process:p (pipeline|null):d -> nile.pipeline(p, d) ,
+pipeline      = RARROW process:p (pipeline|null):c -> nile.pipeline(p, c) ,
 
 expr          = pipeline | opexpr1 ,
 exprlist      = "("_ expr:e1 (COMMA expr)*:es _")" -> cons(e1, es) ,
@@ -117,7 +117,7 @@ stmt          = instmt | outstmt | ifstmt | substmt ,
 
 // Type definitions
 typedef       = "type "_ typename:n _"="_ type:t           -> nile.typedef(n,    t)
-              | "type "_ typename:n                        -> nile.typedef(n, null) ,
+              | "type "_ typename:n                        -> nile.typedef(n, nile.primtype()) ,
 
 // Operation definitions
 
