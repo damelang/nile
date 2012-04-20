@@ -1,0 +1,178 @@
+* { margin:0; padding:0; }
+
+body {
+    background-color: #ffffff;
+    font: normal 13px/1.65 "Helvetica", "Arial", sans-serif;
+    color: #000;
+    width:100%;
+    text-align: left;
+}
+
+#myViewer {
+    margin-left:20px;
+    margin-top:20px;
+}
+
+/* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */ 
+/* NileViewer */
+
+.NVPipeline {
+    width:100%;
+    font: normal 13px/1.65 "Helvetica Neue", "Arial", sans-serif;
+    color: #000;
+}
+
+.NVProcess {
+    position:relative;
+    width:100%;
+    height: 164px;
+}
+
+.NVProcessHeader {
+    position: absolute;
+    left:0px;
+    top:0px;
+    width: 200px;
+    height: inherit;
+    line-height: normal;
+    text-align: right;
+}
+
+.NVProcessTitle {
+    font-size: 13px;
+}
+
+.NVProcessName {
+    font-weight: bold;
+}
+
+.NVProcessParameters {
+}
+
+.NVProcessInput {
+    margin-top: 10px;
+}
+
+.NVProcessOutput {
+    margin-top: 10px;
+}
+
+.NVProcessIcons {
+    line-height: 1px;
+}
+
+.NVProcessIcon {
+    display: inline-block;
+    vertical-align: bottom;
+    background-color: #dae5ed;
+    width: 16px;
+    height: 16px;
+    border-right: 2px solid #fff;
+    border-bottom: 2px solid #fff;
+}
+
+.NVProcessIconInner {
+    display: inline-block;
+    vertical-align: bottom;
+    background-color: #a3bdd1;
+    width: 16px;
+    height: 16px;
+}
+
+.NVProcessIconSelected {
+    background-color: #000000;
+}
+
+.NVProcessIconHotSelected {
+    background-color: #ff0000;
+}
+
+.NVProcessIconsCaption {
+    font-size: 10px;
+    color: #637d91;
+    margin-top:0px;
+}
+
+.NVProcessCanvas {
+    position:absolute;
+    left:212px;
+    top:0px;
+    width:200px;
+    height: 150px;
+    background: #f8f8f8;
+    background: -webkit-radial-gradient(center, ellipse cover, rgba(255,255,255,1) 0%, rgba(225,225,225,1) 300%);
+    border: solid 1px #fff;
+    -webkit-border-radius: 2px;
+    -webkit-box-shadow: 0px 0px 1px rgba(0,0,0,0.15), 0px 1px 4px rgba(0,0,0,0.25);
+}
+
+.NVProcessCode {
+    position:absolute;
+    left:440px;
+    top:0px;
+    width:300px;
+    height: auto;
+    font: 12px monospace;
+    color: #222;
+    white-space:pre;
+}
+
+.NVProcessCodeLine {
+}
+
+.NVProcessCodeLineHot {
+    font-weight: bold;
+    color: #ff0000;
+}
+
+
+/* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */ 
+/* generic */
+
+p {
+    margin-bottom:12px;
+}
+
+pre {
+    margin-bottom:12px;
+}
+
+strong {
+    font-weight:bold;
+    color: #f00;
+}
+
+b {
+    font-weight:bold;
+    color: #000;
+}
+
+a { 
+    text-decoration:underline; 
+    color: #933; 
+    border:none;
+}
+
+a:hover {
+    text-decoration:underline;
+    color: #933;
+}
+
+img { 
+    border:none;
+}
+
+ul {
+    margin-left:22px;
+    margin-bottom: 12px;
+}
+
+ol {
+    margin-left:22px;
+    margin-bottom: 12px;
+}
+
+li {
+    margin-bottom:8px;
+}
+

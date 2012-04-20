@@ -1,0 +1,172 @@
+todo
+----
+push back values have icon height scaled by 75% each time, to show recursion
+zoom and pan canvas
+expand subprocess
+trace selected object back and forward
+
+
+
+point = {
+  _type: Point,
+  x: {
+    _type: Real,
+    _value: 7
+  },
+  y: {
+    _type: Real,
+    _value: 10
+  },
+}
+
+tuple = {
+  _type: tupletype,
+  0: {
+    _type: Real,
+    _value: 7
+  },
+  1: {
+    _type: Real,
+    _value: 10
+  },
+}
+
+
+bezier = {
+  type: Bezier,
+  A: {
+    _type = Point,
+    x: {}
+    y: {}
+  },
+}
+
+
+trace of the iteration where it was produced
+trace of the iteration where it was consumed
+
+
+object = {
+    _producerTrace: {}
+    _consumerTraces: []
+    _recursionDepth: 2
+},
+
+trace = {
+    _consumedObject: {}
+    _producedObjects: []
+    _prefixedObjects: []
+},
+
+trace = {
+    _consumedObject: {}
+    lines = []
+},
+
+line.producedObjects()
+line.prefixedObjects()
+
+
+
+
+trace = [
+    {
+        type = VarDef,
+        line = 17,
+        vars = [
+            U = {
+                type = Real,
+                value = 7
+            }
+        ],
+    },
+],
+
+stream = [
+    {
+      class: PointClass,
+      x: {
+        class: RealClass,
+        value: 7
+      },
+      y: {
+        class: RealClass,
+        value: 10
+      },
+    }
+],
+
+process = {
+  type: StrokePath,
+  vars: {
+    w: {
+        class: RealClass,
+        value: 2
+    },
+    c: {
+        class: RealClass,
+        value: 2
+    },
+    t: {
+    }
+    A {
+    },
+    B {
+    },
+    M {
+        
+    }
+  }
+  producer: {
+  },
+  consumer: {
+  },
+  inputStream: [
+  ],
+  outputStream: [
+  ],
+ 
+  
+}
+
+
+
+  
+
+pipeline
+--------
+pipeline.getInitialDataset()
+pipeline.createProcess
+
+dataset
+-------
+dataset.getSourceProcesses();
+dataset.getDestinationProcesses();
+dataset.getType()
+dataset.getValues();
+dataset.setValues([]);
+
+process
+-------
+process.getName()
+process.setName("StrokeBezierPath")
+process.getParameters()
+process.setParameters([])
+process.getCode()
+process.setCode("")
+
+process.getSubprocess();
+process.getSourceDatasets();
+process.getDestinationDatasets();
+
+
+NVWorldView
+NVPipelineView
+NVDatasetView
+NVProcessView
+NVCodeView
+NVCanvasView
+
+
+
+
