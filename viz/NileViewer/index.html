@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <base target="_top">
+
+    <title>Nile Viewer</title>
+
+    <!-- style -->
+    <link rel="stylesheet" href="style.css" type="text/css">
+
+    <!-- MooTools -->
+    <script type="text/javascript" src="Lib/mootools.js"></script>
+
+    <!-- project -->
+    <script type="text/javascript" src="Project/Main.js"></script>
+    <script type="text/javascript" src="Project/NileViewer.js"></script>
+    <script type="text/javascript" src="Project/NileVM.js"></script>
+
+</head>
+
+<body>
+
+<div id="myViewer">
+</div>
+
+<div id="templates" style="display:none;">
+
+    <div class="NVPipeline">
+        <div class="NVProcess">
+            <div class="NVProcessHeader">
+                <div class="NVProcessTitle">
+                    <span class="NVProcessName">StrokeBezierPath</span>
+                    <span class="NVProcessParameters">(4,0,0)</span>
+                </div>
+                <div class="NVProcessInput">
+                    <div class="NVProcessIcons"></div>
+                    <div class="NVProcessIconsCaption">Input: 4 Beziers</div>
+                </div>
+                <div class="NVProcessOutput">
+                    <div class="NVProcessIcons"></div>
+                    <div class="NVProcessIconsCaption">Output: 6 Beziers</div>
+                </div>
+            </div>
+            <div class="NVProcessCanvas">
+                <canvas width="200" height="150"></canvas>
+            </div>
+            <div class="NVProcessCode"></div>
+        </div>
+    </div>
+</div>
+
+
+</body></html>
