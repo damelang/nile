@@ -275,8 +275,8 @@ var NVIconView = new Class({
         this.innerElement.setStyle("height", innerHeight);
         this.innerElement.setStyle("marginTop", this.height - innerHeight);
 
-        this.element.addEvent("mouseenter", this.mouseEntered.bind(this));
-        this.element.addEvent("mouseleave", this.mouseExited.bind(this));
+        this.element.addEvent("mouseenter", this.mouseEnter.bind(this));
+        this.element.addEvent("mouseleave", this.mouseLeave.bind(this));
     },
     
     setHighlight: function (color) {
@@ -292,11 +292,11 @@ var NVIconView = new Class({
         }
     },
 
-    mouseEntered: function () {
+    mouseEnter: function () {
         this.pipelineView.setHighlightedWithStreamItem(true, this.streamItem, this.parentView.isInput);
     },
     
-    mouseExited: function () {
+    mouseLeave: function () {
         this.pipelineView.setHighlightedWithStreamItem(false, this.streamItem, this.parentView.isInput);
     },
     
@@ -433,8 +433,11 @@ var NVCanvasView = new Class({
     getPoints: function () {
         var points = [];
         Array.each(this.stream, function (item) {
-            var obj = item.object;
-            points.append(NLObjectExtractPoints(obj));
+            var objectPoints = NLObjectExtractPoints(item.object);
+            Array.each(objectPoints, function (p) {
+                p.item = item;
+                points.push(p);
+            }, this);
         }, this);
         return points;
     },
@@ -442,8 +445,11 @@ var NVCanvasView = new Class({
     getBeziers: function () {
         var beziers = [];
         Array.each(this.stream, function (item) {
-            var obj = item.object;
-            beziers.append(NLObjectExtractBeziers(obj));
+            var objectBeziers = NLObjectExtractBeziers(item.object);
+            Array.each(objectBeziers, function (b) {
+                b.item = item;
+                beziers.push(b);
+            }, this);
         }, this);
         return beziers;
     },
@@ -483,6 +489,23 @@ var NVCanvasView = new Class({
     
     getTranslationWithMetrics: function (metrics) {
         return { x: -metrics.midPoint.x, y:-metrics.midPoint.y };
+    },
+    
+    getPointNearCanvasPoint: function (canvasPoint, radius) {
+       var p = { x:((canvasPoint.x - this.width/2)  /  this.scale) - this.translation.x,
+                 y:((canvasPoint.y - this.height/2) / -this.scale) - this.translation.y };
+       radius = radius / this.scale;
+    
+       var closestPoint = null;
+       var closestDistance = 1e100;
+
+       for (var i = 0; i < this.points.length; i++) {
+           var point = this.points[i];
+           var distance = Math.sqrt((point.x - p.x) * (point.x - p.x) + (point.y - p.y) * (point.y - p.y));
+           if (distance < closestDistance) { closestDistance = distance; closestPoint = point; }
+       }
+       
+       return (closestDistance <= radius) ? closestPoint : null;
     },
     
     
@@ -623,21 +646,35 @@ var NVInteractiveCanvasView = new Class({
     initialize: function (parentView, stream) {
         this.parent(parentView, stream);
         
+        Array.each(this.element.getChildren(), function (element) {
+            element.setStyle("pointerEvents", "none");  // needed so hover events don't bubble up from children
+        });
+        
         this.mouseMoveBound = this.mouseMove.bind(this);
         this.mouseUpBound = this.mouseUp.bind(this);
+        this.hoverMouseMoveBound = this.hoverMouseMove.bind(this);
         
         this.element.addEvent("mousedown", this.mouseDown.bind(this));
+        this.element.addEvent("mouseenter", this.mouseEnter.bind(this));
+        this.element.addEvent("mouseleave", this.mouseLeave.bind(this));
         this.element.addEvent("dblclick", this.doubleClick.bind(this));
         this.element.setStyle("cursor", "all-scroll");
         
         this.helpElement = this.element.getElement(".NVProcessCanvasHelp");
         this.helpOpacity = 0;
+
+        this.selectedPoint = null;
     },
+
+
+    //--------------------------------------------------------------------------------
+    //
+    //  drag
     
     mouseDown: function (event) {
         event.stop();
-		this.element.getDocument().addEvent("mousemove", this.mouseMoveBound);
-		this.element.getDocument().addEvent("mouseup", this.mouseUpBound);
+        this.element.getDocument().addEvent("mousemove", this.mouseMoveBound);
+        this.element.getDocument().addEvent("mouseup", this.mouseUpBound);
 
         this.lastMousePoint = { x:event.page.x, y:event.page.y };
         if (this.resetTimer) { clearInterval(this.resetTimer); this.resetTimer = null; }
@@ -649,15 +686,15 @@ var NVInteractiveCanvasView = new Class({
         event.stop();
 
         var dx = event.page.x - this.lastMousePoint.x;
-		var dy = event.page.y - this.lastMousePoint.y;
+        var dy = event.page.y - this.lastMousePoint.y;
         this.lastMousePoint = { x:event.page.x, y:event.page.y };
         
-        if (!event.shift) {
-            this.translation.x +=  dx / this.scale;
-            this.translation.y += -dy / this.scale;
+        if (event.shift) {
+            this.scale *= Math.pow(1.01, dx - dy);
         }
         else {
-            this.scale *= Math.pow(1.01, dx - dy);
+            this.translation.x +=  dx / this.scale;
+            this.translation.y += -dy / this.scale;
         }
         
         this.render();
@@ -665,11 +702,48 @@ var NVInteractiveCanvasView = new Class({
 
     mouseUp: function (event) {
         event.stop();
-		this.element.getDocument().removeEvent("mousemove", this.mouseMoveBound);
-		this.element.getDocument().removeEvent("mouseup", this.mouseUpBound);
+        this.element.getDocument().removeEvent("mousemove", this.mouseMoveBound);
+        this.element.getDocument().removeEvent("mouseup", this.mouseUpBound);
         this.animateHelpOpacity(0,1000);
     },
+
+
+    //--------------------------------------------------------------------------------
+    //
+    //  hover
+
+    mouseEnter: function (event) {
+        this.element.getDocument().addEvent("mousemove", this.hoverMouseMoveBound);
+    },
+
+    hoverMouseMove: function (event) {
+        var elementPosition = this.element.getPosition();
+        var canvasPoint = { x:event.page.x - elementPosition.x, y:event.page.y - elementPosition.y };
+        var point = this.getPointNearCanvasPoint(canvasPoint, 10);
+        this.setSelectedPoint(point);
+    },
+
+    mouseLeave: function (event) {
+        this.setSelectedPoint(null);
+        this.element.getDocument().removeEvent("mousemove", this.hoverMouseMoveBound);
+    },
     
+    setSelectedPoint: function (point) {
+        if (this.selectedPoint && this.selectedPoint.item) {
+            this.pipelineView.setHighlightedWithStreamItem(false, this.selectedPoint.item);
+        }
+
+        this.selectedPoint = point;
+        if (this.selectedPoint && this.selectedPoint.item) {
+            this.pipelineView.setHighlightedWithStreamItem(true, this.selectedPoint.item);
+        }
+    },
+    
+
+    //--------------------------------------------------------------------------------
+    //
+    //  double-click
+
     doubleClick: function (event) {
         event.stop();
         
@@ -691,6 +765,11 @@ var NVInteractiveCanvasView = new Class({
         }).bind(this), 1000/30);
     },
     
+
+    //--------------------------------------------------------------------------------
+    //
+    //  help
+
     animateHelpOpacity: function (targetOpacity, duration) {
         if (this.helpTimer) { clearTimeout(this.helpTimer); }
         
@@ -704,6 +783,7 @@ var NVInteractiveCanvasView = new Class({
             var colorComponent = "" + Math.round(255 * (0.75 + 0.25 * (1.0 - this.helpOpacity)));
             var color = "rgba(" + colorComponent + "," + colorComponent + "," + colorComponent + ",1)";
             this.helpElement.setStyle("color", color);
+            this.helpElement.setStyle("display", this.helpOpacity ? "block" : "none");
             
             if (progress == 1) {
                 clearTimeout(this.helpTimer);

@@ -107,6 +107,7 @@ body {
 }
 
 .NVProcessCanvasHelp {
+    display:none;
     position:absolute;
     left:208px;
     top:130px;

@@ -181,7 +181,7 @@ function NLStreamClone (stream) {
 }
 
 function NLStreamReverse (stream) {
-    var s = [];
+    var s = NLStream();
     for (var i = stream.length - 1; i >= 0; i--) {
         s.push(stream[i]);
     }
