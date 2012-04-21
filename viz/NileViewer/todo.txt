@@ -1,5 +1,6 @@
 todo
 ----
-help element should be hidden if hidden
+prologue, epilogue, substitution are icons in input stream (bookends)
 only fill if shape is closed?
 expand subprocess
+incrementally add processviews to pipelineview
