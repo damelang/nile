@@ -155,7 +155,7 @@ var NVProcessView = new Class({
         this.element.getElement(".NVProcessName").set("text", NLProcessGetName(process));
         this.element.getElement(".NVProcessParameters").set("text", "( )");
 
-        this.canvasView = new NVCanvasView(this, process.outputStream);
+        this.canvasView = new NVInteractiveCanvasView(this, process.outputStream);
         this.codeView = new NVCodeView(this, process);
         
         this.inputStreamView = new NVStreamView(this, process.inputStream, "Input");
@@ -188,7 +188,7 @@ var NVInitialInputView = new Class({
         this.inputStreamView = new NVStreamView(this, [], "Input");
         this.outputStreamView = new NVStreamView(this, stream, "");
         
-        this.canvasView = new NVCanvasView(this, stream);
+        this.canvasView = new NVInteractiveCanvasView(this, stream);
         this.codeView = new NVCodeView(this, null);
     }
 });
@@ -384,6 +384,14 @@ var NVCanvasView = new Class({
         
         this.selectedItems = [];
         this.hotItem = null;
+
+        this.points = this.getPoints();
+        this.beziers = this.getBeziers();
+
+        var metrics = this.getMetricsWithPoints(this.points);
+        this.translation = this.getTranslationWithMetrics(metrics);
+        this.scale = this.getScaleWithMetrics(metrics);
+        
         this.render();
     },
     
@@ -391,37 +399,36 @@ var NVCanvasView = new Class({
         var ctx = this.canvas.getContext("2d");
         ctx.clearRect(0,0,this.width,this.height);
 
-        if (this.stream.length == 0) { return; }
-        
-        var points = this.getPoints();
-        var beziers = this.getBeziers();
-        if (points.length == 0) { return; }
-        
-        var metrics = this.getMetricsWithPoints(points);
-        var scale = this.getScaleWithMetrics(metrics);
+        if (this.points.length == 0) { return; }
         
         ctx.save();
         
         ctx.translate(this.width/2, this.height/2);
-        ctx.scale(scale, -scale);
-        ctx.translate(-metrics.midPoint.x, -metrics.midPoint.y);
+        ctx.scale(this.scale, -this.scale);
+        ctx.translate(this.translation.x, this.translation.y);
         
-        if (beziers.length) {
-            this.fillBeziers(beziers);
+        this.drawGrid();
+        
+        if (this.beziers.length) {
+            this.fillBeziers(this.beziers);
         }
         
-        this.fillPoints(points, scale);
+        this.fillPoints(this.points);
         
         if (this.selectedItems.length) {
-            this.highlightItems(this.selectedItems, scale);
+            this.highlightItems(this.selectedItems);
         }
         if (this.hotItem) {
-            this.highlightItems( [ this.hotItem ], scale, "hot");
+            this.highlightItems( [ this.hotItem ], "hot");
         }
         
         ctx.restore();
     },
     
+
+    //--------------------------------------------------------------------------------
+    //
+    //  points and metrics
 
     getPoints: function () {
         var points = [];
@@ -442,6 +449,8 @@ var NVCanvasView = new Class({
     },
     
     getMetricsWithPoints: function (points) {
+        if (points.length == 0) { points = [ {x:0, y:0} ]; }
+    
         var minPoint = { x:points[0].x, y:points[0].y };
         var maxPoint = { x:points[0].x, y:points[0].y };
         
@@ -468,11 +477,19 @@ var NVCanvasView = new Class({
         var widthScale = this.width / Math.max(0.01, pointsWidth);
         var heightScale = this.height / Math.max(0.01, pointsHeight);
     
-        var scale = 0.8 * Math.min(widthScale, heightScale);
+        var scale = 0.75 * Math.min(widthScale, heightScale);
         return scale;
     },
     
+    getTranslationWithMetrics: function (metrics) {
+        return { x: -metrics.midPoint.x, y:-metrics.midPoint.y };
+    },
     
+    
+    //--------------------------------------------------------------------------------
+    //
+    //  drawing
+
     fillBeziers: function (beziers) {
         var ctx = this.canvas.getContext("2d");
         ctx.fillStyle = "rgba(0,0,0,0.06)";
@@ -490,7 +507,8 @@ var NVCanvasView = new Class({
         ctx.fill();
     },
     
-    fillPoints: function (points, scale) {
+    fillPoints: function (points) {
+        var scale = this.scale;
         var ctx = this.canvas.getContext("2d");
         ctx.fillStyle = "#53b4ff";
 
@@ -506,7 +524,8 @@ var NVCanvasView = new Class({
         }, this);
     },
     
-    highlightItems: function (items, scale, isHot) {
+    highlightItems: function (items, isHot) {
+        var scale = this.scale;
         var ctx = this.canvas.getContext("2d");
 
         ctx.fillStyle = isHot ? "#ff0000" : "#000000";
@@ -518,43 +537,179 @@ var NVCanvasView = new Class({
         Array.each(items, function (item) {
             var bezier = NLObjectExtractBeziers(item.object)[0];
             if (bezier) {
-                ctx.beginPath();
-                ctx.lineWidth = 0.6 / scale;
-                ctx.moveTo(bezier.A.x, bezier.A.y);
-                ctx.quadraticCurveTo(bezier.B.x,bezier.B.y,bezier.C.x,bezier.C.y);
-                ctx.stroke();
-                
+                strokeBezier(bezier);
                 Object.each(bezier, function (point, name) {
-                    ctx.save();
-                    ctx.translate(point.x,point.y);
-                    ctx.scale(1/scale, -1/scale);
-        
-                    ctx.beginPath();
-                    ctx.arc(0, 0, 3, 0, Math.PI*2);
-                    ctx.fill();
-                    
-                    if (shouldAnnotate) {
-                        ctx.fillText(name, 6, 3);
-                    }
-                    
-                    ctx.restore();
-                }, this);
+                    fillPoint(point, shouldAnnotate ? name : null);
+                });
             }
             else {
                 var points = NLObjectExtractPoints(item.object);
                 Array.each(points, function (point) {
-                    ctx.save();
-                    ctx.translate(point.x,point.y);
-                    ctx.scale(1/scale, -1/scale);
-        
-                    ctx.beginPath();
-                    ctx.arc(0, 0, 3, 0, Math.PI*2);
-                    ctx.fill();
-
-                    ctx.restore();
-                }, this);
+                    fillPoint(point);
+                });
             }
-        }, this);
+        });
+        
+        function strokeBezier (bezier) {
+            ctx.beginPath();
+            ctx.lineWidth = 0.6 / scale;
+            ctx.moveTo(bezier.A.x, bezier.A.y);
+            ctx.quadraticCurveTo(bezier.B.x,bezier.B.y,bezier.C.x,bezier.C.y);
+            ctx.stroke();
+        }
+        
+        function fillPoint (point, label) {
+            ctx.save();
+            ctx.translate(point.x,point.y);
+            ctx.scale(1/scale, -1/scale);
+
+            ctx.beginPath();
+            ctx.arc(0, 0, 3, 0, Math.PI*2);
+            ctx.fill();
+
+            if (label) { ctx.fillText(label, 6, 3); }
+
+            ctx.restore();
+        }
+    },
+    
+    drawGrid: function () {
+        var scale = this.scale;
+        var ctx = this.canvas.getContext("2d");
+        ctx.save();
+        
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 1 / scale;
+
+        var minX = -0.5 * this.width / scale - this.translation.x;
+        var maxX =  0.5 * this.width / scale - this.translation.x;
+        var minY = -0.5 * this.height / scale - this.translation.y;
+        var maxY =  0.5 * this.height / scale - this.translation.y;
+        
+        var stepBase = 10;
+        var k = Math.round(Math.log((maxX - minX) / 8) / Math.log(stepBase));
+        var step = Math.pow(stepBase,k);
+        
+        for (var x = Math.floor(minX / step) * step; x < maxX; x += step) {
+            var snappedX = (Math.floor(x * scale) + 0.5) / scale;
+            ctx.beginPath();
+            ctx.moveTo(snappedX, minY);
+            ctx.lineTo(snappedX, maxY);
+            ctx.stroke();
+        }
+        for (var y = Math.floor(minY / step) * step; y < maxY; y += step) {
+            var snappedY = (Math.floor(y * scale) + 0.5) / scale;
+            ctx.beginPath();
+            ctx.moveTo(minX, snappedY);
+            ctx.lineTo(maxX, snappedY);
+            ctx.stroke();
+        }
+        
+        ctx.restore();
+    },
+    
+});
+
+
+//====================================================================================
+//
+//  NVInteractiveCanvasView
+//
+
+var NVInteractiveCanvasView = new Class({
+
+    Extends: NVCanvasView,
+    
+    initialize: function (parentView, stream) {
+        this.parent(parentView, stream);
+        
+        this.mouseMoveBound = this.mouseMove.bind(this);
+        this.mouseUpBound = this.mouseUp.bind(this);
+        
+        this.element.addEvent("mousedown", this.mouseDown.bind(this));
+        this.element.addEvent("dblclick", this.doubleClick.bind(this));
+        this.element.setStyle("cursor", "all-scroll");
+        
+        this.helpElement = this.element.getElement(".NVProcessCanvasHelp");
+        this.helpOpacity = 0;
+    },
+    
+    mouseDown: function (event) {
+        event.stop();
+		this.element.getDocument().addEvent("mousemove", this.mouseMoveBound);
+		this.element.getDocument().addEvent("mouseup", this.mouseUpBound);
+
+        this.lastMousePoint = { x:event.page.x, y:event.page.y };
+        if (this.resetTimer) { clearInterval(this.resetTimer); this.resetTimer = null; }
+        
+        this.animateHelpOpacity(1,100);
+    },
+
+    mouseMove: function (event) {
+        event.stop();
+
+        var dx = event.page.x - this.lastMousePoint.x;
+		var dy = event.page.y - this.lastMousePoint.y;
+        this.lastMousePoint = { x:event.page.x, y:event.page.y };
+        
+        if (!event.shift) {
+            this.translation.x +=  dx / this.scale;
+            this.translation.y += -dy / this.scale;
+        }
+        else {
+            this.scale *= Math.pow(1.01, dx - dy);
+        }
+        
+        this.render();
+    },
+
+    mouseUp: function (event) {
+        event.stop();
+		this.element.getDocument().removeEvent("mousemove", this.mouseMoveBound);
+		this.element.getDocument().removeEvent("mouseup", this.mouseUpBound);
+        this.animateHelpOpacity(0,1000);
+    },
+    
+    doubleClick: function (event) {
+        event.stop();
+        
+        var metrics = this.getMetricsWithPoints(this.points);
+        var targetTranslation = this.getTranslationWithMetrics(metrics);
+        var targetScale = this.getScaleWithMetrics(metrics);
+        
+        var progress = 0;
+        var speed = 0.3;
+        
+        var timer = this.resetTimer = setInterval( (function () {
+            progress += 1/30;
+            if (progress > 0.8) { speed = 1; clearTimeout(timer); }
+
+            this.translation.x += speed * (targetTranslation.x - this.translation.x);
+            this.translation.y += speed * (targetTranslation.y - this.translation.y);
+            this.scale += speed * (targetScale - this.scale);
+            this.render();
+        }).bind(this), 1000/30);
+    },
+    
+    animateHelpOpacity: function (targetOpacity, duration) {
+        if (this.helpTimer) { clearTimeout(this.helpTimer); }
+        
+        var initialOpacity = this.helpOpacity;
+        var progress = 0;
+        
+        this.helpTimer = setInterval( (function () {
+            progress = Math.min(1, progress + (1000/30) / duration);
+            this.helpOpacity = initialOpacity + (targetOpacity - initialOpacity) * progress;
+            
+            var colorComponent = "" + Math.round(255 * (0.75 + 0.25 * (1.0 - this.helpOpacity)));
+            var color = "rgba(" + colorComponent + "," + colorComponent + "," + colorComponent + ",1)";
+            this.helpElement.setStyle("color", color);
+            
+            if (progress == 1) {
+                clearTimeout(this.helpTimer);
+                this.helpTimer = null;
+            }
+        }).bind(this), 1000/30);
     },
     
 });

@@ -256,12 +256,10 @@ var NLProcessFunctions = {
             if (p0) {
                 var pm = { x:0.5*(p.x + p0.x), y:0.5*(p.y + p0.y) };
                 NLStreamOutput(process.outputStream, NLStreamItem(NLBezier(p0.x,p0.y,pm.x,pm.y,p.x,p.y)), trace);
-                NLTraceAddLineIndexes(trace, [4,5,6]);
-            }
-            else {
-                NLTraceAddLineIndexes(trace, [4,5,8]);
+                NLTraceAddLineIndexes(trace, [6]);
             }
             p0 = p;
+            NLTraceAddLineIndexes(trace, [4,5]);
         });
     },
 
@@ -375,7 +373,7 @@ var NLProcessFunctions = {
 var NLProcessCode = {
 
     "default": "",
-    "MakePolygon": "MakePolygon () : Point >> Bezier\n    p0 = 0\n    a = false\n    ∀ p\n        p0' = p\n        if a\n            >> (p0, p0 ~ p, p)\n        else\n            a' = true\n        \n",
+    "MakePolygon": "MakePolygon () : Point >> Bezier\n    p:Point = 0\n    first = true\n    ∀ p'\n        first' = false\n        if ¬first\n            >> (p, p ~ p', p')\n",
     "RoundPolygon": "RoundPolygon () : Bezier >> Bezier\n    ∀ (A, B, C)\n        n = (A ⟂ C) / 4\n        >> (A, B + n, C)\n",
     "TransformBeziers": "TransformBeziers (M:Matrix) : Bezier >> Bezier\n    ∀ (A, B, C)\n        >> (MA, MB, MC)\n",
     "StrokeBezierPath": "StrokeBezierPath (w:Real, l:Real, c:Real) : Bezier >> Bezier\n    → SanitizeBezierPath () →\n      DupCat (→ StrokeOneSide (w, l, c),\n              → Reverse () → ReverseBeziers () → StrokeOneSide (w, l, c))",
