@@ -16,22 +16,44 @@
 
 var NVPipelineView = this.NVPipelineView = new Class({
     
-    initialize: function (container, pipeline, inputStream) {
+    initialize: function (container) {
         container.empty();
-    
-        this.element = new Element("div", { "class":"NVPipeline" });
-        this.element.inject(container);
-        
-        this.pipeline = pipeline;
-        this.inputStream = inputStream;
-        
+        this.element = (new Element("div", { "class":"NVPipeline" })).inject(container);
         this.processViews = [];
-        this.processViews.push( new NVInitialInputView(this, inputStream) );
-        
-        Array.each(pipeline, function (process) {
-            this.processViews.push( new NVProcessView(this, process) );
+    },
+
+    setPipeline: function (pipeline, inputStream) {
+        this.pipeline = pipeline;
+        this.initialInputStream = inputStream;
+
+        while (this.processViews.length < pipeline.length + 1) { this.processViews.push(new NVProcessView(this)); }
+        while (this.processViews.length > pipeline.length + 1) { this.processViews.pop().destroy(); }
+
+        NLPipelineRun(this.pipeline, this.initialInputStream);
+
+        this.processViews[0].setInitialInputStream(inputStream);
+
+        Array.each(pipeline, function (process, i) {
+            this.processViews[i+1].setProcess(process);
         }, this);
     },
+    
+    replaceStreamItemWithItem: function (oldItem, newItem) {
+        var index = this.initialInputStream.indexOf(oldItem);
+        if (index < 0) { return; }
+        
+        var newStream = NLStreamClone(this.initialInputStream);
+        newStream[index] = newItem;
+        
+        var newPipeline = NLPipelineClone(this.pipeline);
+
+        this.setPipeline(newPipeline, newStream);
+    },
+
+
+    //--------------------------------------------------------------------------------
+    //
+    //  process views
     
     getProcessViewForProcess: function (process) {
         for (var i = 0; i < this.processViews.length; i++) {
@@ -139,27 +161,51 @@ var NVPipelineView = this.NVPipelineView = new Class({
 
 var NVProcessView = new Class({
     
-    initialize: function (parentView, process) {
+    initialize: function (parentView) {
         this.pipelineView = parentView;
         this.parentView = parentView;
-        this.process = process;
         
         var container = parentView.element;
         var templateElement = $("templates").getElement(".NVProcess");
         
         this.element = templateElement.clone();
         this.element.inject(container);
-        
-        if (!process) { return; }
-        
+
+        this.canvasView = new NVInteractiveCanvasView(this);
+        this.codeView = new NVCodeView(this);
+
+        this.inputStreamView = new NVStreamView(this, true);
+        this.outputStreamView = new NVStreamView(this, false);
+    },
+    
+    setProcess: function (process) {
+        this.process = process;
+
         this.element.getElement(".NVProcessName").set("text", NLProcessGetName(process));
         this.element.getElement(".NVProcessParameters").set("text", "( )");
-
-        this.canvasView = new NVInteractiveCanvasView(this, process.outputStream);
-        this.codeView = new NVCodeView(this, process);
         
-        this.inputStreamView = new NVStreamView(this, process.inputStream, "Input");
-        this.outputStreamView = new NVStreamView(this, process.outputStream, "Output");
+        this.canvasView.setStream(process.outputStream);
+        this.codeView.setCode(NLProcessGetCode(process));
+        
+        this.inputStreamView.setStream(process.inputStream);
+        this.outputStreamView.setStream(process.outputStream);
+    },
+    
+    destroy: function () {
+        this.element.destroy();
+    },
+    
+    setInitialInputStream: function (stream) {
+        this.element.getElement(".NVProcessName").set("text", "initial input");
+        this.element.getElement(".NVProcessParameters").set("text", "");
+        
+        this.canvasView.setStream(stream);
+        this.codeView.setCode("");
+        
+        this.inputStreamView.setStream([]);
+        this.outputStreamView.setStream(stream, true);
+        
+        this.canvasView.setEditable(true);
     },
     
     getPreviousView: function () {
@@ -172,61 +218,42 @@ var NVProcessView = new Class({
 
 //====================================================================================
 //
-//  NVInitialInputView
-//
-
-var NVInitialInputView = new Class({
-
-    Extends: NVProcessView,
-    
-    initialize: function (parentView, stream) {
-        this.parent(parentView, null);
-        
-        this.element.getElement(".NVProcessName").set("text", "initial input");
-        this.element.getElement(".NVProcessParameters").set("text", "");
-        
-        this.inputStreamView = new NVStreamView(this, [], "Input");
-        this.outputStreamView = new NVStreamView(this, stream, "");
-        
-        this.canvasView = new NVInteractiveCanvasView(this, stream);
-        this.codeView = new NVCodeView(this, null);
-    }
-});
-
-
-//====================================================================================
-//
 //  NVStreamView
 //
 
 var NVStreamView = new Class({
     
-    initialize: function (parentView, stream, name) {
+    initialize: function (parentView, isInput) {
         this.pipelineView = parentView.pipelineView;
         this.parentView = parentView;
         
-        this.stream = stream;
-        this.name = name;
-        this.isInput = (name == "Input");
-        
+        this.isInput = isInput;
         this.element = parentView.element.getElement(".NVProcess" + (this.isInput ? "Input" : "Output"));
+
+        this.iconViews = [];
+    },
+    
+    setStream: function (stream, isSolo) {
+        this.stream = stream;
 
         this.element.setStyle("display", stream.length ? "block" : "none");
         if (stream.length == 0) { return; }
         
-        var prefix = !name ? "" : this.isInput ? "Processed " : "Output "
+        var prefix = isSolo ? "" : this.isInput ? "Processed " : "Output "
         var suffix = NLObjectGetTypeName(stream[0].object) + (stream.length == 1 ? "" : "s");
         var caption = prefix + stream.length + " " + suffix;
         this.element.getElement(".NVProcessIconsCaption").set("text", caption);
-        
+
         var iconWidth = this.getIconWidth();
-        this.iconViews = [];
         
-        Array.each(stream, function (streamItem) {
-            var iconView = new NVIconView(this, streamItem, iconWidth);
+        while (this.iconViews.length < stream.length) { this.iconViews.push(new NVIconView(this)); }
+        while (this.iconViews.length > stream.length) { this.iconViews.pop().destroy(); }
+
+        Array.each(stream, function (streamItem, i) {
+            var iconView = this.iconViews[i];
+            iconView.setStreamItem(streamItem, iconWidth);
             if (this.isInput) { streamItem.inputIconView = iconView; }
             else { streamItem.outputIconView = iconView; }
-            this.iconViews.push(iconView);
         }, this);
     },
     
@@ -254,29 +281,36 @@ var NVStreamView = new Class({
 
 var NVIconView = new Class({
     
-    initialize: function (parentView, streamItem, width) {
+    initialize: function (parentView) {
         this.pipelineView = parentView.pipelineView;
         this.processView = parentView.parentView;
         this.parentView = parentView;
 
-        this.streamItem = streamItem;
-        this.width = width;
-        this.height = width;
-        
         var container = parentView.element.getElement(".NVProcessIcons");
         
         this.element = (new Element("span", { "class":"NVProcessIcon" })).inject(container);
+        this.innerElement = (new Element("span", { "class":"NVProcessIconInner" })).inject(this.element);
+
+        this.element.addEvent("mouseenter", this.mouseEnter.bind(this));
+        this.element.addEvent("mouseleave", this.mouseLeave.bind(this));
+    },
+    
+    setStreamItem: function (streamItem, width) {
+        width = width || 16;
+        
+        this.streamItem = streamItem;
+        this.width = width;
+        this.height = width;
+
         this.element.setStyle("width", this.width);
         this.element.setStyle("height", this.height);
 
         var innerHeight = Math.max(4, Math.ceil(this.height * Math.pow(0.7, streamItem.recursionDepth)));
-        this.innerElement = (new Element("span", { "class":"NVProcessIconInner" })).inject(this.element);
         this.innerElement.setStyle("width", this.width);
         this.innerElement.setStyle("height", innerHeight);
         this.innerElement.setStyle("marginTop", this.height - innerHeight);
-
-        this.element.addEvent("mouseenter", this.mouseEnter.bind(this));
-        this.element.addEvent("mouseleave", this.mouseLeave.bind(this));
+        
+        this.setHighlight(false);
     },
     
     setHighlight: function (color) {
@@ -290,6 +324,10 @@ var NVIconView = new Class({
             this.innerElement.removeClass("NVProcessIconHotSelected");
             this.innerElement.removeClass("NVProcessIconSelected");
         }
+    },
+    
+    destroy: function () {
+        this.element.destroy();
     },
 
     mouseEnter: function () {
@@ -313,18 +351,23 @@ var NVCodeView = new Class({
     initialize: function (parentView, process) {
         this.pipelineView = parentView.pipelineView;
         this.parentView = parentView;
-        this.process = process;
-        
         this.element = parentView.element.getElement(".NVProcessCode");
-        this.element.setStyle("display", process ? "block" : "none");
-        if (!process) { return; }
-        
-        var code = NLProcessGetCode(process) || "";
 
         this.lineViews = [];
-        Array.each(code.split("\n"), function (line) {
-            var lineView = new NVCodeLineView(this, line);
-            this.lineViews.push(lineView);
+        this.code = "";
+    },
+    
+    setCode: function (code) {
+        if (code == this.code) { return; }
+        this.code = code;
+        
+        var lines = code.split("\n");
+
+        while (this.lineViews.length < lines.length) { this.lineViews.push(new NVCodeLineView(this)); }
+        while (this.lineViews.length > lines.length) { this.lineViews.pop().destroy(); }
+    
+        Array.each(lines, function (line, i) {
+            this.lineViews[i].setLine(line);
         }, this);
     },
     
@@ -344,18 +387,23 @@ var NVCodeView = new Class({
 
 var NVCodeLineView = new Class({
     
-    initialize: function (parentView, line) {
+    initialize: function (parentView) {
         this.parentView = parentView;
-        this.line = line;
-        
         this.element = (new Element("div", { "class":"NVProcessCodeLine" })).inject(parentView.element);
+    },
+    
+    destroy: function () {
+        this.element.destroy();
+    },
+    
+    setLine: function (line) {
+        this.line = line;
         this.element.set("text", line);
-        
-        this.isHighlighted = false;
+        this.setHighlighted(false);
     },
     
     setHighlighted: function (highlighted) {
-        if (this.isHighlighted == highlighted) { return; }
+        if (this.isHighlighted === highlighted) { return; }
         this.isHighlighted = highlighted;
         
         if (highlighted) { this.element.addClass("NVProcessCodeLineHot"); }
@@ -372,25 +420,30 @@ var NVCodeLineView = new Class({
 
 var NVCanvasView = new Class({
     
-    initialize: function (parentView, stream) {
+    initialize: function (parentView) {
         this.pipelineView = parentView.pipelineView;
         this.parentView = parentView;
-        this.stream = stream;
         
         this.element = parentView.element.getElement(".NVProcessCanvas");
         this.canvas = this.element.getElement("canvas");
         this.width = parseFloat(this.canvas.getAttribute("width"));
         this.height = parseFloat(this.canvas.getAttribute("height"));
-        
+    },
+    
+    setStream: function (stream) {
+        this.stream = stream;
+
         this.selectedItems = [];
         this.hotItem = null;
 
         this.points = this.getPoints();
         this.beziers = this.getBeziers();
-
-        var metrics = this.getMetricsWithPoints(this.points);
-        this.translation = this.getTranslationWithMetrics(metrics);
-        this.scale = this.getScaleWithMetrics(metrics);
+        
+        if (!this.isEditing) {
+            var metrics = this.getMetricsWithPoints(this.points);
+            this.translation = this.getTranslationWithMetrics(metrics);
+            this.scale = this.getScaleWithMetrics(metrics);
+        }
         
         this.render();
     },
@@ -398,7 +451,7 @@ var NVCanvasView = new Class({
     render: function () {
         var ctx = this.canvas.getContext("2d");
         ctx.clearRect(0,0,this.width,this.height);
-
+        
         if (this.points.length == 0) { return; }
         
         ctx.save();
@@ -643,16 +696,16 @@ var NVInteractiveCanvasView = new Class({
 
     Extends: NVCanvasView,
     
-    initialize: function (parentView, stream) {
-        this.parent(parentView, stream);
+    initialize: function (parentView) {
+        this.parent(parentView);
         
         Array.each(this.element.getChildren(), function (element) {
             element.setStyle("pointerEvents", "none");  // needed so hover events don't bubble up from children
         });
         
-        this.mouseMoveBound = this.mouseMove.bind(this);
+        this.mouseDragBound = this.mouseDrag.bind(this);
         this.mouseUpBound = this.mouseUp.bind(this);
-        this.hoverMouseMoveBound = this.hoverMouseMove.bind(this);
+        this.mouseMoveBound = this.mouseMove.bind(this);
         
         this.element.addEvent("mousedown", this.mouseDown.bind(this));
         this.element.addEvent("mouseenter", this.mouseEnter.bind(this));
@@ -665,7 +718,16 @@ var NVInteractiveCanvasView = new Class({
 
         this.selectedPoint = null;
     },
+    
+    setStream: function (stream) {
+        this.setSelectedPoint(null);
+        this.parent(stream);
+    },
 
+    setEditable: function (editable) {
+        this.isEditable = editable;
+    },
+    
 
     //--------------------------------------------------------------------------------
     //
@@ -673,23 +735,39 @@ var NVInteractiveCanvasView = new Class({
     
     mouseDown: function (event) {
         event.stop();
-        this.element.getDocument().addEvent("mousemove", this.mouseMoveBound);
+        this.element.getDocument().addEvent("mousemove", this.mouseDragBound);
         this.element.getDocument().addEvent("mouseup", this.mouseUpBound);
 
-        this.lastMousePoint = { x:event.page.x, y:event.page.y };
+        this.lastMousePosition = this.getMousePositionWithEvent(event);
         if (this.resetTimer) { clearInterval(this.resetTimer); this.resetTimer = null; }
         
         this.animateHelpOpacity(1,100);
+        
+        if (this.isEditable && this.selectedPoint) {
+            this.isEditing = true;
+        }
     },
 
-    mouseMove: function (event) {
+    mouseDrag: function (event) {
         event.stop();
 
-        var dx = event.page.x - this.lastMousePoint.x;
-        var dy = event.page.y - this.lastMousePoint.y;
-        this.lastMousePoint = { x:event.page.x, y:event.page.y };
+        var mousePosition = this.getMousePositionWithEvent(event);
+        var dx = mousePosition.x - this.lastMousePosition.x;
+        var dy = mousePosition.y - this.lastMousePosition.y;
+        this.lastMousePosition = mousePosition;
         
-        if (event.shift) {
+        if (this.isEditing) {
+            if (this.selectedPoint && this.selectedPoint.item) {
+                var pointIndex = this.points.indexOf(this.selectedPoint);
+
+                var draggedObject = NLObjectTranslate(this.selectedPoint.item.object, dx / this.scale, -dy / this.scale);
+                this.pipelineView.replaceStreamItemWithItem(this.selectedPoint.item, NLStreamItem(draggedObject));
+                
+                this.setSelectedPoint(this.points[pointIndex]);
+                return;
+            }
+        }
+        else if (event.shift) {
             this.scale *= Math.pow(1.01, dx - dy);
         }
         else {
@@ -702,9 +780,24 @@ var NVInteractiveCanvasView = new Class({
 
     mouseUp: function (event) {
         event.stop();
-        this.element.getDocument().removeEvent("mousemove", this.mouseMoveBound);
+        this.element.getDocument().removeEvent("mousemove", this.mouseDragBound);
         this.element.getDocument().removeEvent("mouseup", this.mouseUpBound);
         this.animateHelpOpacity(0,1000);
+        
+        if (this.isEditing) {
+            this.isEditing = false;
+            this.animateResetTransform();
+        }
+    },
+    
+    getMousePositionWithEvent: function (event) {
+        var elementPosition = this.element.getPosition();
+        return { x:event.page.x - elementPosition.x, y:event.page.y - elementPosition.y };
+    },
+
+    doubleClick: function (event) {
+        event.stop();
+        this.animateResetTransform();
     },
 
 
@@ -713,10 +806,11 @@ var NVInteractiveCanvasView = new Class({
     //  hover
 
     mouseEnter: function (event) {
-        this.element.getDocument().addEvent("mousemove", this.hoverMouseMoveBound);
+        this.element.getDocument().addEvent("mousemove", this.mouseMoveBound);
     },
 
-    hoverMouseMove: function (event) {
+    mouseMove: function (event) {
+        if (this.isEditing) { return; }
         var elementPosition = this.element.getPosition();
         var canvasPoint = { x:event.page.x - elementPosition.x, y:event.page.y - elementPosition.y };
         var point = this.getPointNearCanvasPoint(canvasPoint, 10);
@@ -724,6 +818,7 @@ var NVInteractiveCanvasView = new Class({
     },
 
     mouseLeave: function (event) {
+        if (this.isEditing) { return; }
         this.setSelectedPoint(null);
         this.element.getDocument().removeEvent("mousemove", this.hoverMouseMoveBound);
     },
@@ -737,22 +832,30 @@ var NVInteractiveCanvasView = new Class({
         if (this.selectedPoint && this.selectedPoint.item) {
             this.pipelineView.setHighlightedWithStreamItem(true, this.selectedPoint.item);
         }
+        
+        if (this.isEditable) {
+            this.element.setStyle("cursor", this.selectedPoint ? "crosshair" : "all-scroll");
+        }
     },
     
 
     //--------------------------------------------------------------------------------
     //
-    //  double-click
+    //  animate
 
-    doubleClick: function (event) {
-        event.stop();
-        
+    animateResetTransform: function () {
         var metrics = this.getMetricsWithPoints(this.points);
         var targetTranslation = this.getTranslationWithMetrics(metrics);
         var targetScale = this.getScaleWithMetrics(metrics);
         
+        this.animateSetTranslationAndScale(targetTranslation, targetScale);
+    },
+
+    animateSetTranslationAndScale: function (targetTranslation, targetScale) {
         var progress = 0;
         var speed = 0.3;
+        
+        if (this.resetTimer) { clearTimeout(this.resetTimer); }
         
         var timer = this.resetTimer = setInterval( (function () {
             progress += 1/30;
@@ -764,11 +867,6 @@ var NVInteractiveCanvasView = new Class({
             this.render();
         }).bind(this), 1000/30);
     },
-    
-
-    //--------------------------------------------------------------------------------
-    //
-    //  help
 
     animateHelpOpacity: function (targetOpacity, duration) {
         if (this.helpTimer) { clearTimeout(this.helpTimer); }

@@ -55,6 +55,12 @@ function NLBezierUnbox (b) {
 //  NLObject
 //
 
+function NLObjectClone (obj) {
+    var clone = {};
+    Object.each(obj, function (value, key) { clone[key] = value; });  // shallow
+    return clone;
+}
+
 function NLObjectGetTypeName (obj) {
     return obj._type.name;
 }
@@ -93,6 +99,24 @@ function NLObjectExtractBeziers (obj) {
     }
 }
 
+function NLObjectTranslate (obj, dx, dy) {
+    var clone = NLObjectClone(obj);
+    translate(clone);
+    return clone;
+
+    function translate (obj) {
+        if (obj.x && obj.y && obj.x.value !== undefined && obj.y.value !== undefined) {
+            obj.x.value += dx;
+            obj.y.value += dy;
+        }
+        else {
+            Object.each(obj, function (obj) {
+                if (obj._type) { translate (obj); }
+            });
+        }
+    }
+}
+
 
 //====================================================================================
 //
@@ -113,6 +137,11 @@ function NLProcess (name) {
         "inputStream": null,
         "outputStream": null,
     };
+}
+
+function NLProcessClone (process) {
+    var name = NLProcessGetName(process);
+    return NLProcess(name);
 }
 
 function NLProcessGetName (process) {
@@ -172,7 +201,15 @@ function NLStreamItem (obj,recursionDepth) {
     };
 }
 
-function NLStreamClone (stream) {
+function NLStreamClone (stream) {  // fresh items
+    var s = NLStream();
+    for (var i = 0; i < stream.length; i++) {
+        s.push(NLStreamItem(stream[i].object));
+    }
+    return s;
+}
+
+function NLStreamCopy (stream) {  // same items
     var s = NLStream();
     for (var i = 0; i < stream.length; i++) {
         s.push(stream[i]);
@@ -217,6 +254,10 @@ function NLStreamPush (stream, item, trace) {
 //  NLPipeline
 //
 
+function NLPipelineClone (pipeline) {
+    return pipeline.map( function (process) { return NLProcessClone(process); });
+}
+
 function NLPipelineRun (processes, inputStream) {
     var lastProcess = null;
     for (var i = 0; i < processes.length; i++) {
@@ -228,7 +269,7 @@ function NLPipelineRun (processes, inputStream) {
     var lastStream = inputStream;
     for (var i = 0; i < processes.length; i++) {
         var process = processes[i];
-        process.inputStream = NLStreamClone(lastStream);
+        process.inputStream = NLStreamCopy(lastStream);
         process.outputStream = NLStream();
         NLProcessRun(process);
         lastStream = process.outputStream;
