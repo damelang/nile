@@ -15,14 +15,13 @@
 //
 
 window.addEvent('domready', function () {
-
-    var pipeline = NLDemoPipeline2();
     var inputStream = NLDemoStream2();
-    
-    NLPipelineRun(pipeline,inputStream);
+    var pipeline = NLDemoPipeline2();
     
     var container = $("myViewer");
-    new NVPipelineView(container, pipeline, inputStream);
+    var pipelineView = new NVPipelineView(container);
+    
+    pipelineView.setPipeline(pipeline, inputStream);
 });
 
 
