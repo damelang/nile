@@ -726,6 +726,7 @@ var NVInteractiveCanvasView = new Class({
 
     setEditable: function (editable) {
         this.isEditable = editable;
+        this.helpElement.set("text","Drag points to change initial input.");
     },
     
 
@@ -741,7 +742,7 @@ var NVInteractiveCanvasView = new Class({
         this.lastMousePosition = this.getMousePositionWithEvent(event);
         if (this.resetTimer) { clearInterval(this.resetTimer); this.resetTimer = null; }
         
-        this.animateHelpOpacity(1,100);
+        if (!this.isEditable) { this.animateHelpOpacity(1,100); }
         
         if (this.isEditable && this.selectedPoint) {
             this.isEditing = true;
@@ -782,7 +783,8 @@ var NVInteractiveCanvasView = new Class({
         event.stop();
         this.element.getDocument().removeEvent("mousemove", this.mouseDragBound);
         this.element.getDocument().removeEvent("mouseup", this.mouseUpBound);
-        this.animateHelpOpacity(0,1000);
+        
+        if (!this.isEditable) { this.animateHelpOpacity(0,1000); }
         
         if (this.isEditing) {
             this.isEditing = false;
@@ -807,6 +809,7 @@ var NVInteractiveCanvasView = new Class({
 
     mouseEnter: function (event) {
         this.element.getDocument().addEvent("mousemove", this.mouseMoveBound);
+        if (this.isEditable) { this.animateHelpOpacity(1,100); }
     },
 
     mouseMove: function (event) {
@@ -818,6 +821,7 @@ var NVInteractiveCanvasView = new Class({
     },
 
     mouseLeave: function (event) {
+        if (this.isEditable) { this.animateHelpOpacity(0,400); }
         if (this.isEditing) { return; }
         this.setSelectedPoint(null);
         this.element.getDocument().removeEvent("mousemove", this.hoverMouseMoveBound);
@@ -870,6 +874,7 @@ var NVInteractiveCanvasView = new Class({
 
     animateHelpOpacity: function (targetOpacity, duration) {
         if (this.helpTimer) { clearTimeout(this.helpTimer); }
+        if (this.helpOpacity == targetOpacity) { return; }
         
         var initialOpacity = this.helpOpacity;
         var progress = 0;
