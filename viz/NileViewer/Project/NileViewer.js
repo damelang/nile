@@ -159,7 +159,7 @@ var NVProcessView = new Class({
         this.parentView = parentView;
         
         var container = parentView.element;
-        var templateElement = $("templates").getElement(".NVProcess");
+        var templateElement = $("NVTemplates").getElement(".NVProcess");
         
         this.element = templateElement.clone();
         this.element.inject(container);

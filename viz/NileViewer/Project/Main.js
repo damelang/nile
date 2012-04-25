@@ -18,7 +18,7 @@ window.addEvent('domready', function () {
 
     Array.each($$(".DemoLink"), function (link) {
         var name = link.getAttribute("data-name");
-        link.addEvent("click", function () { showDemoWithName(name); });
+        link.addEvent("click", function () { showDemoWithName(name); return false; });
     });
     
     showDemoWithName("Beziers");
