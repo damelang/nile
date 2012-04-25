@@ -76,7 +76,7 @@ function NLObjectExtractPoints (obj) {
         }
         else {
             Object.each(obj, function (obj) {
-                if (obj._type) { extract (obj); }
+                if (obj._type) { extract(obj); }
             });
         }
     }
@@ -93,25 +93,25 @@ function NLObjectExtractBeziers (obj) {
         }
         else {
             Object.each(obj, function (obj) {
-                if (obj._type) { extract (obj); }
+                if (obj._type) { extract(obj); }
             });
         }
     }
 }
 
-function NLObjectTranslate (obj, dx, dy) {
+function NLObjectMovePoint (obj, x1,y1, x2,y2) {
     var clone = NLObjectClone(obj);
-    translate(clone);
+    move(clone);
     return clone;
 
-    function translate (obj) {
-        if (obj.x && obj.y && obj.x.value !== undefined && obj.y.value !== undefined) {
-            obj.x.value += dx;
-            obj.y.value += dy;
+    function move (obj) {
+        if (obj.x && obj.y && obj.x.value === x1 && obj.y.value === y1) {
+            obj.x.value = x2;
+            obj.y.value = y2;
         }
         else {
             Object.each(obj, function (obj) {
-                if (obj._type) { translate (obj); }
+                if (obj._type) { move(obj); }
             });
         }
     }

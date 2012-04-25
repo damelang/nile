@@ -38,15 +38,8 @@ var NVPipelineView = this.NVPipelineView = new Class({
         }, this);
     },
     
-    replaceStreamItemWithItem: function (oldItem, newItem) {
-        var index = this.initialInputStream.indexOf(oldItem);
-        if (index < 0) { return; }
-        
-        var newStream = NLStreamClone(this.initialInputStream);
-        newStream[index] = newItem;
-        
+    setInitialInputStream: function (newStream) {
         var newPipeline = NLPipelineClone(this.pipeline);
-
         this.setPipeline(newPipeline, newStream);
     },
 
@@ -732,6 +725,24 @@ var NVInteractiveCanvasView = new Class({
 
     //--------------------------------------------------------------------------------
     //
+    //  translate object
+    
+    translatePointInStream: function (point, dx, dy) {
+        var oldStream = this.pipelineView.initialInputStream;
+        var newStream = NLStream();
+        
+        for (var i = 0; i < oldStream.length; i++) {
+            var object = oldStream[i].object;
+            var translatedObject = NLObjectMovePoint(object, point.x, point.y, point.x + dx, point.y + dy);
+            newStream.push(NLStreamItem(translatedObject));
+        }
+        
+        this.pipelineView.setInitialInputStream(newStream);
+    },
+
+
+    //--------------------------------------------------------------------------------
+    //
     //  drag
     
     mouseDown: function (event) {
@@ -760,10 +771,7 @@ var NVInteractiveCanvasView = new Class({
         if (this.isEditing) {
             if (this.selectedPoint && this.selectedPoint.item) {
                 var pointIndex = this.points.indexOf(this.selectedPoint);
-
-                var draggedObject = NLObjectTranslate(this.selectedPoint.item.object, dx / this.scale, -dy / this.scale);
-                this.pipelineView.replaceStreamItemWithItem(this.selectedPoint.item, NLStreamItem(draggedObject));
-                
+                this.translatePointInStream(this.selectedPoint, dx / this.scale, -dy / this.scale);
                 this.setSelectedPoint(this.points[pointIndex]);
                 return;
             }
