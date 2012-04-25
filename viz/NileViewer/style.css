@@ -21,6 +21,7 @@ body {
     margin-top:20px;
 }
 
+
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */ 
 /* NileViewer */
 
@@ -167,13 +168,13 @@ b {
 
 a { 
     text-decoration:underline; 
-    color: #933; 
+    color: #55a; 
     border:none;
 }
 
 a:hover {
     text-decoration:underline;
-    color: #933;
+    color: #114;
 }
 
 img { 
