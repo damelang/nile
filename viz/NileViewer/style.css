@@ -8,8 +8,16 @@ body {
     text-align: left;
 }
 
+#mySidebar {
+    position:absolute;
+    left:10px;
+    top:20px;
+    width:140px;
+    list-style-type:none;
+}
+
 #myViewer {
-    margin-left:20px;
+    margin-left:150px;
     margin-top:20px;
 }
 
