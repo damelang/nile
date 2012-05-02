@@ -5,121 +5,132 @@ CRLF          = "\n""\r"* | "\r""\n"* ;
 _             = " "* ;
 LPAREN        = _"("_ ;
 RPAREN        = _")"_ ;
-COMMA         = _","_ ;
+COMMA         = _","_ EOL* ;
 COLON         = _":"_ ;
-RARROW        = _"→"_ ;
+RARROW        = _("→" | "->")_ EOL* ;
+FOREACH       = _("∀" | "for"_"each" | "for"_"all")_ ;
 DQUOTE        = "\"" ;
-opsym         = [-!#$%&*+/<>?@^|~¬²³×‖\u2201-\u221D\u221F-\u22FF⌈⌉⌊⌋▷◁⟂] ;
-mulop         = [/∙×] ;
-ropname       = ![<>≤≥≠=∧∨] opname ;
-alpha         = [ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz] ;
-num           = [1234567890] ;
-alphanum      = alpha | num ;
-realliteral   = (num+ ("." num+)?)@$ ;
-typename      = (alpha alphanum*)@$ ;
-opname        = (opsym+ | "\\"alpha+)$ ;
-processname   = (alpha alphanum*)@$ ;
-varname       = (alpha num* "'"?)@$
-              | DQUOTE (!DQUOTE .)+$:n DQUOTE -> n ;
+comment       = "--" (!CRLF .)* ;
+opsym1        = [∧∨] ;
+opsym2        = [<>≤≥≠=] ;
+opsym3        = !opsym1 !opsym2 !opsym4
+                [-~!@#$%^&*+|¬²³‖⌈⌉⌊⌋▷◁⟂\u2201-\u221D\u221F-\u22FF\x3F\x5B\x5D] ;
+opsym4        = [/∙×] ;
+opsym         = opsym1 | opsym2 | opsym3 | opsym4 ;
+alpha         = [A-Za-z\u0370-\u03FF] ;
+digit         = [0-9] ;
+alphanum      = alpha | digit ;
+intliteral    = digit+$ | "∞" ;
+realliteral   = (digit+ "." digit+)@$ ;
+typename      = alphanum+$ ;
+processname   = alphanum+$ ;
+opname        = !"--" !"<<" !">>"
+                (opsym+ | "\\"alphanum+)$ ;
+varname       = (alpha alphanum* "'"?)@$ ;
+null          = -> '() ;
 
 # Indentation rules
-EOL           = _ ("--" (!CRLF .)*)? CRLF _:spaces -> (set self.indentation (list-length spaces)) ;
-indentation   =                                    -> self.indentation ;
+EOL           = _ comment? CRLF _:spaces -> (set self.indentation (list-length spaces)) ;
+indentation   =                          -> self.indentation ;
+atIndent      = .:i EOL+                &-> (= i self.indentation) ;
+pastIndent    = .:i EOL+                &-> (< i self.indentation) ;
 
-# Expressions
-realexpr      = realliteral:r                           -> (nile-realexpr r) ;
-varexpr       = varname:v                               -> (nile-varexpr v) ;
+# Types
+simpletype    = tupletype | recordtype
+              | typename:n                                     -> (nile-typeref n) ;
+type          = processtype | simpletype ;
+typedvar      = varname:n COLON type:t                         -> (nile-vardecl n t) ;
+tupletype     = LPAREN     type:t1 (COMMA     type)+:ts RPAREN -> (nile-tupletype  (cons t1 ts)) ;
+recordtype    = LPAREN typedvar:f1 (COMMA typedvar)+:fs RPAREN -> (nile-recordtype (cons f1 fs)) ;
+processtype   = simpletype:intype _">>"_ simpletype:outtype    -> (nile-processtype intype outtype) ;
+
+# Argument and parameter lists
+args          = exprlist ;
+params        = "("_ typedvar:p1 (COMMA typedvar)*:ps _")" -> (cons p1 ps) ;
+emptylist     = LPAREN RPAREN                              -> '() ;
+
+# Primary expressions
+realexpr      = realliteral:v                           -> (nile-realexpr v) ;
+intexpr       = intliteral:v                            -> (nile-intexpr v) ;
+varexpr       = varname:n                               -> (nile-varexpr n) ;
 parenexpr     = "("_ expr:e _")"                        -> e ;
-tupleexpr     = "("_ expr:e1 (COMMA expr)+:es _")"      -> (nile-tupleexpr (cons e1 es)) ;
-condcase      = expr:v COMMA "if "_ expr:c (EOL|_";"_)+ -> (nile-condcase v c) ;
-condexpr      = "{"_ condcase*:cs
+tupleexpr     = exprlist:es                             -> (nile-tupleexpr es) ;
+condcase      = expr:v COMMA "if "_ expr:c (EOL+|_";"_) -> (nile-condcase v c) ;
+condexpr      = "{"_ condcase+:cs
                      expr:d (COMMA "otherwise")? _"}"   -> (nile-condexpr cs d) ;
-primaryexpr   = realexpr | varexpr | parenexpr | tupleexpr | condexpr ;
+primaryexpr   = realexpr | intexpr | varexpr | parenexpr | tupleexpr | condexpr ;
 
-recfieldexpr  = primaryexpr:r ("." varname)+:fs  -> (nile-recfieldexpr r fs)
+recfieldexpr  = recfieldexpr:r "." varname:f -> (nile-recfieldexpr r f)
               | primaryexpr ;
-coerceexpr    = recfieldexpr:e COLON typename:t  -> (nile-coerceexpr e t)
-              | recfieldexpr ;
-unaryexpr     = opname:n1 coerceexpr:a opname:n2 -> (nile-opexpr (concat-symbol n1 n2) `(,a))
-              | opname:n  coerceexpr:a           -> (nile-opexpr n                     `(,a))
-              |           coerceexpr:a opname:n  -> (nile-opexpr n                     `(,a))
-              |           coerceexpr ;
 
-prodexpr      =  unaryexpr:a (" "*          ->"_":o " "*  unaryexpr:b -> (nile-opexpr o `(,a ,b)):a)* -> a ;
-mulexpr       =   prodexpr:a (" "+ &mulop ropname:o " "+   prodexpr:b -> (nile-opexpr o `(,a ,b)):a)* -> a ;
-infixexpr     =    mulexpr:a (" "+ !mulop ropname:o " "+    mulexpr:b -> (nile-opexpr o `(,a, b)):a)* -> a ;
-relateexpr    =  infixexpr:a (" "+     [<>≤≥≠=]@$:o " "+  infixexpr:b -> (nile-opexpr o `(,a ,b)):a)* -> a ;
-logicexpr     = relateexpr:a (" "+         [∧∨]@$:o " "+ relateexpr:b -> (nile-opexpr o `(,a ,b)):a)* -> a ;
-expr          = logicexpr ;
+# Operation expressions
+opexpr6       = opname:n1 recfieldexpr:a  opname:n2 -> (nile-opexpr (++ n1 n2) `(,a))
+              | opname:n          args:as           -> (nile-opexpr n             as)
+              | opname:n  recfieldexpr:a            -> (nile-opexpr n          `(,a))
+              |           recfieldexpr:a  opname:n  -> (nile-opexpr n          `(,a))
+              |           recfieldexpr ;
+opexpr5       = opexpr5:a " "*           null:n      opexpr6:b -> (nile-opexpr n `(,a ,b)) | opexpr6 ;
+opexpr4       = opexpr4:a " "+ &opsym4 opname:n " "+ opexpr5:b -> (nile-opexpr n `(,a ,b)) | opexpr5 ;
+opexpr3       = opexpr3:a " "+ &opsym3 opname:n " "+ opexpr4:b -> (nile-opexpr n `(,a ,b)) | opexpr4 ;
+opexpr2       = opexpr2:a " "+ &opsym2 opname:n " "+ opexpr3:b -> (nile-opexpr n `(,a ,b)) | opexpr3 ;
+opexpr1       = opexpr1:a " "+ &opsym1 opname:n " "+ opexpr2:b -> (nile-opexpr n `(,a ,b)) | opexpr2 ;
 
-# Use these once left recursion is working:
-#prodexpr      =   prodexpr:a " "*          ->"_":o " "*  unaryexpr:b -> (nile-opexpr o `(,a ,b)) |  unaryexpr ;
-#mulexpr       =    mulexpr:a " "+ &mulop ropname:o " "+   prodexpr:b -> (nile-opexpr o `(,a ,b)) |   prodexpr ;
-#infixexpr     =  infixexpr:a " "+ !mulop ropname:o " "+    mulexpr:b -> (nile-opexpr o `(,a, b)) |    mulexpr ;
-#relateexpr    = relateexpr:a " "+     [<>≤≥≠=]@$:o " "+  infixexpr:b -> (nile-opexpr o `(,a ,b)) |  infixexpr ;
-#logicexpr     =  logicexpr:a " "+         [∧∨]@$:o " "+ relateexpr:b -> (nile-opexpr o `(,a ,b)) | relateexpr ;
+# Process pipelines
+processinst   = processname:n _(args|emptylist):as  -> (nile-processinst n as) ;
+process       = processinst | varname ;
+pipeline      = RARROW process:p (pipeline|null):c  -> (nile-pipeline p c) ;
 
-# Process expressions
-processarg    = LPAREN expr:e RPAREN               -> e
-              | pexpr ;
-processinst   = processname:n LPAREN processarg:a1
-                (COMMA processarg)*:as RPAREN      -> (nile-processinst n (cons a1 as))
-              | processname:n (LPAREN RPAREN)?     -> (nile-processinst n ())
-              | LPAREN RARROW RPAREN               -> (nile-processinst "Passthrough" ()) ;
-process       = LPAREN varname:v RPAREN            -> v
-              | processinst ;
-pexpr         = process:p1 (RARROW process)*:ps    -> (nile-pexpr (cons p1 ps)) ;
+expr          = pipeline | opexpr1 ;
+exprlist      = "("_ expr:e1 (COMMA expr)*:es _")" -> (cons e1 es) ;
 
-# Statements
-vardecl       = LPAREN vardecl:d1 (COMMA vardecl)*:ds RPAREN -> (cons d1 ds)
-              | varname:n                                    -> (nile-vardecl n ())
-              | "_" ;
-vardef        = vardecl:d _"="_ expr:e            -> (nile-vardef d e) ;
-instmt        = "<<"_ expr:e1 (_"<<"_ expr)*:es   -> (nile-instmt  (cons e1 es)) ;
-outstmt       = ">>"_ expr:e1 (_">>"_ expr)*:es   -> (nile-outstmt (cons e1 es)) ;
+# Variable definitions
+vardecl       = typedvar | varpat
+              | (varname|"_"):n                              -> (nile-vardecl n (nile-anytype)) ;
+varpat        = LPAREN vardecl:d1 (COMMA vardecl)+:ds RPAREN -> (nile-varpat (cons d1 ds)) ;
+vardef        = vardecl:d _"="_ expr:v                       -> (nile-vardef d v) ;
+
+block         = .:i ({pastIndent i} vardef)*:defs
+                    ({pastIndent i}   stmt)*:stmts -> (nile-block defs stmts) ;
+
+# In/out statements
+instmt        = "<<"_ expr:v1 (_"<<"_ expr)*:vs -> (nile-instmt  (cons v1 vs)) ;
+outstmt       = ">>"_ expr:v1 (_">>"_ expr)*:vs -> (nile-outstmt (cons v1 vs)) ;
+
+# If statements
+elseif        = .:i {atIndent i} "else "_"if "_ {ifbody i} ;
+else          = .:i {atIndent i} "else"         {block  i}
+              | .:i                             {block  i} ;
+ifbody        = .:i expr:c {block i}:t ({elseif i} | {else i}):f -> (nile-ifstmt c t f) ;
 ifstmt        = indentation:i "if "_ {ifbody i} ;
-ifbody        = .:i expr:c {indentedStmts i}:t
-              ( EOL+ &->(= i self.indentation)
-                    ( "else "_"if "_ {ifbody i}:f -> (nile-ifstmt c t `(,f))
-                    | "else"  {indentedStmts i}:f -> (nile-ifstmt c t    f)
-                    )
-              | -> (nile-ifstmt c t ())
-              ) ;
-substmt       = "⇒"_ pexpr:e                      -> (nile-substmt e) ;
-stmt          = vardef | instmt | outstmt | ifstmt | substmt ;
-indentedStmts = .:i (EOL+ &->(< i self.indentation) stmt)* ;
+
+substmt       = pipeline:p -> (nile-substmt p) ;
+stmt          = instmt | outstmt | ifstmt | substmt ;
 
 # Type definitions
-typedvar      = varname:n COLON typename:t                                  -> (nile-vardecl n t) ;
-tupletype     = LPAREN typename:t1 (COMMA typename)*:ts RPAREN              -> (nile-tupletype  (cons t1 ts)) ;
-recordtype    = LPAREN typedvar:f1 (COMMA typedvar)*:fs RPAREN              -> (nile-recordtype (cons f1 fs)) ;
-processtype   = (typename | tupletype):in _">>"_ (typename | tupletype):out -> (nile-processtype in out) ;
-typedef       = "type "_ typename:n _"="_ (processtype | recordtype):t EOL  -> (nile-typedef n t) ;
+typedef       = "type "_ typename:n _"="_ type:t               -> (nile-typedef n t  )
+              | "type "_ typename:n                            -> (nile-typedef n (nile-primtype n)) ;
 
-# Operator definitions
-infixsig   = LPAREN typedvar:a1 RPAREN (opname | ->"_"):n
-             LPAREN typedvar:a2 RPAREN
-             COLON typename:t                              -> (nile-opsig n `(,a1 ,a2) t) ;
-outfixsig  = opname:n1 LPAREN typedvar:a RPAREN opname:n2
-             COLON typename:t                              -> (nile-opsig (concat-symbol n1 n2) `(,a) t) ;
-prefixsig  = opname:n LPAREN typedvar:a RPAREN
-             COLON typename:t                              -> (nile-opsig n `(,a) t) ;
-postfixsig = LPAREN typedvar:a RPAREN opname:n
-             COLON typename:t                              -> (nile-opsig n `(,a) t) ;
-opdef      = (infixsig | outfixsig | prefixsig | postfixsig):sig
-             {indentedStmts 0}:stmts EOL+
-             &->(< 0 self.indentation) expr:result EOL     -> (nile-opdef sig stmts result) ;
+# Operation definitions
+
+infixsig      =           LPAREN typedvar:p1 _(opname|null):n _
+                                 typedvar:p2 RPAREN           COLON type:t -> (nile-opsig n          `(,p1 ,p2) t) ;
+outfixsig     = opname:n1 LPAREN typedvar:p  RPAREN opname:n2 COLON type:t -> (nile-opsig (++ n1 n2)      `(,p) t) ;
+prefixsig     = opname:n  LPAREN typedvar:p  RPAREN           COLON type:t -> (nile-opsig n               `(,p) t)
+              | opname:n           params:ps                  COLON type:t -> (nile-opsig n                  ps t) ;
+postfixsig    =           LPAREN typedvar:p  RPAREN opname:n  COLON type:t -> (nile-opsig n               `(,p) t) ;
+opsig         = infixsig | outfixsig | prefixsig | postfixsig ;
+
+opbody        = ({pastIndent 0} vardef)*:defs
+                 {pastIndent 0}     expr:v    -> (nile-opbody defs v)
+              |                               -> '() ;
+opdef         = opsig:sig opbody:body         -> (nile-opdef sig body) ;
 
 # Process definitions
-processfargs  = LPAREN typedvar:a1 (COMMA typedvar)*:as RPAREN    -> (cons a1 as)
-              |                                                   -> () ;
-processsig    = processname:n processfargs:args
-                COLON (processtype | typename):t                  -> (nile-processsig n args t) ;
-prologue      = {indentedStmts 0} ;
-processbody   = EOL+ indentation:i "∀"_ vardecl:d
-                {indentedStmts i}:s                               -> (nile-processbody d s) ;
-epilogue      = {indentedStmts 0} ;
-processdef    = processsig:s prologue:p processbody?:b epilogue:e -> (nile-processdef s p (car b) e) ;
+processsig    = processname:n _(params|emptylist):ps COLON type:t      -> (nile-processsig n ps t) ;
+prologue      = {block 0} ;
+processbody   = indentation:i FOREACH vardecl:d {block i}:s            -> (nile-processbody d s) ;
+epilogue      = {block 0} ;
+processdef    = processsig:s prologue:p EOL+ processbody?:b epilogue:e -> (nile-processdef s p (car b) e) ;
 
 # Top level
 definition    = typedef | opdef | processdef ;
