@@ -79,8 +79,9 @@ static void nile_Sem_init   (nile_Sem_t *s, int v) { semaphore_create (mach_task
                                                                        SYNC_POLICY_FIFO, v);    }
 static void nile_Sem_fini   (nile_Sem_t *s)        { semaphore_destroy (mach_task_self (), *s); }
 static void nile_Sem_signal (nile_Sem_t *s)        { semaphore_signal (*s);                     }
-static void nile_Sem_wait   (nile_Sem_t *s)        { semaphore_wait (*s);                       }
-
+static void nile_Sem_wait   (nile_Sem_t *s)        { kern_return_t status;
+                                                     do status = semaphore_wait (*s);
+                                                     while (status == KERN_ABORTED);            }
 #elif defined (__linux)
 
 #include <semaphore.h>
