@@ -75,7 +75,7 @@ nile_sync (nile_Process_t *init)
     while (worker->status == NILE_STATUS_OK &&
            (p = nile_Thread_steal (worker, nile_Thread_steal_from_q)))
         nile_Thread_work (worker, p);
-    nile_Sleep_wait_for_quiecent (liaison->sleep);
+    nile_Sleep_wait_for_quiescent (liaison->sleep);
 
     for (i = 1; i < liaison->nthreads; i++)
         liaison->threads[i].sync = 0;
