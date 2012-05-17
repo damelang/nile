@@ -87,11 +87,12 @@ static void nile_Sem_wait   (nile_Sem_t *s)        { kern_return_t status;
 #include <semaphore.h>
 typedef sem_t nile_Sem_t;
 
-static void nile_Sem_init   (nile_Sem_t *s, int v) { sem_init (s, 0, v); }
-static void nile_Sem_fini   (nile_Sem_t *s)        { sem_destroy (s);    }
-static void nile_Sem_signal (nile_Sem_t *s)        { sem_post (s);       }
-static void nile_Sem_wait   (nile_Sem_t *s)        { sem_wait (s);       }
-
+static void nile_Sem_init   (nile_Sem_t *s, int v) { sem_init (s, 0, v);                     }
+static void nile_Sem_fini   (nile_Sem_t *s)        { sem_destroy (s);                        }
+static void nile_Sem_signal (nile_Sem_t *s)        { sem_post (s);                           }
+static void nile_Sem_wait   (nile_Sem_t *s)        { int status;
+                                                     do status = sem_wait (s);
+                                                     while (status == -1 && errno == EINTR); }
 #elif defined (_WIN32)
 
 typedef HANDLE nile_Sem_t;
