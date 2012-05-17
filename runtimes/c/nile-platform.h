@@ -85,6 +85,7 @@ static void nile_Sem_wait   (nile_Sem_t *s)        { kern_return_t status;
 #elif defined (__linux)
 
 #include <semaphore.h>
+#include <errno.h>
 typedef sem_t nile_Sem_t;
 
 static void nile_Sem_init   (nile_Sem_t *s, int v) { sem_init (s, 0, v);                     }
