@@ -14,8 +14,11 @@
 
     <!-- project -->
     <script type="text/javascript" src="Project/Main.js"></script>
-    <script type="text/javascript" src="Project/NileViewer.js"></script>
     <script type="text/javascript" src="Project/NileVM.js"></script>
+    <script type="text/javascript" src="Project/NileDummyProcesses.js"></script>
+    <script type="text/javascript" src="Project/NileViewer.js"></script>
+    <script type="text/javascript" src="Project/NVPointCanvasView.js"></script>
+    <script type="text/javascript" src="Project/NVRealCanvasView.js"></script>
 
 </head>
 
@@ -25,6 +28,8 @@
     <ul>
         <li><a class="DemoLink" href="#" data-name="Beziers">Beziers demo</a></li>
         <li><a class="DemoLink" href="#" data-name="Points">Points demo</a></li>
+        <li><a class="DemoLink" href="#" data-name="Reals">Reals demo</a></li>
+        <li><a class="DemoLink" href="#" data-name="Shape">Shape demo</a></li>
     </ul>
 </div>
 
@@ -33,28 +38,26 @@
 
 <div id="NVTemplates" style="display:none;">
 
-    <div class="NVPipeline">
-        <div class="NVProcess">
-            <div class="NVProcessHeader">
-                <div class="NVProcessTitle">
-                    <span class="NVProcessName">StrokeBezierPath</span>
-                    <span class="NVProcessParameters">(4,0,0)</span>
-                </div>
-                <div class="NVProcessInput">
-                    <div class="NVProcessIcons"></div>
-                    <div class="NVProcessIconsCaption">Input: 4 Beziers</div>
-                </div>
-                <div class="NVProcessOutput">
-                    <div class="NVProcessIcons"></div>
-                    <div class="NVProcessIconsCaption">Output: 6 Beziers</div>
-                </div>
+    <div class="NVProcess">
+        <div class="NVProcessHeader">
+            <div class="NVProcessTitle">
+                <span class="NVProcessName">StrokeBezierPath</span>
+                <span class="NVProcessParameters">(4,0,0)</span>
             </div>
-            <div class="NVProcessCanvas">
-                <canvas width="200" height="150"></canvas>
-                <div class="NVProcessCanvasHelp">zoom: shift-drag<br>reset: double-click</div>
+            <div class="NVProcessInput">
+                <div class="NVProcessIcons"></div>
+                <div class="NVProcessIconsCaption">Input: 4 Beziers</div>
             </div>
-            <div class="NVProcessCode"></div>
+            <div class="NVProcessOutput">
+                <div class="NVProcessIcons"></div>
+                <div class="NVProcessIconsCaption">Output: 6 Beziers</div>
+            </div>
         </div>
+        <div class="NVProcessCanvas">
+            <canvas width="200" height="150"></canvas>
+            <div class="NVProcessCanvasHelp">zoom: shift-drag<br>reset: double-click</div>
+        </div>
+        <div class="NVProcessCode"></div>
     </div>
 </div>
 

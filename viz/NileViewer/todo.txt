@@ -1,6 +1,73 @@
-todo
-----
-prologue, epilogue, substitution are icons in input stream (bookends)
-only fill if shape is closed?
-expand subprocess
-incrementally add processviews to pipelineview
+
+NVPipelineView
+--------------
+ subpipelines
+
+NVProcessView
+-------------
+ parameters
+ reorder
+ remove
+ insert new
+ 
+NVStreamView
+------------
+ prologue, epilogue, substitution are icons in input stream (bookends)
+
+NVCanvasView
+------------
+ visualize edge spans, etc.
+ visualize intermediate terms
+ draw data?
+ import data?
+ only fill if shape is closed?
+ 
+NVCodeView
+----------
+ edit code
+   drag constants?
+ check variables that you want to see 
+ variable/term values
+ 
+demo UI
+-------
+ select pipeline
+ save pipeline
+ select inputs?
+ 
+
+
+
+parameter is:  real, point, vector, bezier, etc.
+  how to specify parameter
+  
+edit a dynamically-constructed pipeline?
+
+
+
+Point >> Real
+Real >> Real  (plot as bar chart?)
+Real >> Color  (plot as color swatches?)
+
+Real >> (Real, Color)  
+
+
+ColorSpan (S1, S2 : Color, l : Real) : ColorSpans
+ColorSpans :: (Real, Color) >> (Real, Color)
+
+
+Compositor :: (Color, Color) >> Color
+
+
+types
+-----
+Point (EdgeSample, CoverageSpan, CoveragePoint)
+Bezier
+
+Real  (bar chart?)
+Color  (color swatch?)
+Vector  (anchored point? arrow?)
+
+tuples  (multiple canvases?)
+
+Texture
