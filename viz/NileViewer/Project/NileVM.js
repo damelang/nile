@@ -24,6 +24,10 @@ function NLReal (v) {
     };
 }
 
+function NLRealUnbox (r) {
+    return r.value;
+}
+
 function NLPoint (x,y) {
     return {
         "_type": NLTypes.Point,
@@ -65,38 +69,22 @@ function NLObjectGetTypeName (obj) {
     return obj._type.name;
 }
 
-function NLObjectExtractPoints (obj) {
-    var points = [];
-    extract(obj);
-    return points;
-    
-    function extract (obj) {
-        if (obj.x && obj.y && obj.x.value !== undefined && obj.y.value !== undefined) {
-            points.push( NLPointUnbox(obj) );
-        }
-        else {
-            Object.each(obj, function (obj) {
-                if (obj._type) { extract(obj); }
-            });
-        }
-    }
-}
+function NLObjectRebox(obj,unboxed) {
+    var clone = NLObjectClone(obj);
 
-function NLObjectExtractBeziers (obj) {
-    var beziers = [];
-    extract(obj);
-    return beziers;
-    
-    function extract (obj) {
-        if (obj.A && obj.A.x && obj.A.y && obj.B && obj.B.x && obj.B.y && obj.C && obj.C.x && obj.C.y) {
-            beziers.push( NLBezierUnbox(obj) );
-        }
-        else {
-            Object.each(obj, function (obj) {
-                if (obj._type) { extract(obj); }
-            });
+    if (typeof(unboxed) === "number") {
+        if (obj.value !== undefined) {
+            clone.value = unboxed;
         }
     }
+    else {
+        Object.each(unboxed, function (value, key) {
+            if (obj[key] !== undefined) {
+                clone[key] = NLObjectRebox(obj[key], value);
+            }
+        });
+    }
+    return clone;
 }
 
 function NLObjectMovePoint (obj, x1,y1, x2,y2) {
@@ -117,6 +105,65 @@ function NLObjectMovePoint (obj, x1,y1, x2,y2) {
     }
 }
 
+function NLObjectSubdivide (obj) {
+    var bezier = NLBezierUnbox(obj);
+    if (bezier.A.x === undefined) { return obj; }
+
+    var AB = midPoint(bezier.A, bezier.B);
+    var BC = midPoint(bezier.B, bezier.C);
+    var ABBC = midPoint(AB, BC);
+
+    var left = NLObjectRebox(obj, { A:bezier.A, B:AB, C:ABBC });
+    var right = NLObjectRebox(obj, { A:ABBC, B:BC, C:bezier.C });
+    
+    return [ left, right ];
+    
+    function midPoint(p,q) {
+        return { x:0.5*(p.x + q.x), y:0.5*(p.y + q.y) };
+    }
+}
+
+
+//====================================================================================
+//
+//  NLObjectExtract
+//
+
+function NLObjectExtractReals (obj) {
+    return NLObjectExtract(obj, NLRealUnbox, function (obj) {
+        return (obj.value !== undefined);
+    });
+}
+
+function NLObjectExtractPoints (obj) {
+    return NLObjectExtract(obj, NLPointUnbox, function (obj) {
+        return (obj.x && obj.y && obj.x.value !== undefined && obj.y.value !== undefined);
+    });
+}
+
+function NLObjectExtractBeziers (obj) {
+    return NLObjectExtract(obj, NLBezierUnbox, function (obj) {
+        return (obj.A && obj.A.x && obj.A.y && obj.B && obj.B.x && obj.B.y && obj.C && obj.C.x && obj.C.y);
+    });
+}
+
+function NLObjectExtract (obj, unbox, matchesType) {
+    var things = [];
+    extract(obj);
+    return things;
+    
+    function extract (obj) {
+        if (matchesType(obj)) {
+            things.push( unbox(obj) );
+        }
+        else {
+            Object.each(obj, function (obj) {
+                if (obj._type) { extract(obj); }
+            });
+        }
+    }
+}
+
 
 //====================================================================================
 //
@@ -124,16 +171,10 @@ function NLObjectMovePoint (obj, x1,y1, x2,y2) {
 //
 
 function NLProcess (name) {
-    if (!NLTypes[name]) {
-        NLTypes[name] = {
-            "name": name,
-            "code": (NLProcessCode[name] || ""),
-        }
-    }
+    var type = NLTypeForProcessName(name);
     return {
-        "_type": NLTypes[name],
-        "producer": null,
-        "consumer": null,
+        "_type": type,
+        "subpipeline": (type.subprocessNames || []).map(NLProcess),
         "inputStream": null,
         "outputStream": null,
     };
@@ -153,9 +194,24 @@ function NLProcessGetCode (process) {
 }
 
 function NLProcessRun (process) {
-    var name = NLProcessGetName(process);
-    var func = NLProcessFunctions[name] || NLProcessFunctions["default"];
-    func(process);
+    var subpipeline = process.subpipeline;
+    if (subpipeline.length) {
+        NLPipelineRun(subpipeline, process.inputStream);
+        process.outputStream = NLStreamClone(subpipeline[subpipeline.length - 1].outputStream);
+    }
+    else {
+        var func = process._type.func || NLTypes["default"].func;
+        func(process);
+    }
+}
+
+function NLTypeForProcessName (name) {
+    if (!NLTypes[name]) {
+        NLTypes[name] = {};
+        Object.each(NLTypes["default"], function (value, key) { NLTypes[name][key] = value; });
+        NLTypes[name].name = name;
+    }
+    return NLTypes[name];
 }
 
 
@@ -201,15 +257,7 @@ function NLStreamItem (obj,recursionDepth) {
     };
 }
 
-function NLStreamClone (stream) {  // fresh items
-    var s = NLStream();
-    for (var i = 0; i < stream.length; i++) {
-        s.push(NLStreamItem(stream[i].object));
-    }
-    return s;
-}
-
-function NLStreamCopy (stream) {  // same items
+function NLStreamClone (stream) {  // shallow, same items
     var s = NLStream();
     for (var i = 0; i < stream.length; i++) {
         s.push(stream[i]);
@@ -255,172 +303,18 @@ function NLStreamPush (stream, item, trace) {
 //
 
 function NLPipelineClone (pipeline) {
-    return pipeline.map( function (process) { return NLProcessClone(process); });
+    return pipeline.map(NLProcessClone);
 }
 
 function NLPipelineRun (processes, inputStream) {
-    var lastProcess = null;
-    for (var i = 0; i < processes.length; i++) {
-        var process = processes[i];
-        process.producer = lastProcess;
-        if (lastProcess) { lastProcess.consumer = process; }
-    }
-    
     var lastStream = inputStream;
     for (var i = 0; i < processes.length; i++) {
         var process = processes[i];
-        process.inputStream = NLStreamCopy(lastStream);
+        process.inputStream = NLStreamClone(lastStream);
         process.outputStream = NLStream();
         NLProcessRun(process);
         lastStream = process.outputStream;
     }
 }
-
-
-//====================================================================================
-//
-//  demo process definitions
-//
-
-var NLProcessFunctions = {
-
-    "default": function (process) {
-        NLStreamForAll(process.inputStream, process, function (item, trace) {
-            NLStreamOutput(process.outputStream, NLStreamItem(item.object), trace);
-        });
-    },
-
-    "MakePolygon": function (process) {
-        var p0 = null;
-        NLStreamForAll(process.inputStream, process, function (item, trace) {
-            var p = NLPointUnbox(item.object);
-            if (p0) {
-                var pm = { x:0.5*(p.x + p0.x), y:0.5*(p.y + p0.y) };
-                NLStreamOutput(process.outputStream, NLStreamItem(NLBezier(p0.x,p0.y,pm.x,pm.y,p.x,p.y)), trace);
-                NLTraceAddLineIndexes(trace, [6]);
-            }
-            p0 = p;
-            NLTraceAddLineIndexes(trace, [4,5]);
-        });
-    },
-
-    "RoundPolygon": function (process) {
-        NLStreamForAll(process.inputStream, process, function (item, trace) {
-            var b = NLBezierUnbox(item.object);
-            var normal = { x:-(b.C.y - b.A.y), y:b.C.x - b.A.x };
-            b.B.x += normal.x * 0.25;
-            b.B.y += normal.y * 0.25;
-            
-            NLStreamOutput(process.outputStream, NLStreamItem(NLBezier(b.A.x,b.A.y,b.B.x,b.B.y,b.C.x,b.C.y)), trace);
-            NLTraceAddLineIndexes(trace, [2,3]);
-        });
-    },
-
-    "SubdivideBeziers": function (process) {
-        NLStreamForAll(process.inputStream, process, function (item, trace) {
-            var b = NLBezierUnbox(item.object);
-            
-            var norm = Math.abs( (b.A.x - b.C.x) * (b.A.x - b.C.x) + (b.A.y - b.C.y) * (b.A.y - b.C.y) );
-            if (norm < 1.2) {
-                NLStreamOutput(process.outputStream, NLStreamItem(item.object), trace);
-                NLTraceAddLineIndexes(trace, [2,3]);
-            }
-            else {
-                var AB = midPoint(b.A,b.B);
-                var BC = midPoint(b.B,b.C);
-                var ABBC = midPoint(AB,BC);
-                NLStreamPush(process.inputStream, NLStreamItem(NLBezier(ABBC.x,ABBC.y,BC.x,BC.y,b.C.x,b.C.y), item.recursionDepth + 1), trace);
-                NLStreamPush(process.inputStream, NLStreamItem(NLBezier(b.A.x,b.A.y,AB.x,AB.y,ABBC.x,ABBC.y), item.recursionDepth + 1), trace);
-                NLTraceAddLineIndexes(trace, [2,5,6]);
-            }
-        });
-
-        function midPoint(p,q) {
-            return { x:0.5*(p.x + q.x), y:0.5*(p.y + q.y) };
-        }
-    },
-    
-    "TransformBeziers": function (process) {
-        var angle = Math.PI * 0.25;
-        var m = { a:Math.cos(angle), b:-Math.sin(angle), c:Math.sin(angle), d:Math.cos(angle) };
-
-        NLStreamForAll(process.inputStream, process, function (item, trace) {
-            var b = NLBezierUnbox(item.object);
-            var A = transformPoint(b.A, m);
-            var B = transformPoint(b.B, m);
-            var C = transformPoint(b.C, m);
-            var item = NLStreamItem(NLBezier(A.x,A.y,B.x,B.y,C.x,C.y));
-            NLStreamOutput(process.outputStream, NLStreamItem(NLBezier(A.x,A.y,B.x,B.y,C.x,C.y)), trace);
-            NLTraceAddLineIndexes(trace, [2]);
-        });
-        
-        function transformPoint(p,m) {
-            return { x: m.a * p.x + m.c * p.y, y: m.b * p.x + m.d * p.y };
-        }
-    },
-
-    "StrokeBezierPath": function (process) {
-
-        var points = [];
-        var beziers = [];
-        
-        Array.each(process.inputStream, function (item) {
-            var bezier = NLBezierUnbox(item.object);
-            beziers.push(bezier);
-            points.push(bezier.A, bezier.B, bezier.C);
-        });
-        if (points.length == 0) { return; }
-        
-        var minPoint = { x:points[0].x, y:points[0].y };
-        var maxPoint = { x:points[0].x, y:points[0].y };
-        
-        Array.each(points, function (point) {
-            minPoint.x = Math.min(minPoint.x, point.x);
-            minPoint.y = Math.min(minPoint.y, point.y);
-            maxPoint.x = Math.max(maxPoint.x, point.x);
-            maxPoint.y = Math.max(maxPoint.y, point.y);
-        });
-        
-        var midPoint = { x:0.5*(maxPoint.x + minPoint.x), y:0.5*(maxPoint.y + minPoint.y) };
-
-        function lerp (a,b,t) { return a + (b - a) * t; }
-
-        function transformPoint(p) {
-            return { x: lerp(p.x, midPoint.x, 0.3), y: lerp(p.y, midPoint.y, 0.3) };
-        }
-
-        NLStreamForAll(process.inputStream, process, function (item, trace) {
-            NLStreamOutput(process.outputStream, NLStreamItem(item.object), trace);
-        });
-
-        NLStreamForAll(NLStreamReverse(process.inputStream), process, function (item, trace) {
-            var b = NLBezierUnbox(item.object);
-            var A = transformPoint(b.C);
-            var B = transformPoint(b.B);
-            var C = transformPoint(b.A);
-            NLStreamOutput(process.outputStream, NLStreamItem(NLBezier(A.x,A.y,B.x,B.y,C.x,C.y)), trace);
-        });
-    },
-    
-};
-    
-
-    
-//====================================================================================
-//
-//  demo process code
-//
-
-var NLProcessCode = {
-
-    "default": "",
-    "MakePolygon": "MakePolygon () : Point >> Bezier\n    p:Point = 0\n    first = true\n    ∀ p'\n        first' = false\n        if ¬first\n            >> (p, p ~ p', p')\n",
-    "RoundPolygon": "RoundPolygon () : Bezier >> Bezier\n    ∀ (A, B, C)\n        n = (A ⟂ C) / 4\n        >> (A, B + n, C)\n",
-    "TransformBeziers": "TransformBeziers (M:Matrix) : Bezier >> Bezier\n    ∀ (A, B, C)\n        >> (MA, MB, MC)\n",
-    "StrokeBezierPath": "StrokeBezierPath (w:Real, l:Real, c:Real) : Bezier >> Bezier\n    → SanitizeBezierPath () →\n      DupCat (→ StrokeOneSide (w, l, c),\n              → Reverse () → ReverseBeziers () → StrokeOneSide (w, l, c))",
-    "SubdivideBeziers": "SubdivideBeziers () : Bezier >> Bezier\n    ∀ (A, B, C)\n        if ‖(A - C)‖ < 1\n            >> (A, B, C)\n        else\n            M = (A ~ B) ~ (B ~ C)\n            << (M, B ~ C, C) << (A, A ~ B, M)\n",
-    "Rasterize": "Rasterize () : Bezier >> EdgeSpan\n    → DecomposeBeziers () → SortBy (1) → SortBy (2) → CombineEdgeSamples ()",
-};
-    
 
 

@@ -78,6 +78,39 @@ function getDemos () {
                 NLProcess("StrokeBezierPath"),
             ],
         },
+
+        "Reals": {
+            stream: [
+                NLReal(1),
+                NLReal(1),
+                NLReal(2),
+                NLReal(3),
+                NLReal(5),
+                NLReal(8),
+                NLReal(13),
+            ].map(function (x) { return NLStreamItem(x); }),
+            
+            pipeline: [
+                NLProcess("Duplicate"),
+                NLProcess("RealsToPoints"),
+                NLProcess("MakePolygon"),
+            ],
+        },
+
+        "Shape": {
+            stream: [
+                NLBezier(0,0, -1,1, 0,2),
+                NLBezier(0,2,  1,3, 2,3),
+                NLBezier(2,3,  3,3, 3,2),
+                NLBezier(3,2,  2,0, 0,0),
+            ].map(function (x) { return NLStreamItem(x); }),
+            
+            pipeline: [
+                NLProcess("Stroke"),
+                NLProcess("Rasterize"),
+                NLProcess("Texture"),
+            ],
+        },
     };
 };
 

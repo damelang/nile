@@ -9,6 +9,7 @@ body {
 }
 
 #mySidebar {
+    display:block;
     position:absolute;
     left:10px;
     top:20px;
@@ -17,7 +18,7 @@ body {
 }
 
 #myViewer {
-    margin-left:150px;
+    margin-left:160px;
     margin-top:20px;
 }
 
@@ -26,9 +27,19 @@ body {
 /* NileViewer */
 
 .NVPipeline {
+    position:relative;
     width:100%;
     font: normal 13px/1.65 "Helvetica Neue", "Arial", sans-serif;
     color: #000;
+}
+
+.NVSubpipeline {
+    position:absolute;
+    z-index: 1;
+    left:440px;
+    top:0px;
+    width:300px;
+    height: auto;
 }
 
 .NVProcess {
@@ -53,6 +64,19 @@ body {
 
 .NVProcessName {
     font-weight: bold;
+}
+
+.NVProcessNameClickable {
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.NVProcessNameClickable:hover {
+    color: #5e7993;
+}
+
+.NVProcessNameClickable:active {
+    color: #32455b;
 }
 
 .NVProcessParameters {
