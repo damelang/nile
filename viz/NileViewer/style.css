@@ -9,7 +9,7 @@ body {
 }
 
 #mySidebar {
-    display:block;
+    display:none;
     position:absolute;
     left:10px;
     top:20px;
@@ -18,7 +18,7 @@ body {
 }
 
 #myViewer {
-    margin-left:160px;
+    margin-left:10px;
     margin-top:20px;
 }
 
@@ -36,7 +36,7 @@ body {
 .NVSubpipeline {
     position:absolute;
     z-index: 1;
-    left:440px;
+    left:470px;
     top:0px;
     width:300px;
     height: auto;
@@ -166,6 +166,25 @@ body {
 .NVProcessCodeLineHot {
     font-weight: bold;
     color: #ff0000;
+}
+
+.NVBracket {
+    position:absolute;
+    width:1px;
+    top:-2px;
+    left:-50px;
+}
+.NVBracketTop {
+    border-width: 19px 0px 19px 29px;
+    -webkit-border-image: url(Images/BracketTop.png) 19 0 19 29 stretch;
+    width:1px;
+    height:300px;
+}
+.NVBracketBottom {
+    border-width: 19px 0px 19px 29px;
+    -webkit-border-image: url(Images/BracketBottom.png) 19 0 19 29 stretch;
+    width:1px;
+    height:300px;
 }
 
 

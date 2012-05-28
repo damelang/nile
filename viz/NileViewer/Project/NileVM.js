@@ -129,32 +129,37 @@ function NLObjectSubdivide (obj) {
 //  NLObjectExtract
 //
 
-function NLObjectExtractReals (obj) {
-    return NLObjectExtract(obj, NLRealUnbox, function (obj) {
-        return (obj.value !== undefined);
-    });
+function NLObjectUnbox (obj, template, allOrAny) {
+    if (typeof(template) == "number") {
+        return obj.value;
+    }
+    else if (typeof(template) == "object") {
+        var matchesAll = true;
+        var thing = { };
+        for (var key in template) {
+            if (!template.hasOwnProperty(key)) { continue; }
+            
+            var unboxedValue = obj[key] && NLObjectUnbox(obj[key], template[key], "all");
+            if (unboxedValue !== undefined) {
+                thing[key] = unboxedValue;
+            }
+            else {
+                matchesAll = false;
+            }
+        }
+        return (matchesAll || allOrAny == "any") ? thing : undefined;
+    }
 }
 
-function NLObjectExtractPoints (obj) {
-    return NLObjectExtract(obj, NLPointUnbox, function (obj) {
-        return (obj.x && obj.y && obj.x.value !== undefined && obj.y.value !== undefined);
-    });
-}
-
-function NLObjectExtractBeziers (obj) {
-    return NLObjectExtract(obj, NLBezierUnbox, function (obj) {
-        return (obj.A && obj.A.x && obj.A.y && obj.B && obj.B.x && obj.B.y && obj.C && obj.C.x && obj.C.y);
-    });
-}
-
-function NLObjectExtract (obj, unbox, matchesType) {
+function NLObjectExtract (obj, template, allOrAny) {
     var things = [];
     extract(obj);
     return things;
     
     function extract (obj) {
-        if (matchesType(obj)) {
-            things.push( unbox(obj) );
+        var thing = NLObjectUnbox(obj, template, allOrAny);
+        if (thing !== undefined) {
+            things.push(thing);
         }
         else {
             Object.each(obj, function (obj) {
@@ -163,6 +168,7 @@ function NLObjectExtract (obj, unbox, matchesType) {
         }
     }
 }
+
 
 
 //====================================================================================
@@ -177,6 +183,7 @@ function NLProcess (name) {
         "subpipeline": (type.subprocessNames || []).map(NLProcess),
         "inputStream": null,
         "outputStream": null,
+        "auxInputStream": null,
     };
 }
 
@@ -191,6 +198,10 @@ function NLProcessGetName (process) {
 
 function NLProcessGetCode (process) {
     return process._type.code;
+}
+
+function NLProcessGetAuxInputIndex (process) {
+    return process._type.auxInputIndex;
 }
 
 function NLProcessRun (process) {
@@ -224,7 +235,7 @@ function NLTrace (process,iteration) {
     return {
         "process": process,
         "iteration": iteration,
-        "consumedItem": null,
+        "consumedItems": [],
         "producedItems": [],
         "pushedItems": [],
         "lineIndexes": [],
@@ -277,10 +288,27 @@ function NLStreamForAll (stream, process, f) {
     for (var i = 0; i < stream.length; i++) {
         var item = stream[i];
         var trace = NLTrace(process, i);
-        trace.consumedItem = item;
+        trace.consumedItems.push(item);
         item.consumerTraces.push(trace);
         
         f(item,trace);
+    }
+}
+
+function NLStreamZipWith (stream1, stream2, process, f) {
+    var length = Math.min(stream1.length, stream2.length);
+    for (var i = 0; i < length; i++) {
+        var trace = NLTrace(process, i);
+
+        var item1 = stream1[i];
+        trace.consumedItems.push(item1);
+        item1.consumerTraces.push(trace);
+
+        var item2 = stream2[i];
+        trace.consumedItems.push(item2);
+        item2.consumerTraces.push(trace);
+        
+        f(item1,item2,trace);
     }
 }
 
@@ -312,6 +340,10 @@ function NLPipelineRun (processes, inputStream) {
         var process = processes[i];
         process.inputStream = NLStreamClone(lastStream);
         process.outputStream = NLStream();
+        
+        var auxInputIndex = NLProcessGetAuxInputIndex(process);
+        if (auxInputIndex !== undefined) { process.auxInputStream = NLStreamClone(processes[auxInputIndex].outputStream); }
+        
         NLProcessRun(process);
         lastStream = process.outputStream;
     }
