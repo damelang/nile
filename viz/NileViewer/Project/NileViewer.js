@@ -297,13 +297,19 @@ var NVProcessView = new Class({
         
         var nameElement = this.element.getElement(".NVProcessName");
         nameElement.set("text", NLProcessGetName(process));
-
-        nameElement.removeClass("NVProcessNameClickable");
-        nameElement.removeEvents("click");
+        
+        var titleHelpElement = this.element.getElement(".NVProcessTitleHelp");
 
         if (process.subpipeline.length) {
             nameElement.addClass("NVProcessNameClickable");
+            nameElement.removeEvents("click");
             nameElement.addEvent("click", this.nameWasClicked.bind(this));
+            titleHelpElement.set("html", "&#9654;");
+        }
+        else {
+            nameElement.removeClass("NVProcessNameClickable");
+            nameElement.removeEvents("click");
+            titleHelpElement.set("html", "");
         }
         
         this.element.getElement(".NVProcessParameters").set("text", "( )");
