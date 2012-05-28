@@ -156,15 +156,24 @@ var NVCanvasView = new Class({
     fillPoints: function (points, properties, highlight) {
         var ctx = this.canvas.getContext("2d");
         ctx.fillStyle = (highlight == "hot") ? "#f00" : highlight ? "#000" : "#53b4ff";
+        ctx.strokeStyle = ctx.fillStyle;
+        ctx.lineWidth = 1.0 / this.scale;
         
         this.forEachWithHighlight(points, highlight, function (point, i) {
-            var radius = (highlight ? 3 : 2) / this.scale;
-
             var property = properties[i];
             var area = property && (property.area || property.coverage);
-            if (area !== undefined) { radius = (area <= 0) ? 0 : (0.05 + 0.4 * area.limit(0,1)); }
-
-            this.fillPoint(point, radius);
+            var radius;
+            
+            if (area !== undefined) {
+                var s = Math.pow(area.limit(0,1), 2);
+                radius = Math.min(0.11, 3.0/this.scale) * (1 - s) + 0.4 * s;
+                if (s == 0) { this.strokePoint(point, Math.max(0, radius - ctx.lineWidth/2)); }
+                else { this.fillPoint(point,radius); }
+            }
+            else {
+                radius = (highlight ? 3 : 2) / this.scale;
+                this.fillPoint(point, radius);
+            }
         }, this);
     },
     
@@ -174,16 +183,20 @@ var NVCanvasView = new Class({
         ctx.translate(point.x,point.y);
 
         ctx.beginPath();
-        if (radius > 0) {
-            ctx.arc(0, 0, radius, 0, Math.PI*2);
-            ctx.fill();
-        }
-        else {
-            ctx.rotate(Math.PI / 4);
-            ctx.fillRect(-0.02, -0.2, 0.04, 0.4);
-            ctx.rotate(Math.PI / 2);
-            ctx.fillRect(-0.02, -0.2, 0.04, 0.4);
-        }
+        ctx.arc(0, 0, radius, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.restore();
+    },
+
+    strokePoint: function (point, radius) {
+        var ctx = this.canvas.getContext("2d");
+        ctx.save();
+        ctx.translate(point.x,point.y);
+
+        ctx.beginPath();
+        ctx.arc(0, 0, radius, 0, Math.PI*2);
+        ctx.stroke();
 
         ctx.restore();
     },
@@ -487,7 +500,6 @@ var NVInteractiveCanvasView = new Class({
         this.element.addEvent("mouseenter", this.mouseEnter.bind(this));
         this.element.addEvent("mouseleave", this.mouseLeave.bind(this));
         this.element.addEvent("dblclick", this.doubleClick.bind(this));
-        this.element.setStyle("cursor", "all-scroll");
         
         this.helpElement = this.element.getElement(".NVProcessCanvasHelp");
         this.helpOpacity = 0;
@@ -498,6 +510,8 @@ var NVInteractiveCanvasView = new Class({
     setStream: function (stream) {
         this.setHoverItem(null);
         this.parent(stream);
+        
+        this.element.setStyle("cursor", this.isPlot ? "all-scroll" : "default");
     },
 
     setEditable: function (editable) {
@@ -667,7 +681,7 @@ var NVInteractiveCanvasView = new Class({
             this.pipelineView.setHighlightedWithStreamItem(true, item);
         }
         
-        if (this.isEditable) {
+        if (this.isEditable && this.isPlot) {
             this.element.setStyle("cursor", item ? "crosshair" : "all-scroll");
         }
     },
@@ -716,7 +730,7 @@ var NVInteractiveCanvasView = new Class({
             var colorComponent = "" + Math.round(255 * (0.75 + 0.25 * (1.0 - this.helpOpacity)));
             var color = "rgba(" + colorComponent + "," + colorComponent + "," + colorComponent + ",1)";
             this.helpElement.setStyle("color", color);
-            this.helpElement.setStyle("display", this.helpOpacity ? "block" : "none");
+            this.helpElement.setStyle("display", (this.helpOpacity && this.isPlot) ? "block" : "none");
             
             if (progress == 1) {
                 clearTimeout(this.helpTimer);

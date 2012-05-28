@@ -531,8 +531,8 @@ NLTypes["GradientSpan"] = {
 
 NLTypes["ZipPixels"] = {
     "name": "ZipPixels",
+    "code": "ZipPixels () : (PointCoverage, Color) >> Pixel\n    ∀ ((x, y, coverage), (r, g, b, a))\n        >> ((x, y), (r, g, b, a * coverage))",
     "auxInputIndex": 0,
-    "code": "",
 
     "func": function (process) {
         NLStreamZipWith(process.inputStream, process.auxInputStream, process, function (item1, item2, trace) {
