@@ -62,6 +62,10 @@ body {
     font-size: 13px;
 }
 
+.NVProcessTitleHelp {
+    font-size: 11px;
+}
+
 .NVProcessName {
     font-weight: bold;
 }
@@ -175,16 +179,18 @@ body {
     left:-50px;
 }
 .NVBracketTop {
+    width:1px;
     border-width: 19px 0px 19px 29px;
     -webkit-border-image: url(Images/BracketTop.png) 19 0 19 29 stretch;
-    width:1px;
-    height:300px;
+    -moz-border-image: url(Images/BracketTop.png) 19 0 19 29 stretch;
+    border-image: url(Images/BracketTop.png) 19 0 19 29 stretch;
 }
 .NVBracketBottom {
+    width:1px;
     border-width: 19px 0px 19px 29px;
     -webkit-border-image: url(Images/BracketBottom.png) 19 0 19 29 stretch;
-    width:1px;
-    height:300px;
+    -moz-border-image: url(Images/BracketTop.png) 19 0 19 29 stretch;
+    border-image: url(Images/BracketTop.png) 19 0 19 29 stretch;
 }
 
 
