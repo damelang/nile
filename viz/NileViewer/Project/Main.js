@@ -21,7 +21,7 @@ window.addEvent('domready', function () {
         link.addEvent("click", function () { showDemoWithName(name); return false; });
     });
     
-    showDemoWithName("Beziers");
+    showDemoWithName("Shape");
 });
 
 
@@ -99,10 +99,9 @@ function getDemos () {
 
         "Shape": {
             stream: [
-                NLBezier(0,0, -1,1, 0,2),
-                NLBezier(0,2,  1,3, 2,3),
-                NLBezier(2,3,  3,3, 3,2),
-                NLBezier(3,2,  2,0, 0,0),
+                NLBezier(0.1,0.1, 0.1,3.0, 0.1,5.9),
+                NLBezier(0.1,5.9, 5.9,5.9, 5.9,3.0),
+                NLBezier(5.9,3.0, 5.9,0.1, 0.1,0.1),
             ].map(function (x) { return NLStreamItem(x); }),
             
             pipeline: [

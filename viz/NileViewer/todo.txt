@@ -1,4 +1,56 @@
 
+ui
+----
+arrows for zip
+hover help for expand
+
+canvas
+------
+show length for SpanCoverage
+
+code
+----
+colors for text highlight (red only for object)
+
+
+minor
+-----
+drag reals
+cursor for bars
+
+
+bars
+----
+type Real
+type Color  = (r:Real, g:Real, b:Real, α:Real)
+
+on canvas
+---------
+type Point  = (x:Real, y:Real)
+type Bezier = (A:Point, B:Point, C:Point)
+
+type EdgeSample    = (x:Real, y:Real, area:Real, height:Real)  // area is size of dot
+type SpanCoverage  = (x:Real, y:Real, coverage:Real, length:Real)  // coverage is size of dot, length is line
+type PointCoverage = (x:Real, y:Real, coverage:Real)  // coverage is size of dot
+
+on grid
+-------
+type Pixel = (P:Point, color:Color)
+
+
+var points = extractAll(["x","y"]);
+var colors = extractAll(["r","g","b","a"]);
+var properties = extractAny(["area","height","coverage","length"]);
+
+extract: x, y, area, height, coverage, length, 
+
+
+
+gezera bugs
+-----------
+DecomposeBeziers:  if ∧(P ≤ Z ≤ P + 1) doesn't work, leads to (1, 0.9, 1)
+
+
 NVPipelineView
 --------------
  subpipelines

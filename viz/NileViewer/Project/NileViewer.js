@@ -38,6 +38,11 @@ var NVPipelineView = this.NVPipelineView = new Class({
         var newPipeline = NLPipelineClone(this.pipeline);
         this.setPipeline(newPipeline, newStream);
     },
+
+
+    //--------------------------------------------------------------------------------
+    //
+    //  process views
     
     updateProcessViews: function () {
         this.setPipelineForColumn(this.pipeline, 0);
@@ -51,10 +56,34 @@ var NVPipelineView = this.NVPipelineView = new Class({
         }, this);
     },
 
+    forEachProcessView: function (f, bind) {
+        Array.each(this.columns, function (processViews) {
+            Array.each(processViews, f, bind);
+        }, this);
+    },
+    
+    getPreviousProcessView: function (processView) {
+        var column = this.columns[processView.columnIndex];
+        var index = column.indexOf(processView);
+        if (index >= 1) {
+            return column[index - 1];
+        }
+        
+        if (processView.columnIndex > 0) {
+            column = this.columns[processView.columnIndex - 1];
+            index = this.expandedViewIndexes[processView.columnIndex - 1];
+            if (index >= 1) {
+                return column[index - 1];
+            }
+        }
+
+        return null;
+    },
+
 
     //--------------------------------------------------------------------------------
     //
-    //  process views
+    //  columns
     
     setPipelineForColumn: function (pipeline, columnIndex) {
         while (this.columns.length <= columnIndex) { this.columns.push( [] ); }
@@ -102,6 +131,26 @@ var NVPipelineView = this.NVPipelineView = new Class({
         }
         
         this.updateProcessViews();
+        this.updateBracketForColumn(columnIndex);
+    },
+    
+    updateBracketForColumn: function (columnIndex) {
+        var container = this.columnElements[columnIndex + 1];
+        if (!container) { return; }
+
+        var column = this.columns[columnIndex + 1];
+        container.getElement(".NVBracket").setStyle("display", column ? "block" : "none");
+        if (!column) { return; }
+
+        var expandedViewIndex = this.expandedViewIndexes[columnIndex];
+        var subviewCount = column.length;
+        var processHeight = column[0].element.getHeight();
+        
+        var topElement = container.getElement(".NVBracketTop");
+        var bottomElement = container.getElement(".NVBracketBottom");
+        
+        topElement.setStyle("height", Math.round((expandedViewIndex + 0.5) * processHeight) - 38);
+        bottomElement.setStyle("height", Math.round((Math.max(0, subviewCount - expandedViewIndex - 1) + 0.5) * processHeight) - 38);
     },
 
     setCodeViewsShowingForColumn: function (showing, columnIndex) {
@@ -109,29 +158,17 @@ var NVPipelineView = this.NVPipelineView = new Class({
             processView.setCodeViewShowing(showing);
         }, this);
     },
-    
-    forEachProcessView: function (f, bind) {
-        Array.each(this.columns, function (processViews) {
-            Array.each(processViews, f, bind);
-        }, this);
-    },
-    
-    getPreviousProcessView: function (processView) {
-        var column = this.columns[processView.columnIndex];
-        var index = column.indexOf(processView);
-        if (index <= 1) { return null; }
-        return column[index - 1];
-    },
 
     getContainerForColumn: function (columnIndex) {
         if (!this.columnElements[columnIndex]) {
             var previousContainer = this.getContainerForColumn(columnIndex - 1);
-            this.columnElements[columnIndex] = (new Element("div", { "class":"NVSubpipeline" })).inject(previousContainer, "top");
+            var templateElement = $("NVTemplates").getElement(".NVSubpipeline");
+            this.columnElements[columnIndex] = templateElement.clone().inject(previousContainer, "top");
         }
         return this.columnElements[columnIndex];
     },
     
-    
+
     //--------------------------------------------------------------------------------
     //
     //  highlighting
@@ -158,11 +195,10 @@ var NVPipelineView = this.NVPipelineView = new Class({
         Array.each(streamItem.iconViews || [], function (iconView) { iconView.setHighlight(color); });
 
         if (streamItem.producerTrace) {
-            var item = streamItem.producerTrace.consumedItem;
-            if (item) {
+            Array.each(streamItem.producerTrace.consumedItems, function (item) {
                 this.highlightStreamItemBackward(item, isHighlighted);
                 if (isHighlighted) { this.addItemToCanvasSelectedItems(item); }
-            }
+            }, this);
         }
     }, 
     
@@ -246,6 +282,7 @@ var NVProcessView = new Class({
         this.element = templateElement.clone();
         this.element.inject(container);
 
+        this.canvasView = new NVInteractiveCanvasView(this);
         this.codeView = new NVCodeView(this);
 
         this.inputStreamView = new NVStreamView(this, true);
@@ -258,8 +295,6 @@ var NVProcessView = new Class({
         this.process = process;
         process.processView = this;
         
-        this.isExpanded = false;
-
         var nameElement = this.element.getElement(".NVProcessName");
         nameElement.set("text", NLProcessGetName(process));
 
@@ -273,7 +308,7 @@ var NVProcessView = new Class({
         
         this.element.getElement(".NVProcessParameters").set("text", "( )");
         
-        this.updateCanvasViewWithStream(process.outputStream);
+        this.canvasView.setStream(process.outputStream);
         this.codeView.setCode(NLProcessGetCode(process));
         
         this.inputStreamView.setStream(process.inputStream);
@@ -284,7 +319,7 @@ var NVProcessView = new Class({
         this.element.getElement(".NVProcessName").set("text", "initial input");
         this.element.getElement(".NVProcessParameters").set("text", "");
         
-        this.updateCanvasViewWithStream(stream);
+        this.canvasView.setStream(stream);
         this.codeView.setCode("");
         
         this.inputStreamView.setStream([]);
@@ -307,18 +342,7 @@ var NVProcessView = new Class({
         this.detachFromProcess();
         this.element.destroy();
     },
-    
-    updateCanvasViewWithStream: function (stream) {
-        var canvasViewClass = NVGetCanvasViewClassForStream(stream);
-        if (canvasViewClass !== this.canvasViewClass) {
-            if (this.canvasView) { this.canvasView.destroy(); }
 
-            this.canvasViewClass = canvasViewClass;
-            this.canvasView = new canvasViewClass(this);
-        }
-        this.canvasView.setStream(stream);
-    },
-    
     setCodeViewShowing: function (showing) {
         this.codeView.setShowing(showing);
     },
@@ -543,44 +567,6 @@ var NVCodeLineView = new Class({
         else { this.element.removeClass("NVProcessCodeLineHot"); }
     }
 
-});
-
-
-
-//====================================================================================
-//
-//  NVGetCanvasViewClassForStream
-//
-
-var NVGetCanvasViewClassForStream = function (stream) {
-    if (stream.length == 0) { return NVNullCanvasView; }
-    if (NLRealUnbox(stream[0].object) !== undefined) { return NVInteractiveRealCanvasView; }
-    return NVInteractivePointCanvasView;
-};
-
-
-
-//====================================================================================
-//
-//  NVNullCanvasView
-//
-
-var NVNullCanvasView = new Class({
-    
-    initialize: function (parentView) {
-    },
-
-    setStream: function (stream) {
-    },
-
-    setEditable: function (editable) {
-    },
-
-    destroy: function () {
-    },
-    
-    render: function () {
-    },
 });
 
 
