@@ -569,8 +569,7 @@ var NVCodeLineView = new Class({
         if (this.isHighlighted === highlighted) { return; }
         this.isHighlighted = highlighted;
         
-        if (highlighted) { this.element.addClass("NVProcessCodeLineHot"); }
-        else { this.element.removeClass("NVProcessCodeLineHot"); }
+        this.element[highlighted ? "addClass" : "removeClass"]("NVProcessCodeLineHot");
     }
 
 });

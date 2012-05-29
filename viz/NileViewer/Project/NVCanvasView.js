@@ -18,6 +18,8 @@ var NVCanvasView = new Class({
         this.parentView = parentView;
         
         this.element = parentView.element.getElement(".NVProcessCanvas");
+        this.captionElement = this.element.getElement(".NVProcessCanvasCaption");
+
         this.canvas = this.element.getElement("canvas");
         this.width = parseFloat(this.canvas.getAttribute("width"));
         this.height = parseFloat(this.canvas.getAttribute("height"));
@@ -102,6 +104,8 @@ var NVCanvasView = new Class({
         if (this.hotItem) {
             this.renderExtractionsWithHighlight(this.getExtractionsFromItems([ this.hotItem ]), "hot");
         }
+        
+        this.updateCaptionWithItem(this.hotItem);
 
         ctx.restore();
     },
@@ -737,6 +741,18 @@ var NVInteractiveCanvasView = new Class({
                 this.helpTimer = null;
             }
         }).bind(this), 1000/30);
+    },
+
+
+    //--------------------------------------------------------------------------------
+    //
+    //  caption
+    
+    updateCaptionWithItem: function (item) {
+        this.captionElement.setStyle("display", item ? "block" : "none");
+        if (!item) { return; }
+        
+        this.captionElement.set("html", NLObjectGetDescription(item.object));
     },
     
 });

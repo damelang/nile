@@ -9,13 +9,14 @@
     <!-- style -->
     <link rel="stylesheet" href="style.css" type="text/css">
 
-    <!-- MooTools -->
+    <!-- lib -->
     <script type="text/javascript" src="Lib/mootools.js"></script>
+    <script type="text/javascript" src="Lib/sprintf.js"></script>
 
     <!-- project -->
     <script type="text/javascript" src="Project/Main.js"></script>
     <script type="text/javascript" src="Project/NileVM.js"></script>
-    <script type="text/javascript" src="Project/NileDummyProcesses.js"></script>
+    <script type="text/javascript" src="Project/NileFakeGezira.js"></script>
     <script type="text/javascript" src="Project/NileViewer.js"></script>
     <script type="text/javascript" src="Project/NVCanvasView.js"></script>
 
@@ -56,6 +57,7 @@
         <div class="NVProcessCanvas">
             <canvas width="200" height="150"></canvas>
             <div class="NVProcessCanvasHelp">zoom: shift-drag<br>reset: double-click</div>
+            <div class="NVProcessCanvasCaption"></div>
         </div>
         <div class="NVProcessCode"></div>
     </div>

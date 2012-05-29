@@ -1,9 +1,142 @@
 //
-//  NileDummyContent.js
+//  NileFakeGezira.js
 //  NileViewer
 //
 //  Created by Bret Victor on 5/25/12.
 //
+
+
+//====================================================================================
+//
+//  data types
+//
+
+NLTypes["Real"] = { name:"Real" };
+
+function NLReal (v) {
+    return {
+        "_type": NLTypes.Real,
+        "value": v,
+    };
+}
+
+function NLRealUnbox (r) {
+    return r.value;
+}
+
+
+NLTypes["Point"] = { name:"Point", fields:["x","y"] };
+
+function NLPoint (x,y) {
+    return {
+        "_type": NLTypes.Point,
+        "x": NLReal(x),
+        "y": NLReal(y),
+    };
+}
+
+function NLPointUnbox (p) {
+    return { x:p.x.value, y:p.y.value };
+}
+
+
+NLTypes["Bezier"] = { name:"Bezier", fields:["A","B","C"]  };
+
+function NLBezier (x1,y1,x2,y2,x3,y3) {
+    return {
+        "_type": NLTypes.Bezier,
+        "A": NLPoint(x1,y1),
+        "B": NLPoint(x2,y2),
+        "C": NLPoint(x3,y3),
+    };
+}
+
+function NLBezierUnbox (b) {
+    return { A:NLPointUnbox(b.A), B:NLPointUnbox(b.B), C:NLPointUnbox(b.C) };
+}
+
+
+NLTypes["EdgeSample"] = { "name":"EdgeSample", fields:["x","y","area","height"] };
+
+function NLEdgeSample (x,y,area,height) {
+    return {
+        "_type": NLTypes.EdgeSample,
+        "x": NLReal(x),
+        "y": NLReal(y),
+        "area": NLReal(area),
+        "height": NLReal(height),
+    };
+}
+
+function NLEdgeSampleUnbox (s) {
+    return { x:s.x.value, y:s.y.value, area:s.area.value, height:s.height.value };
+}
+
+
+NLTypes["SpanCoverage"] = { "name":"SpanCoverage", fields:["x","y","coverage","length"] };
+
+function NLSpanCoverage (x,y,coverage,length) {
+    return {
+        "_type": NLTypes.SpanCoverage,
+        "x": NLReal(x),
+        "y": NLReal(y),
+        "coverage": NLReal(coverage),
+        "length": NLReal(length),
+    };
+}
+
+function NLSpanCoverageUnbox (s) {
+    return { x:s.x.value, y:s.y.value, coverage:s.coverage.value, length:s.length.value };
+}
+
+
+NLTypes["PointCoverage"] = { "name":"PointCoverage", fields:["x","y","coverage"] };
+
+function NLPointCoverage (x,y,coverage) {
+    return {
+        "_type": NLTypes.PointCoverage,
+        "x": NLReal(x),
+        "y": NLReal(y),
+        "coverage": NLReal(coverage),
+    };
+}
+
+function NLPointCoverageUnbox (s) {
+    return { x:s.x.value, y:s.y.value, coverage:s.coverage.value };
+}
+
+
+NLTypes["Color"] = { "name":"Color", fields:["r","g","b","a"] };
+
+function NLColor (r,g,b,a) {
+    return {
+        "_type": NLTypes.Color,
+        "r": NLReal(r),
+        "g": NLReal(g),
+        "b": NLReal(b),
+        "a": NLReal(a),
+    };
+}
+
+function NLColorUnbox (s) {
+    return { r:s.r.value, g:s.g.value, b:s.b.value, a:s.a.value };
+}
+
+
+NLTypes["Pixel"] = { "name":"Pixel", fields:["P","color"] };
+
+function NLPixel (x,y, r,g,b,a) {
+    return {
+        "_type": NLTypes.Pixel,
+        "P": NLPoint(x,y),
+        "color": NLColor(r,g,b,a),
+    };
+}
+
+function NLPixelUnbox (s) {
+    return { P:NLPointUnbox(s.P), color:NLColorUnbox(s.color) };
+}
+
 
 
 //====================================================================================
@@ -261,39 +394,6 @@ NLTypes["Rasterize"] = {
 };
 
 
-NLTypes["EdgeSample"] = { "name":"EdgeSample" };
-
-function NLEdgeSample (x,y,area,height) {
-    return {
-        "_type": NLTypes.EdgeSample,
-        "x": NLReal(x),
-        "y": NLReal(y),
-        "area": NLReal(area),
-        "height": NLReal(height),
-    };
-}
-
-function NLEdgeSampleUnbox (s) {
-    return { x:s.x.value, y:s.y.value, area:s.area.value, height:s.height.value };
-}
-
-NLTypes["SpanCoverage"] = { "name":"SpanCoverage" };
-
-function NLSpanCoverage (x,y,coverage,length) {
-    return {
-        "_type": NLTypes.SpanCoverage,
-        "x": NLReal(x),
-        "y": NLReal(y),
-        "coverage": NLReal(coverage),
-        "length": NLReal(length),
-    };
-}
-
-function NLSpanCoverageUnbox (s) {
-    return { x:s.x.value, y:s.y.value, coverage:s.coverage.value, length:s.length.value };
-}
-
-
 NLTypes["DecomposeBeziers"] = {
     "name": "DecomposeBeziers",
     "code": "DecomposeBeziers () : Bezier >> EdgeSample\n    ϵ = 0.1\n    ∀ (A, B, C)\n        inside = (⌊ A ⌋ = ⌊ C ⌋ ∨ ⌈ A ⌉ = ⌈ C ⌉)\n        if inside.x ∧ inside.y\n            P = ⌊A⌋ ◁ ⌊C⌋\n            (x, y) = P\n            (w, _) = P + 1 - (A ~ C)\n            (_, h) = C - A\n            >> (x + 0.5, y + 0.5, wh, h)\n        else\n            M            = (A ~ B) ~ (B ~ C)\n            ( min,  max) = (⌊M⌋, ⌈M⌉)\n            (Δmin, Δmax) = (M - min, M - max)\n            N = { min, if |Δmin| < ϵ\n                  max, if |Δmax| < ϵ\n                    M,     otherwise }\n            << (N, B ~ C, C) << (A, A ~ B, N)",
@@ -413,54 +513,6 @@ NLTypes["Texture"] = {
     "code": "Texture (A:ColorStop, B:ColorStop) : EdgeSpan >> (Color, PointCoverage)\n    → ExpandSpans () → DupZip (→ ProjectLinearGradient (A.P, B.P) -> PadGradient () -> GradientSpan (A.C, B.C),\n                               → PassThrough ())",
     "subprocessNames": [ "ExpandSpans", "ProjectLinearGradient", "PadGradient", "GradientSpan", "ZipPixels" ],
 };
-
-
-NLTypes["PointCoverage"] = { "name":"PointCoverage" };
-
-function NLPointCoverage (x,y,coverage) {
-    return {
-        "_type": NLTypes.PointCoverage,
-        "x": NLReal(x),
-        "y": NLReal(y),
-        "coverage": NLReal(coverage),
-    };
-}
-
-function NLPointCoverageUnbox (s) {
-    return { x:s.x.value, y:s.y.value, coverage:s.coverage.value };
-}
-
-NLTypes["Color"] = { "name":"Color" };
-
-function NLColor (r,g,b,a) {
-    return {
-        "_type": NLTypes.Color,
-        "r": NLReal(r),
-        "g": NLReal(g),
-        "b": NLReal(b),
-        "a": NLReal(a),
-    };
-}
-
-function NLColorUnbox (s) {
-    return { r:s.r.value, g:s.g.value, b:s.b.value, a:s.a.value };
-}
-
-
-NLTypes["Pixel"] = { "name":"Pixel" };
-
-function NLPixel (x,y, r,g,b,a) {
-    return {
-        "_type": NLTypes.Pixel,
-        "P": NLPoint(x,y),
-        "color": NLColor(r,g,b,a),
-    };
-}
-
-function NLPixelUnbox (s) {
-    return { P:NLPointUnbox(s.P), color:NLColorUnbox(s.color) };
-}
-
 
 NLTypes["ExpandSpans"] = {
     "name": "ExpandSpans",

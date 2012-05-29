@@ -3,6 +3,8 @@ ui
 ----
 arrows for zip
 hover help for expand
+darken canvas when expanded? otherwise better indicate expanded process?
+show values!
 
 canvas
 ------
@@ -10,6 +12,7 @@ show length for SpanCoverage
 
 code
 ----
+use line background color for highlight
 colors for text highlight (red only for object)
 
 
