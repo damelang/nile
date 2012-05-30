@@ -48,6 +48,20 @@ body {
     height: 180px;
 }
 
+.NVProcessBackground {
+    position: absolute;
+    left:-10px;
+    top:-10px;
+    width: 443px;
+    height: inherit;
+}
+
+.NVProcessBackgroundExpanded {
+    background-color: rgba(147,178,224,0.2);
+    border-bottom: solid 1px rgba(91,104,124,0.3);
+    border-top: solid 1px rgba(91,104,124,0.3);
+}
+
 .NVProcessHeader {
     position: absolute;
     left:0px;
@@ -62,7 +76,7 @@ body {
     font-size: 13px;
 }
 
-.NVProcessTitleHelp {
+.NVProcessTitleTriangle {
     font-size: 11px;
 }
 
@@ -104,8 +118,8 @@ body {
     background-color: #dae5ed;
     width: 16px;
     height: 16px;
-    border-right: 2px solid #fff;
-    border-bottom: 2px solid #fff;
+    margin-right:2px;
+    margin-bottom:2px;
 }
 
 .NVProcessIconInner {

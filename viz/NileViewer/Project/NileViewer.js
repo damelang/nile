@@ -138,11 +138,18 @@ var NVPipelineView = this.NVPipelineView = new Class({
         var container = this.columnElements[columnIndex + 1];
         if (!container) { return; }
 
-        var column = this.columns[columnIndex + 1];
-        container.getElement(".NVBracket").setStyle("display", column ? "block" : "none");
-        if (!column) { return; }
-
         var expandedViewIndex = this.expandedViewIndexes[columnIndex];
+        var isExpanded = (expandedViewIndex !== undefined);
+
+        container.getElement(".NVBracket").setStyle("display", isExpanded ? "block" : "none");
+        
+        Array.each(this.columns[columnIndex], function (processView, i) {
+            processView.setExpandedAppearance(expandedViewIndex === i);
+        }, this);
+        
+        if (!isExpanded) { return; }
+
+        var column = this.columns[columnIndex + 1];
         var subviewCount = column.length;
         var processHeight = column[0].element.getHeight();
         
@@ -297,19 +304,16 @@ var NVProcessView = new Class({
         
         var nameElement = this.element.getElement(".NVProcessName");
         nameElement.set("text", NLProcessGetName(process));
+        this.updateTitleTriangle();
         
-        var titleHelpElement = this.element.getElement(".NVProcessTitleHelp");
-
         if (process.subpipeline.length) {
             nameElement.addClass("NVProcessNameClickable");
             nameElement.removeEvents("click");
             nameElement.addEvent("click", this.nameWasClicked.bind(this));
-            titleHelpElement.set("html", "&#9654;");
         }
         else {
             nameElement.removeClass("NVProcessNameClickable");
             nameElement.removeEvents("click");
-            titleHelpElement.set("html", "");
         }
         
         this.element.getElement(".NVProcessParameters").set("text", "( )");
@@ -351,6 +355,17 @@ var NVProcessView = new Class({
 
     setCodeViewShowing: function (showing) {
         this.codeView.setShowing(showing);
+    },
+    
+    setExpandedAppearance: function (expanded) {
+        this.isExpanded = expanded;
+        this.element.getElement(".NVProcessBackground")[expanded ? "addClass" : "removeClass"]("NVProcessBackgroundExpanded");
+        this.updateTitleTriangle();
+    },
+    
+    updateTitleTriangle: function () {
+        var character = (!this.process || !this.process.subpipeline.length) ? "" : this.isExpanded ? "&#9660;" : "&#9654;";
+        this.element.getElement(".NVProcessTitleTriangle").set("html", character);
     },
     
     nameWasClicked: function (event) {

@@ -2,23 +2,11 @@
 ui
 ----
 arrows for zip
-hover help for expand
-darken canvas when expanded? otherwise better indicate expanded process?
 
 canvas
 ------
 show length for SpanCoverage
 
-code
-----
-indent hot line background color
-colors for text highlight (red only for object)
-
-
-minor
------
-drag reals
-cursor for bars
 
 
 bars

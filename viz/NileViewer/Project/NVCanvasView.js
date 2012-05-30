@@ -33,18 +33,19 @@ var NVCanvasView = new Class({
         
         this.extracted = this.getExtractionsFromItems(stream);
         
-        this.isPlot = (this.extracted.points.length > 0);
-        this.isGrid = this.isPlot && (this.extracted.colors.length > 0);
+        this.visualization = (this.extracted.points.length > 0) ? "plot" : 
+                             (this.extracted.colors.length > 0) ? "colors" : 
+                             (this.extracted.reals.length > 0)  ? "bars" : "";
 
-        this.captionElement[this.extracted.reals.length ? "addClass" : "removeClass"]("NVProcessCanvasCaptionNumber");
+        this.captionElement[this.visualization == "bars" ? "addClass" : "removeClass"]("NVProcessCanvasCaptionNumber");
 
         if (!this.isEditing) {
-            if (this.isPlot) {
+            if (this.visualization == "plot") {
                 var metrics = this.getMetrics();
                 this.translation = this.getTranslationWithMetrics(metrics);
                 this.scale = this.getScaleWithMetrics(metrics);
             }
-            else if (this.extracted.reals.length) {
+            else if (this.visualization == "bars") {
                 this.bounds = this.getRealBounds();
             }
         }
@@ -92,7 +93,7 @@ var NVCanvasView = new Class({
         
         ctx.save();
 
-        if (this.isPlot) {
+        if (this.visualization == "plot") {
             ctx.translate(this.width/2, this.height/2);
             ctx.scale(this.scale, -this.scale);
             ctx.translate(this.translation.x, this.translation.y);
@@ -113,7 +114,7 @@ var NVCanvasView = new Class({
     },
     
     renderExtractionsWithHighlight: function (extracted, highlight) {
-        if (this.isPlot) {
+        if (this.visualization == "plot") {
             if (!highlight) {
                 this.drawPlotGrid();
                 this.fillBeziers(extracted.beziers, highlight);
@@ -133,10 +134,10 @@ var NVCanvasView = new Class({
                 this.labelBeziers(extracted.beziers, highlight);
             }
         }
-        else if (extracted.colors.length) {
+        else if (this.visualization == "colors") {
             this.fillColors(extracted.colors, highlight);
         }
-        else if (extracted.reals.length) {
+        else if (this.visualization == "bars") {
             if (!highlight) {
                 this.drawRealGrid();
             }
@@ -482,12 +483,18 @@ var NVCanvasView = new Class({
     //  bar bounds
     
     getRealBounds: function () {
-        var bounds = { max:-1e99, min:1e99 };
+        var max = -1e99, min = 1e99;
+
         Array.each(this.extracted.reals, function (real) {
-            bounds.max = Math.max(real.value, bounds.max);
-            bounds.min = Math.min(real.value, bounds.min);
+            max = Math.max(real.value, max);
+            min = Math.min(real.value, min);
         }, this);
         
+        return this.getRealBoundsWithMaxAndMin(max,min);
+    },
+    
+    getRealBoundsWithMaxAndMin: function (max,min) {
+        var bounds = { max:max, min:min };
         if (bounds.max - bounds.min < 1e-3) { bounds.max = bounds.min + 1e-3; }
         bounds.range = bounds.max - bounds.min;
 
@@ -505,13 +512,14 @@ var NVCanvasView = new Class({
         };
 
         bounds.baselineY = (bounds.min >= 0) ? canvasHeight : (bounds.max <= 0) ? 0 : bounds.getYForValue(0);
+        bounds.deltaPerPixel = 1.0 / (bounds.getYForValue(0) - bounds.getYForValue(1));
         
         return bounds;
     },
 
     getItemNearCanvasPoint: function (canvasPoint) {
         if (this.stream.length == 0) { return null; }
-        if (this.isPlot) {
+        if (this.visualization == "plot") {
             var point = this.getPointNearCanvasPoint(canvasPoint);
             return point ? point.item : null;
         }
@@ -532,10 +540,10 @@ var NVCanvasView = new Class({
         
         this.captionElement.set("html", NLObjectGetDescription(item.object));
         
-        if (this.extracted.reals.length) {
+        if (this.visualization == "bars") {
             var index = Math.max(0, this.stream.indexOf(item));
             var barWidth = Math.floor(this.width / this.stream.length);
-            this.captionElement.setStyle("left", index * barWidth - this.captionElement.getWidth() / 2);
+            this.captionElement.setStyle("left", (index + 0.5) * barWidth - 0.5 * this.captionElement.getWidth());
         }
         else {
             this.captionElement.setStyle("left", 0);
@@ -581,12 +589,12 @@ var NVInteractiveCanvasView = new Class({
         this.setHoverItem(null);
         this.parent(stream);
         
-        this.element.setStyle("cursor", this.isPlot ? "all-scroll" : "default");
+        this.element.setStyle("cursor", this.visualization == "plot" ? "all-scroll" : "default");
     },
 
     setEditable: function (editable) {
         this.isEditable = editable;
-        this.helpElement.set("text","Drag points to change initial input.");
+        this.helpElement.set("text", "Drag " + (this.visualization == "plot" ? "points" : "bars") + "  to change initial input.");
     },
 
     destroy: function () {
@@ -596,7 +604,7 @@ var NVInteractiveCanvasView = new Class({
 
     //--------------------------------------------------------------------------------
     //
-    //  translate object
+    //  adjust object
     
     translatePointInStream: function (point, dx, dy) {
         var oldStream = this.pipelineView.initialInputStream;
@@ -624,6 +632,20 @@ var NVInteractiveCanvasView = new Class({
             else {
                 newStream.push(NLStreamItem(object));
             }
+        }
+        
+        this.pipelineView.setInitialInputStream(newStream);
+    },
+
+    adjustRealInStream: function (item, delta) {
+        var index = this.stream.indexOf(item);
+        var oldStream = this.pipelineView.initialInputStream;
+        var newStream = NLStream();
+        
+        for (var i = 0; i < oldStream.length; i++) {
+            var object = oldStream[i].object;
+            var adjustedObject = (i != index) ? object : NLReal(NLRealUnbox(object) + delta);
+            newStream.push(NLStreamItem(adjustedObject));
         }
         
         this.pipelineView.setInitialInputStream(newStream);
@@ -657,20 +679,30 @@ var NVInteractiveCanvasView = new Class({
         var dy = mousePosition.y - this.lastMousePosition.y;
         this.lastMousePosition = mousePosition;
         
-        if (this.isEditing) {
-            if (this.hoverPoint) {
-                var pointIndex = this.extracted.points.indexOf(this.hoverPoint);
-                this.translatePointInStream(this.hoverPoint, dx / this.scale, -dy / this.scale);
-                this.setHoverPoint(this.extracted.points[pointIndex]);
-                return;
+        if (this.visualization == "plot") {
+            if (this.isEditing) {
+                if (this.hoverPoint) {
+                    var pointIndex = this.extracted.points.indexOf(this.hoverPoint);
+                    this.translatePointInStream(this.hoverPoint, dx / this.scale, -dy / this.scale);
+                    this.setHoverPoint(this.extracted.points[pointIndex]);
+                    return;
+                }
+            }
+            else if (event.shift) {
+                this.scale *= Math.pow(1.01, dx - dy);
+            }
+            else {
+                this.translation.x +=  dx / this.scale;
+                this.translation.y += -dy / this.scale;
             }
         }
-        else if (event.shift) {
-            this.scale *= Math.pow(1.01, dx - dy);
-        }
-        else {
-            this.translation.x +=  dx / this.scale;
-            this.translation.y += -dy / this.scale;
+        else if (this.visualization == "bars") {
+            if (this.isEditing && this.hoverItem) {
+                var itemIndex = this.stream.indexOf(this.hoverItem);
+                this.adjustRealInStream(this.hoverItem, -dy * this.bounds.deltaPerPixel);
+                this.setHoverItem(this.stream[itemIndex]);
+                return;
+            }
         }
         
         this.render();
@@ -685,7 +717,7 @@ var NVInteractiveCanvasView = new Class({
         
         if (this.isEditing) {
             this.isEditing = false;
-            this.animateResetTransform();
+            this.animateResetView();
         }
     },
     
@@ -701,7 +733,7 @@ var NVInteractiveCanvasView = new Class({
             this.subdivideItem(this.hoverItem);
         }
         else {
-            this.animateResetTransform();
+            this.animateResetView();
         }
     },
 
@@ -719,7 +751,7 @@ var NVInteractiveCanvasView = new Class({
         if (this.isEditing) { return; }
         var elementPosition = this.element.getPosition();
         var canvasPoint = { x:event.page.x - elementPosition.x, y:event.page.y - elementPosition.y };
-        if (this.isPlot) {
+        if (this.visualization == "plot") {
             this.setHoverPoint(this.getPointNearCanvasPoint(canvasPoint, 10));
         }
         else {
@@ -751,15 +783,25 @@ var NVInteractiveCanvasView = new Class({
             this.pipelineView.setHighlightedWithStreamItem(true, item);
         }
         
-        if (this.isEditable && this.isPlot) {
-            this.element.setStyle("cursor", item ? "crosshair" : "all-scroll");
+        if (this.isEditable) {
+            if (this.visualization == "plot") {
+                this.element.setStyle("cursor", item ? "crosshair" : "all-scroll");
+            }
+            else if (this.visualization == "bars") {
+                this.element.setStyle("cursor", item ? "row-resize" : "default");
+            }
         }
     },
         
 
     //--------------------------------------------------------------------------------
     //
-    //  animate
+    //  reset transform
+
+    animateResetView: function () {
+        if (this.visualization == "plot") { this.animateResetTransform(); }
+        if (this.visualization == "bars") { this.animateResetBounds(); }
+    },
 
     animateResetTransform: function () {
         var metrics = this.getMetrics();
@@ -786,6 +828,39 @@ var NVInteractiveCanvasView = new Class({
         }).bind(this), 1000/30);
     },
 
+
+    //--------------------------------------------------------------------------------
+    //
+    //  reset bounds
+
+    animateResetBounds: function () {
+        var bounds = this.getRealBounds();
+        this.animateSetBounds(bounds);
+    },
+
+    animateSetBounds: function (targetBounds) {
+        var progress = 0;
+        var speed = 0.5;
+        
+        if (this.resetTimer) { clearTimeout(this.resetTimer); }
+        
+        var timer = this.resetTimer = setInterval( (function () {
+            progress += 1/30;
+            if (progress > 0.8) { speed = 1; clearTimeout(timer); }
+            
+            var max = this.bounds.max + speed * (targetBounds.max - this.bounds.max);
+            var min = this.bounds.min + speed * (targetBounds.min - this.bounds.min);
+
+            this.bounds = this.getRealBoundsWithMaxAndMin(max,min);
+            this.render();
+        }).bind(this), 1000/30);
+    },
+
+
+    //--------------------------------------------------------------------------------
+    //
+    //  fade help
+
     animateHelpOpacity: function (targetOpacity, duration) {
         if (this.helpTimer) { clearTimeout(this.helpTimer); }
         if (this.helpOpacity == targetOpacity) { return; }
@@ -800,7 +875,7 @@ var NVInteractiveCanvasView = new Class({
             var colorComponent = "" + Math.round(255 * (0.75 + 0.25 * (1.0 - this.helpOpacity)));
             var color = "rgba(" + colorComponent + "," + colorComponent + "," + colorComponent + ",1)";
             this.helpElement.setStyle("color", color);
-            this.helpElement.setStyle("display", (this.helpOpacity && this.isPlot) ? "block" : "none");
+            this.helpElement.setStyle("display", (this.helpOpacity && this.visualization == "plot") ? "block" : "none");
             
             if (progress == 1) {
                 clearTimeout(this.helpTimer);
