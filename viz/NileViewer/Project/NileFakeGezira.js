@@ -536,7 +536,7 @@ NLTypes["ProjectLinearGradient"] = {
     "code": "ProjectLinearGradient (A:Point, B:Point) : PointCoverage >> Real\n    v   = B - A\n    Δs  = v / (v ∙ v)\n    s00 = A ∙ Δs\n    ∀ (P,_)\n        >> P ∙ Δs - s00",
 
     "func": function (process) {
-        var A = {x:1, y:5}, B = {x:4, y:0};
+        var A = {x:1, y:4}, B = {x:4, y:2};
         var v = { x:B.x - A.x, y:B.y - A.y };
         var vn = v.x * v.x + v.y * v.y;
         var delS = { x:v.x / vn, y:v.y / vn };
@@ -592,6 +592,7 @@ NLTypes["ZipPixels"] = {
             var pointCoverage = NLPointCoverageUnbox(item2.object);
             var pixel = NLPixel(pointCoverage.x, pointCoverage.y, color.r, color.g, color.b, color.a * pointCoverage.coverage);
             NLStreamOutput(process.outputStream, NLStreamItem(pixel), trace);
+            NLTraceAddLineIndexes(trace, [2]);
         });
     }
 };

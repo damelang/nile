@@ -561,7 +561,13 @@ var NVCodeLineView = new Class({
     
     setLine: function (line) {
         this.line = line;
-        this.element.set("text", line);
+
+        var leadingSpaceMatch = line.match(/^ */);
+        this.indentCount = leadingSpaceMatch ? Math.min(8, leadingSpaceMatch[0].length) : 0;
+        
+        this.element.set("text", line.substr(this.indentCount));
+        this.element.setStyle("marginLeft", this.indentCount * 7);
+        
         this.setHighlighted(false);
     },
     
@@ -570,7 +576,7 @@ var NVCodeLineView = new Class({
         this.isHighlighted = highlighted;
         
         this.element[highlighted ? "addClass" : "removeClass"]("NVProcessCodeLineHot");
-    }
+    },
 
 });
 

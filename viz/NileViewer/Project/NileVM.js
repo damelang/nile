@@ -134,12 +134,18 @@ function NLObjectGetDescription (obj, isSubObject) {
     }
     else {
         var v = obj.value;
-        if (Math.abs(v) < 1e-6) { v = 0; }
-        var format = (v == Math.floor(v)) ? "%d" : "%.2f";
-        return "<b>" + sprintf(format,v) + "</b>";
+        var string = "0";
+
+        if (Math.abs(v) >= 1e-4) {
+            var precision = (-Math.floor(Math.log(Math.abs(v)) / Math.LN10) + 1).limit(0,3);
+            string = sprintf("%." + precision + "f", v);
+            string = string.replace(/(\.[1-9]*)0+$/, "$1");
+            string = string.replace(/\.$/, "");
+        }
+
+        return "<b>" + string + "</b>";
     }
 }
-
 
 
 //====================================================================================

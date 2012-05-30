@@ -36,6 +36,8 @@ var NVCanvasView = new Class({
         this.isPlot = (this.extracted.points.length > 0);
         this.isGrid = this.isPlot && (this.extracted.colors.length > 0);
 
+        this.captionElement[this.extracted.reals.length ? "addClass" : "removeClass"]("NVProcessCanvasCaptionNumber");
+
         if (!this.isEditing) {
             if (this.isPlot) {
                 var metrics = this.getMetrics();
@@ -309,7 +311,7 @@ var NVCanvasView = new Class({
     fillColors: function (colors, highlight) {
         var ctx = this.canvas.getContext("2d");
 
-        var padding = (this.stream.length > this.width/2) ? 0 : 1;
+        var padding = (this.stream.length > this.width/4) ? 0 : 1;
         var barWidth = Math.floor(this.width / this.stream.length) - padding;
         var highlightHeight = barWidth;
         
@@ -336,14 +338,16 @@ var NVCanvasView = new Class({
 
         var padding = (this.stream.length > this.width/2) ? 0 : 1;
         var barWidth = Math.floor(this.width / this.stream.length) - padding;
+
+        var bounds = this.bounds;
         
         this.forEachWithHighlight(reals, highlight, function (real) {
             var value = real.value;
             var i = this.stream.indexOf(real.item);
             if (i < 0) { i = 0; }
             
-            var barHeight = this.height * (value - this.bounds.min) / (this.bounds.max - this.bounds.min);
-            ctx.fillRect(i * (barWidth + padding), this.height - barHeight, barWidth, barHeight);
+            var y = bounds.getYForValue(value);
+            ctx.fillRect(i * (barWidth + padding), Math.min(y, bounds.baselineY), barWidth, Math.abs(y - bounds.baselineY));
         }, this);
     },
             
@@ -388,6 +392,29 @@ var NVCanvasView = new Class({
     },
 
     drawRealGrid: function () {
+        var ctx = this.canvas.getContext("2d");
+        ctx.save();
+        
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 1;
+
+        var bounds = this.bounds;
+        var minV = Math.min(bounds.min, 0);
+        var maxV = Math.max(bounds.max, 0);
+        
+        var stepBase = 10;
+        var k = Math.round(Math.log((maxV - minV) / 8) / Math.log(stepBase));
+        var step = Math.pow(stepBase,k);
+
+        for (var v = Math.floor(minV / step) * step; v <= maxV; v += step) {
+            var snappedY = Math.floor(bounds.getYForValue(v)) + 0.5;
+            ctx.beginPath();
+            ctx.moveTo(0, snappedY);
+            ctx.lineTo(this.width, snappedY);
+            ctx.stroke();
+        }
+        
+        ctx.restore();
     },
 
 
@@ -462,6 +489,23 @@ var NVCanvasView = new Class({
         }, this);
         
         if (bounds.max - bounds.min < 1e-3) { bounds.max = bounds.min + 1e-3; }
+        bounds.range = bounds.max - bounds.min;
+
+        var canvasHeight = this.height;
+        var margin = 6;
+        var baselineHeight = 2;
+        
+        bounds.getYForValue = function (v) {
+            if (bounds.min >= 0) { return canvasHeight - baselineHeight - (v / bounds.max * (canvasHeight - margin - baselineHeight)); }
+            if (bounds.max <= 0) { return baselineHeight + v / bounds.min * (canvasHeight - margin - baselineHeight); }
+                
+            var zeroY = bounds.max / bounds.range * (canvasHeight - 2 * margin) + margin;
+            barHeight = -v / bounds.range * (canvasHeight - 2 * margin);
+            return zeroY + barHeight;
+        };
+
+        bounds.baselineY = (bounds.min >= 0) ? canvasHeight : (bounds.max <= 0) ? 0 : bounds.getYForValue(0);
+        
         return bounds;
     },
 
@@ -476,8 +520,30 @@ var NVCanvasView = new Class({
         var i = Math.floor(canvasPoint.x / barWidth).limit(0, this.stream.length - 1);
         return this.stream[i];
     },
+
+
+    //--------------------------------------------------------------------------------
+    //
+    //  caption
+    
+    updateCaptionWithItem: function (item) {
+        this.captionElement.setStyle("display", item ? "block" : "none");
+        if (!item) { return; }
+        
+        this.captionElement.set("html", NLObjectGetDescription(item.object));
+        
+        if (this.extracted.reals.length) {
+            var index = Math.max(0, this.stream.indexOf(item));
+            var barWidth = Math.floor(this.width / this.stream.length);
+            this.captionElement.setStyle("left", index * barWidth - this.captionElement.getWidth() / 2);
+        }
+        else {
+            this.captionElement.setStyle("left", 0);
+        }
+    },
     
 });
+
 
 
 //====================================================================================
@@ -741,19 +807,7 @@ var NVInteractiveCanvasView = new Class({
                 this.helpTimer = null;
             }
         }).bind(this), 1000/30);
-    },
+    }
 
-
-    //--------------------------------------------------------------------------------
-    //
-    //  caption
-    
-    updateCaptionWithItem: function (item) {
-        this.captionElement.setStyle("display", item ? "block" : "none");
-        if (!item) { return; }
-        
-        this.captionElement.set("html", NLObjectGetDescription(item.object));
-    },
-    
 });
 
