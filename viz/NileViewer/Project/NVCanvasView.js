@@ -178,7 +178,7 @@ var NVCanvasView = new Class({
                 else { this.fillPoint(point,radius); }
             }
             else {
-                radius = (highlight ? 3 : 2) / this.scale;
+                radius = (highlight ? 3 : 2) / this.scale * (NVPreferences.isHighContrast ? 2 : 1);
                 this.fillPoint(point, radius);
             }
         }, this);
@@ -235,7 +235,7 @@ var NVCanvasView = new Class({
         if (beziers.length == 0) { return; }
     
         var ctx = this.canvas.getContext("2d");
-        ctx.fillStyle = "rgba(0,0,0,0.05)";
+        ctx.fillStyle = NVPreferences.isHighContrast ? "rgba(0,0,0,0.1)" : "rgba(0,0,0,0.05)";
         ctx.beginPath();
 
         var lastBezier = { C:{x:1e100,y:1e100} };
@@ -267,8 +267,8 @@ var NVCanvasView = new Class({
         ctx.translate(point.x,point.y);
         ctx.scale(1/this.scale, -1/this.scale);
 
-        ctx.font = 'normal 9px "Helvetica Neue"';
-        ctx.fillText(label, 6, 3);
+        ctx.font = NVPreferences.isHighContrast ? 'normal 11px "Helvetica Neue"' : 'normal 9px "Helvetica Neue"';
+        ctx.fillText(label, NVPreferences.isHighContrast ? 10 : 6, 3);
 
         ctx.restore();
     },
@@ -523,7 +523,7 @@ var NVCanvasView = new Class({
     getItemNearCanvasPoint: function (canvasPoint) {
         if (this.stream.length == 0) { return null; }
         if (this.visualization == "plot") {
-            var point = this.getPointNearCanvasPoint(canvasPoint);
+            var point = this.getPointNearCanvasPoint(canvasPoint, 20);
             return point ? point.item : null;
         }
         
@@ -755,7 +755,7 @@ var NVInteractiveCanvasView = new Class({
         var elementPosition = this.element.getPosition();
         var canvasPoint = { x:event.page.x - elementPosition.x, y:event.page.y - elementPosition.y };
         if (this.visualization == "plot") {
-            this.setHoverPoint(this.getPointNearCanvasPoint(canvasPoint, 10));
+            this.setHoverPoint(this.getPointNearCanvasPoint(canvasPoint, 20));
         }
         else {
             this.setHoverItem(this.getItemNearCanvasPoint(canvasPoint));
@@ -874,11 +874,13 @@ var NVInteractiveCanvasView = new Class({
         this.helpTimer = setInterval( (function () {
             progress = Math.min(1, progress + (1000/30) / duration);
             this.helpOpacity = initialOpacity + (targetOpacity - initialOpacity) * progress;
+
+            var canShowHelp = (this.visualization == "plot") && (this.parentView.columnIndex == this.pipelineView.getColumnCount() - 1);
             
             var colorComponent = "" + Math.round(255 * (0.75 + 0.25 * (1.0 - this.helpOpacity)));
             var color = "rgba(" + colorComponent + "," + colorComponent + "," + colorComponent + ",1)";
             this.helpElement.setStyle("color", color);
-            this.helpElement.setStyle("display", (this.helpOpacity && this.visualization == "plot") ? "block" : "none");
+            this.helpElement.setStyle("display", (this.helpOpacity && canShowHelp) ? "block" : "none");
             
             if (progress == 1) {
                 clearTimeout(this.helpTimer);
