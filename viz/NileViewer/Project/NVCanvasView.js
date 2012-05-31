@@ -283,25 +283,28 @@ var NVCanvasView = new Class({
 
         var ctx = this.canvas.getContext("2d");
 
-        this.forEachWithHighlight(points, highlight, function (point, i) {
-            var color = colors[i];
-            var x = Math.floor(point.x), y = Math.floor(point.y), w = 1, h = 1;
+        if (!highlight) {
+            Array.each(points, function (point, i) {
+                var color = colors[i];
+                var x = Math.floor(point.x), y = Math.floor(point.y), w = 1, h = 1;
+    
+                ctx.fillStyle = "rgba(" + Math.round(255 * color.r) + "," + Math.round(255 * color.g) + "," + Math.round(255 * color.b) + "," + color.a + ")";
+                ctx.fillRect(x, y, w, h);
+            }, this);
+        }
+        else {
+            this.forEachWithHighlight(points, highlight, function (point) {
+                var x = Math.floor(point.x), y = Math.floor(point.y), w = 1, h = 1;
 
-            ctx.fillStyle = "rgba(" + Math.round(255 * color.r) + "," + Math.round(255 * color.g) + "," + Math.round(255 * color.b) + "," + color.a + ")";
-            ctx.fillRect(x, y, w, h);
+                var r = Math.min(0.6, 4/this.scale);
+                ctx.fillStyle = "rgba(0,0,0,0.1)";
+                ctx.fillRect(x + w/2 - r, y + h/2 - r, r*2, r*2);
 
-            if (highlight) {
-                var s = 3/this.scale;
-                ctx.lineWidth = s;
-                ctx.strokeStyle = "rgba(255,255,255,0.8)";
-                ctx.strokeRect(x + s/2, y + s/2, w - s, h - s);
-
-                s = 2/this.scale;
-                ctx.lineWidth = s;
-                ctx.strokeStyle = (highlight === "hot") ? "#ff0000" : "#000000";
-                ctx.strokeRect(x + s/2, y + s/2, w - s, h - s);
-            }
-        }, this);
+                r = Math.min(0.5, 3/this.scale);
+                ctx.fillStyle = (highlight === "hot") ? "#ff0000" : "rgba(255,255,255,0.4)";
+                ctx.fillRect(x + w/2 - r, y + h/2 - r, r*2, r*2);
+            }, this)
+        }
     },
 
 

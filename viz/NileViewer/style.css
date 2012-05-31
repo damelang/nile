@@ -56,10 +56,10 @@ body {
     height: inherit;
 }
 
-.NVProcessBackgroundExpanded {
-    background-color: rgba(147,178,224,0.2);
-    border-bottom: solid 1px rgba(91,104,124,0.3);
-    border-top: solid 1px rgba(91,104,124,0.3);
+.NVProcessExpanded .NVProcessBackground {
+    background-color: rgb(233,240,249);
+    border-bottom: solid 1px rgb(206,210,216);
+    border-top: solid 1px rgb(206,210,216);
 }
 
 .NVProcessHeader {
@@ -118,8 +118,13 @@ body {
     background-color: #dae5ed;
     width: 16px;
     height: 16px;
-    margin-right:2px;
-    margin-bottom:2px;
+    border-right: solid 2px #fff;  /* not margin, so rolling over from one icon to another is continuous */
+    border-bottom: solid 2px #fff;
+}
+
+.NVProcessExpanded .NVProcessIcon {
+    border-right: solid 2px rgb(233,240,249);
+    border-bottom: solid 2px rgb(233,240,249);
 }
 
 .NVProcessIconInner {

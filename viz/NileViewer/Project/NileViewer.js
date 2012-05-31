@@ -359,7 +359,7 @@ var NVProcessView = new Class({
     
     setExpandedAppearance: function (expanded) {
         this.isExpanded = expanded;
-        this.element.getElement(".NVProcessBackground")[expanded ? "addClass" : "removeClass"]("NVProcessBackgroundExpanded");
+        this.element[expanded ? "addClass" : "removeClass"]("NVProcessExpanded");
         this.updateTitleTriangle();
     },
     
