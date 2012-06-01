@@ -129,7 +129,7 @@ nile.pipeline.eval = function(env)
 nile.processinst.run = function(env)
 {
   var pdef = this.processdef;
-  console.log("Running process " + pdef.sig.name);
+  console.log("Running process " + pdef.sig.name + " lineno: " + pdef.sig.lineno);
   env.setVars({});
   pdef.sig.param.evalWithValue(env, this.arg);
   try {

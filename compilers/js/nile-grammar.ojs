@@ -37,7 +37,7 @@ varname       = <alpha alphanum* PRIME?> ,
 null          = -> null ,
 
 // Indentation rules
-EOL           = _ comment? CRLF _:spaces -> (self.col = spaces.length),
+EOL           = _ comment? CRLF _:spaces -> { self.lineno++; self.col = spaces.length } ,
 indentation   =                          -> (self.col) ,
 atIndent   :i = EOL+                       ?(i == self.col) ,
 pastIndent :i = EOL+                       ?(i  < self.col) ,
@@ -97,11 +97,11 @@ varpat        = typedvar
               | LPAREN varpat:p RPAREN                        -> p ,
 tuplepat      = LPAREN pattern?:e1 (COMMA pattern)*:es RPAREN -> nile.tuplepat(e1 ? cons(e1, es) : es) ,
 pattern       = varpat | tuplepat ,
-vardef        = pattern:p _"="_ expr:v                        -> nile.vardef(p, v) ,
+vardef        = pattern:p _"="_ expr:v                        -> nile.vardef(p, v, self.lineno) ,
 
 // In/out statements
-instmt        = "<<"_ expr:v1 (_"<<"_ expr)*:vs -> nile.instmt (cons(v1, vs)) ,
-outstmt       = ">>"_ expr:v1 (_">>"_ expr)*:vs -> nile.outstmt(cons(v1, vs)) ,
+instmt        = "<<"_ expr:v1 (_"<<"_ expr)*:vs -> nile.instmt (cons(v1, vs), self.lineno) ,
+outstmt       = ">>"_ expr:v1 (_">>"_ expr)*:vs -> nile.outstmt(cons(v1, vs), self.lineno) ,
 
 // Blocks
 block      :i = (pastIndent(i) vardef)*:defs
@@ -112,10 +112,10 @@ blockonly     = block(-1):b spaces end -> b ,
 elseif    :i  = atIndent(i) "else "_"if "_ ifbody(i) ,
 else      :i  = atIndent(i) "else"          block(i)
               |                             block(i) ,
-ifbody    :i  = expr:c block(i):t (elseif(i) | else(i)):f -> nile.ifstmt(c, t, f) ,
+ifbody    :i  = expr:c block(i):t (elseif(i) | else(i)):f -> nile.ifstmt(c, t, f, self.lineno) ,
 ifstmt        = indentation:i "if "_ ifbody(i) ,
 
-substmt       = pipeline:p -> nile.substmt(p) ,
+substmt       = pipeline:p -> nile.substmt(p, self.lineno) ,
 stmt          = instmt | outstmt | ifstmt | substmt ,
 
 // Type definitions
@@ -136,7 +136,7 @@ opbody        = (pastIndent(0) vardef)*:defs
 opdef         = opsig:sig opbody:body         -> nile.opdef(sig, body) ,
 
 // Process definitions
-processsig    = processname:n _ tuplepat:p COLON type:t                -> nile.processsig(n, p, t) ,
+processsig    = processname:n _ tuplepat:p COLON type:t                -> nile.processsig(n, p, t, self.lineno) ,
 prologue      = block(0) ,
 processbody   = indentation:i FOREACH pattern:p block(i):s             -> nile.processbody(p, s) ,
 epilogue      = block(0) ,
@@ -158,3 +158,5 @@ NileParser.error = function () {
   var context = input.lst.slice(start, end);
   throw "Error in Nile program near: \n" + context;
 }
+
+NileParser.initialize = function() { this.lineno = 0; this.col = 0; };
