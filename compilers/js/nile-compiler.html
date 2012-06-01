@@ -15,240 +15,745 @@
     <script src="bs-ometa-optimizer.js"></script>
     <script src="bs-ometa-js-compiler.js"></script>
 
+    <script src="nile-utils.js"></script>
+    <script src="nile-env.js"></script>
     <script src="nile-ast.js"></script>
+    <script src="nile-ast-to-string.js"></script>
+    <script src="nile-ast-type.js"></script>
+    <script src="nile-ast-resolve.js"></script>
+    <script src="nile-builtin.js"></script>
+    <script src="nile-ast-eval.js"></script>
 
     <script type="text/javascript">
       var nileGrammarFile = "nile-grammar.ojs";
+      var nileEnv = new nile.Environment();
 
       function translateGrammar(grammar) {
+        try {
           var tree = BSOMetaJSParser.matchAll(grammar, "topLevel", undefined,
             function(m, i) { throw objectThatDelegatesTo(fail, {errorPos: i}) });
           var code = BSOMetaJSTranslator.match(tree, "trans", undefined,
-            function(m, i) { throw "Error translating OMeta grammar!"; });
+            function(m, i) { throw "Error translating OMeta grammar."; });
           eval(code);
+        }
+        catch(e) {
+          alert("Error compiling grammar:" + error);
+        }
       }
 
       new Ajax.Request(nileGrammarFile, {
         method: 'get',
-        onException: function(request, error) { alert("Error compiling grammar:" + error); },
-        onSuccess:   function(transport)      { translateGrammar(transport.responseText); }
+        onException: function(request, error) { alert(error); },
+        onSuccess:   function(transport)      { translateGrammar(transport.responseText);
+                                                nile.builtin.env.init(NileParser);        }
       });
 
-      function compile() {
-        var source = document.getElementById('sourcecode').value;
-        var tree = NileParser.matchAll(source, 'start');
-        document.getElementById('ast').value = tree.join("");
+      function compileDefs() {
+        var defs = document.getElementById('defs').value;
+        // TODO put syntax error messages on the page somewhere?
+        var ast = NileParser.matchAll(defs, 'definitions');
+        document.getElementById('ast').value = ast.join("");
+
+        // TODO put errors where?
+        ast.mapMethod('resolve', nileEnv);
+        document.getElementById('declarations').value =
+          nileEnv.getTypedefs().join("") + nileEnv.getOpdefs().join("") + nileEnv.getProcessdefs().join("");
+      }
+
+      function evaluateBlock() {
+        var source = document.getElementById('block').value;
+        source = "\n" + source; // the "block" rule needs a newline before
+
+        nileEnv.pushScope();
+          var block = NileParser.matchAll(source, 'blockonly').resolve(nileEnv);
+        nileEnv.popScope();
+        var input = eval(document.getElementById('block-input').value);
+        if (!(input instanceof Array)) {
+          alert("Input not an array");
+          throw "Input not an array";
+        }
+        nileEnv.setInput(input);
+        try {
+          block.eval(nileEnv);
+        }
+        catch (e) {
+          if (e !== nile.substmt) {
+            alert(e);
+            nileEnv.clear();
+            throw e;
+          }
+        }
+        document.getElementById('block-output').value = nileEnv.getOutput();
+        nileEnv.clear();
       }
     </script>
   </head>
 
   <body>
 
-    <textarea id="sourcecode" cols="80" rows="40">
+    <textarea id="defs" cols="80" rows="50">
+
 -- Types
 
 type Boolean
-type Integer
-type Real
+type Number
 
--- Operators
+-- Boolean operations
 
-¬(a:Boolean) : Boolean
+¬a:Boolean : Boolean
 
-(a:Boolean ∨ b:Boolean) : Boolean
+a:Boolean ∨ b:Boolean : Boolean
 
-(a:Boolean ∧ b:Boolean) : Boolean
+a:Boolean ∧ b:Boolean : Boolean
 
--(a:Real) : Real
+-- Number operations
 
-√(a:Real) : Real
+-a:Number : Number
 
-⌈(a:Real)⌉ : Real
+√a:Number : Number
 
-⌊(a:Real)⌋ : Real
+⌊a:Number⌋ : Number
 
-(a:Real + b:Real) : Real
+⌈a:Number⌉ : Number
 
-(a:Real - b:Real) : Real
+a:Number = b:Number : Boolean
 
-(a:Real   b:Real) : Real
+a:Number ≠ b:Number : Boolean
 
-(a:Real / b:Real) : Real
+a:Number < b:Number : Boolean
 
-(a:Real = b:Real) : Boolean
+a:Number ≤ b:Number : Boolean
 
-(a:Real ≠ b:Real) : Boolean
+a:Number > b:Number : Boolean
 
-(a:Real < b:Real) : Boolean
+a:Number ≥ b:Number : Boolean
 
-(a:Real ≤ b:Real) : Boolean
+a:Number + b:Number : Number
 
-(a:Real > b:Real) : Boolean
+a:Number - b:Number : Number
 
-(a:Real ≥ b:Real) : Boolean
+a:Number   b:Number : Number
+
+a:Number / b:Number : Number
 
 -- Processes
 
-Passthrough () : α >> α
+PassThrough () : α >> α
 
 Reverse () : α >> α
 
-SortBy (f:Integer) : α >> α
+SortBy (f:Number) : α >> α
 
-DupZip (p1:α >> β, p2:α >> γ) : α >> (β, γ)
+DupZip (p1:(α >> β), p2:(α >> γ)) : α >> (β, γ)
 
-DupCat (p1:α >> β, p2:α >> β) : α >> β
+DupCat (p1:(α >> β), p2:(α >> β)) : α >> β
 
-type Color  = (a:Real, r:Real, g:Real, b:Real)
-type Point  = (x:Real, y:Real)
-type Vector = (x:Real, y:Real)
-type Matrix = (a:Real, b:Real, c:Real, d:Real, e:Real, f:Real)
+type Color  = (r:Number, g:Number, b:Number, α:Number)
+type Point  = (x:Number, y:Number)
+type Vector = (x:Number, y:Number)
+type Matrix = (a:Number, b:Number, c:Number, d:Number, e:Number, f:Number)
 type Bezier = (A:Point, B:Point, C:Point)
-type EdgeSample    = (x:Real, y:Real, a:Real, h:Real)
-type EdgeSpan      = (x:Real, y:Real, c:Real, l:Real)
-type PixelCoverage = (x:Real, y:Real, c:Real, i:Real)
+type EdgeSample    = (x:Number, y:Number, area:Number, height:Number)
+type SpanCoverage  = (x:Number, y:Number, coverage:Number, length:Number)
+type PointCoverage = (x:Number, y:Number, coverage:Number, icoverage:Number)
 
-type Texture    = Point >> Color
-type Compositor = (Color, Color) >> Color
-type ColorSpans = (Real, Color) >> (Real, Color)
+type Texturer         = Point >> Color
+type Compositor       = (Color, Color) >> Color
+type GradientExtender = Number >> Number
+type GradientColor    = (Number, Color) >> (Number, Color)
 
-|(a:Real)| : Real
-    { -a, if a < 0; a }
+a:Number² : Number
+    aa
 
-(a:Real ? b:Real) : Real
-    { a, if a ≠ 0; b }
+a:Number³ : Number
+    aaa
 
-(a:Real % n:Real) : Real
+|a:Number| : Number
+    { -a, if a < 0
+       a, otherwise }
+
+a:Number ≈ b:Number : Boolean
+    |(a - b)| < 0.0001
+
+a:Number ≉ b:Number : Boolean
+    ¬(a ≈ b)
+
+a:Number ? b:Number : Number
+    { a, if a ≠ 0
+      b, otherwise }
+
+a:Number % n:Number : Number
     b = a / (n ? 1)
     a - ⌊b⌋n
 
-(a:Real ◁ b:Real) : Real
-    { a, if a < b; b }
+a:Number ◁ b:Number : Number
+    { a, if a < b
+      b, otherwise }
 
-(a:Real ▷ b:Real) : Real
-    { a, if a > b; b }
+a:Number ▷ b:Number : Number
+    { a, if a > b
+      b, otherwise }
 
-(a:Real ~ b:Real) : Real
-    (a + b) / 2
+A:Point = B:Point : Boolean
+    ((x1, y1), (x2, y2)) = (A, B)
+    (x1 = x2 ∧ y1 = y2)
 
-(A:Color + B:Color) : Color
-    (A.a + B.a, A.r + B.r, A.g + B.g, A.b + B.b)
+A:Point ≈ B:Point : Boolean
+    ((x1, y1), (x2, y2)) = (A, B)
+    (x1 ≈ x2 ∧ y1 ≈ y2)
 
-(s:Real A:Color) : Color
-    (a, r, g, b) = A
-    (sa, sr, sg, sb)
+A:Point ≠ B:Point : Boolean
+    ¬(A = B)
 
-(A:Color ⊕ B:Color) : Color
-    (1 - B.a)A + (1 - A.a)B
+A:Point ≉ B:Point : Boolean
+    ¬(A ≈ B)
 
-(u:Vector ≠ v:Vector) : Boolean
+A:Point ≤ B:Point : (Boolean, Boolean)
+    ((x1, y1), (x2, y2)) = (A, B)
+    (x1 ≤ x2, y1 ≤ y2)
+
+A:Point - B:Point : Vector
+    ((x1, y1), (x2, y2)) = (A, B)
+    (x1 - x2, y1 - y2)
+
+⌈A:Point⌉ : Point
+    (x, y) = A
+    (⌈x⌉, ⌈y⌉)
+
+⌊A:Point⌋ : Point
+    (x, y) = A
+    (⌊x⌋, ⌊y⌋)
+
+A:Point ~ B:Point : Point
+    ((x1, y1), (x2, y2)) = (A, B)
+    ((x1 + x2) / 2, (y1 + y2) / 2)
+
+A:Point ▷ B:Point : Point
+    ((x1, y1), (x2, y2)) = (A, B)
+    (x1 ▷ x2, y1 ▷ y2)
+
+A:Point ◁ B:Point : Point
+    ((x1, y1), (x2, y2)) = (A, B)
+    (x1 ◁ x2, y1 ◁ y2)
+
+A:Point + v:Vector : Point
+    ((x1, y1), (x2, y2)) = (A, v)
+    (x1 + x2, y1 + y2)
+
+A:Point - v:Vector : Point
+    ((x1, y1), (x2, y2)) = (A, v)
+    (x1 - x2, y1 - y2)
+
+A:Point + b:Number : Point
+    v:Vector = (b, b)
+    A + v
+
+A:Point - b:Number : Point
+    v:Vector = (b, b)
+    A - v
+
+A:Point - (x2:Number, y2:Number) : Vector
+    B:Point = (x2, y2)
+    A - B
+
+-u:Vector : Vector
+    (x, y) = u
+    (-x, -y)
+
+u:Vector ≠ v:Vector : Boolean
     ((x1, y1), (x2, y2)) = (u, v)
     x1 ≠ x2 ∨ y1 ≠ y2
 
-(u:Vector ? v:Vector) : Vector
-    { u, if u ≠ 0; v }
+u:Vector ≠ s:Number : Boolean
+    v:Vector = (s, s)
+    u ≠ v
 
-(u:Vector ∙ v:Vector) : Real
+u:Vector + v:Vector : Vector
     ((x1, y1), (x2, y2)) = (u, v)
-    x1y1 + x2y2
+    (x1 + y1, x2 + y2)
 
-‖(u:Vector)‖ : Real
+u:Vector + b:Number : Vector
+    v:Vector = (b, b)
+    u + v
+
+a:Number v:Vector : Vector
+    (x, y) = v
+    (ax, ay)
+
+u:Vector ? v:Vector : Vector
+    { u, if u ≠ 0
+      v, otherwise }
+
+u:Vector ∙ v:Vector : Number
+    ((x1, y1), (x2, y2)) = (u, v)
+    x1x2 + y1y2
+
+P:Point ∙ v:Vector : Number
+    (x, y) = P
+    u:Vector = (x, y)
+    u ∙ v
+
+|u:Vector| : Vector
+    (x, y) = u
+    (|x|, |y|)
+
+‖u:Vector‖ : Number
     √(u ∙ u) 
 
-(u:Vector / s:Real) : Vector
-    (u.x / s, u.y / s)
+⌊u:Vector⌋ : Vector
+    (x, y) = u
+    (⌊x⌋, ⌊y⌋)
 
-^(u:Vector) : Vector
-    { u / ‖u‖, if ‖u‖ ≠ 0; 0 }
+u:Vector / s:Number : Vector
+    (x, y) = u
+    (x / s, y / s)
 
-(A:Point ⟂ B:Point) : Vector
+u:Vector < v:Vector : (Boolean, Boolean)
+    ((x1, y1), (x2, y2)) = (u, v)
+    (x1 < x2, y1 < y2)
+
+u:Vector < r:Number : (Boolean, Boolean)
+    v:Vector = (r, r)
+    u < v
+
+A:Point ⟂ B:Point : Vector
     ((x1, y1), (x2, y2)) = (A, B)
     v:Vector = (y1 - y2, x2 - x1)
-    ^v
+    { v / ‖v‖, if ‖v‖ ≠ 0
+      0,       otherwise  }
 
-(M:Matrix P:Point) : Point
+M:Matrix P:Point : Point
     (a, b, c, d, e, f) = M
     (x, y) = P
     (ax + cy + e, bx + dy + f)
 
-DecomposeBeziers () : Bezier >> EdgeSample
+(a1:Boolean, b1:Boolean) ∧ (a2:Boolean, b2:Boolean) : (Boolean, Boolean)
+    (a1 ∧ a2, b1 ∧ b2)
+
+P:Point ≤ Z:Bezier : (Boolean, Boolean)
+    (A, B, C) = Z
+    P ≤ A ∧ P ≤ B ∧ P ≤ C
+
+Z:Bezier ≤ P:Point : (Boolean, Boolean)
+    (A, B, C) = Z
+    A ≤ P ∧ B ≤ P ∧ C ≤ P
+
+P:Point ▷ Z:Bezier : Bezier
+    (A, B, C) = Z
+    (P ▷ A, P ▷ B, P ▷ C)
+
+Z:Bezier ◁ P:Point : Bezier
+    (A, B, C) = Z
+    (A ◁ P, B ◁ P, C ◁ P)
+
+A:Color ◁ B:Color : Color
+    ((r1, g1, b1, α1), (r2, g2, b2, α2)) = (A, B)
+    (r1 ◁ r2, g1 ◁ g2, b1 ◁ b2, α1 ◁ α2)
+
+A:Color ▷ B:Color : Color
+    ((r1, g1, b1, α1), (r2, g2, b2, α2)) = (A, B)
+    (r1 ▷ r2, g1 ▷ g2, b1 ▷ b2, α1 ▷ α2)
+
+A:Color + B:Color : Color
+    ((r1, g1, b1, α1), (r2, g2, b2, α2)) = (A, B)
+    (r1 + r2, g1 + g2, b1 + b2, α1 + α2)
+
+A:Color - B:Color : Color
+    ((r1, g1, b1, α1), (r2, g2, b2, α2)) = (A, B)
+    (r1 - r2, g1 - g2, b1 - b2, α1 - α2)
+
+A:Color B:Color : Color
+    ((r1, g1, b1, α1), (r2, g2, b2, α2)) = (A, B)
+    (r1r2, g1g2, b1b2, α1α2)
+
+A:Color / B:Color : Color
+    ((r1, g1, b1, α1), (r2, g2, b2, α2)) = (A, B)
+    (r1 / r2, g1 / g2, b1 / b2, α1 / α2)
+
+A:Color < B:Color : (Boolean, Boolean, Boolean, Boolean)
+    ((r1, g1, b1, α1), (r2, g2, b2, α2)) = (A, B)
+    (r1 < r2, g1 < g2, b1 < b2, α1 < α2)
+
+A:Color ≥ B:Color : (Boolean, Boolean, Boolean, Boolean)
+    ((r1, g1, b1, α1), (r2, g2, b2, α2)) = (A, B)
+    (r1 ≥ r2, g1 ≥ g2, b1 ≥ b2, α1 ≥ α2)
+
+A:Color ≤ B:Color : (Boolean, Boolean, Boolean, Boolean)
+    ((r1, g1, b1, α1), (r2, g2, b2, α2)) = (A, B)
+    (r1 ≤ r2, g1 ≤ g2, b1 ≤ b2, α1 ≤ α2)
+
+A:Color ≥ b:Number : (Boolean, Boolean, Boolean, Boolean)
+    B:Color = (b, b, b, b)
+    A ≥ B
+
+A:Color ≤ b:Number : (Boolean, Boolean, Boolean, Boolean)
+    B:Color = (b, b, b, b)
+    A ≤ B
+
+√A:Color : Color
+    (r, g, b, α) = A
+    (√r, √g, √b, √α)
+
+a:Number B:Color : Color
+    A:Color = (a, a, a, a)
+    AB
+
+A:Color b:Number : Color
+    B:Color = (b, b, b, b)
+    AB
+
+A:Color ⊕ B:Color : Color
+    (α, β) = (A.α, B.α)
+    (1 - β)A + (1 - α)B
+
+A:Color - b:Number : Color
+    B:Color = (b, b, b, b)
+    A - B
+
+a:Number - B:Color : Color
+    A:Color = (a, a, a, a)
+    A - B
+
+a:Number + B:Color : Color
+    A:Color = (a, a, a, a)
+    A + B
+
+A:Color < b:Number : (Boolean, Boolean, Boolean, Boolean)
+    B:Color  = (b, b, b, b)
+    A < B
+
+A:Color / b:Number : Color
+    B:Color = (b, b, b, b)
+    A / B
+
+A:Color ◁ b:Number : Color
+    B:Color = (b, b, b, b)
+    A ◁ B
+
+a:Number ▷ B:Color : Color
+    A:Color = (a, a, a, a)
+    A ▷ B
+
+a:Number ◁ B:Color : Color
+    A:Color = (a, a, a, a)
+    A ◁ B
+
+-- TODO infer these?
+
+⌊(a:Number, b:Number)⌋ : (Number, Number)
+    (⌊a⌋, ⌊b⌋)
+
+(a1:Number, b1:Number) - (a2:Number, b2:Number) : (Number, Number)
+    (a1 - a2, b1 - b2)
+
+(a1:Number, b1:Number) - n:Number : (Number, Number)
+    (a1, b1) - (n, n)
+
+|(a:Number, b:Number)| : (Number, Number)
+    (|a|, |b|)
+
+(a1:Number, b1:Number) % n:Number : (Number, Number)
+    (a1 % n, b1 % n)
+
+n:Number ▷ (a2:Number, b2:Number) : (Number, Number)
+    (a1, b1) = (n, n)
+    (a1 ▷ a2, b1 ▷ b2)
+
+(a1:Number, b1:Number) ◁ n:Number : (Number, Number)
+    (a2, b2) = (n, n)
+    (a1 ◁ a2, b1 ◁ b2)
+
+(a1:Boolean, b1:Boolean) ∨ (a2:Boolean, b2:Boolean) : (Boolean, Boolean)
+    (a1 ∨ a2, b1 ∨ b2)
+
+∧(a1:Boolean, a2:Boolean) : Boolean
+    a1 ∧ a2
+
+∨(a1:Boolean, a2:Boolean) : Boolean
+    a1 ∨ a2
+
+TransformPoints (M:Matrix) : Point >> Point
+    ∀ P
+        >> MP
+
+PadTexture (w:Number, h:Number) : Point >> Point
+    ∀ (x, y)
+        T      = (x / w, y / h)
+        (s, t) = 0 ▷ T ◁ 1
+        >> (sw, th)
+
+RepeatTexture (w:Number, h:Number) : Point >> Point
+    ∀ (x, y)
+        T      = (x / w, y / h)
+        (s, t) = T - ⌊T⌋
+        >> (sw, th)
+
+ReflectTexture (w:Number, h:Number) : Point >> Point
+    ∀ (x, y)
+        T      = (x / w, y / h)
+        (s, t) = |(|(T - 1)| % 2 - 1)|
+        >> (sw, th)
+
+UniformColor (C:Color) : Texturer
+    (r, g, b, α) = C
+    D = (αr, αg, αb, α)
+    ∀ _
+        >> D
+
+CompositeTexturers (t1:Texturer, t2:Texturer, c:Compositor) : Texturer
+    → DupZip (t1, t2) → c
+
+ExpandSpans () : SpanCoverage >> PointCoverage
+    ∀ (x, y, c, l)
+        if c > 0 ∧ l > 0
+            >> (x, y, c, 1 - c)
+            << (x + 1, y, c, l - 1)
+
+ExtractSamplePoints () : PointCoverage >> Point
+    ∀ (x, y, _, _)
+        >> (x, y)
+
+ApplyTexturer (t:Texturer) : SpanCoverage >> (Color, PointCoverage)
+    → ExpandSpans () → DupZip (→ ExtractSamplePoints () → t,
+                               → PassThrough ())
+
+OffsetBezier (Z:Bezier, o:Number) : Bezier >> Bezier
+    ϵ = 0.1
+    (A, B, C) = Z
+    (u, v)    = (A ⟂ B, B ⟂ C)
+    M         = (A ~ B) ~ (B ~ C)
+    if u ∙ v ≥ 1 - ϵ
+        w = (A ~ B) ⟂ (B ~ C)
+        D = A + ou
+        F = C + ov
+        N = M + ow
+        E = N + (N - (D ~ F))
+        >> (D, E, F)
+    else if A ≠ B ≠ C
+        → OffsetBezier ((M, B ~ C, C), o) → OffsetBezier ((A, A ~ B, M), o)
+
+MiterJoin (P:Point, u:Vector, v:Vector, o:Number, l:Number) : Bezier >> Bezier
+    (A, C) = (P + ou, P + ov)
+    w      = (A ⟂ C) ? u
+    m      = 1 / (l ▷ 1)
+    if u ∙ w ≥ m
+        p = o / (u ∙ w)
+        M = P + pw
+        >> (M, M ~ C, C) >> (A, A ~ M, M)
+    else
+        >> (A, A ~ C, C)
+
+RoundJoin (P:Point, u:Vector, v:Vector, o:Number) : Bezier >> Bezier
+    ϵ = 0.1
+    (A, C) = (P + ou, P + ov)
+    w      = (A ⟂ C) ? u
+    if u ∙ w ≥ 1 - ϵ
+        N = P + ow
+        B = N + (N - (A ~ C))
+        >> (A, B, C)
+    else
+        → RoundJoin (P, u, w, o) → RoundJoin (P, w, v, o)
+
+JoinBeziers (Zi:Bezier, Zj:Bezier, o:Number, l:Number) : Bezier >> Bezier
+    (u, v) = (Zi.B ⟂ Zi.C, Zj.A ⟂ Zj.B)
+    C      = Zi.C
+    if l < 0
+        → RoundJoin (C, u, v, o)
+    else
+        → MiterJoin (C, u, v, o, l)
+
+CapBezier (Z:Bezier, o:Number, c:Number) : Bezier >> Bezier
+    (A, B, C) = Z
+    u         = B ⟂ C
+    v:Vector  = (u.y, -u.x)
+    if c < 0
+        → RoundJoin (C, u, -u, o)
+    else
+        D = C +  ou
+        G = C -  ou
+        E = D + cov
+        F = G + cov
+        >> (D, D ~ E, E) >> (E, E ~ F, F) >> (F, F ~ G, G)
+
+OffsetAndJoin (Zi:Bezier, Z1:Bezier, o:Number, l:Number, c:Number) : Bezier >> Bezier
+    ∀ Zj
+        → OffsetAndJoin (Zj, Z1, o, l, c) →
+          JoinBeziers   (Zi, Zj, o, l)    → OffsetBezier (Zi, o)
+    if Zi.C = Z1.A
+        → JoinBeziers (Zi, Z1, o, l) → OffsetBezier (Zi, o)
+    else
+        → CapBezier (Zi, o, c)       → OffsetBezier (Zi, o)
+
+StrokeOneSide (width:Number, limit:Number, cap:Number) : Bezier >> Bezier
+    ∀ Z1
+        → OffsetAndJoin (Z1, Z1, width / 2, limit, cap)
+
+ReverseBeziers () : Bezier >> Bezier
     ∀ (A, B, C)
-        ("inx", "iny") = (⌊A⌋ = ⌊C⌋ ∨ ⌈A⌉ = ⌈C⌉)
-        if "inx" ∧ "iny"
-            P = ⌊A⌋ ◁ ⌊C⌋
-            w = P.x + 1 - (C.x ~ A.x)
-            h = C.y - A.y
-            >> (P.x + 0.5, P.y + 0.5, wh, h)
-        else
+        >> (C, B, A)
+
+SanitizeBezierPath () : Bezier >> Bezier
+    ∀ (A, B, C)
+        (u, v) = (A ⟂ B, B ⟂ C)
+        if u ∙ v ≈ -1
             M = (A ~ B) ~ (B ~ C)
-            ("min", "max") = (⌊M⌋, ⌈M⌉)
-            N = { "min", if |(M - "min")| < 0.1
-                  "max", if |(M - "max")| < 0.1
-                      M,               otherwise }
+            << (M, M ~ C, C) << (A, A ~ M, M)
+        else if A ≉ B ≉ C
+            >> (A, B, C)
+        else if A ~ C ≉ B
+            << (A, A ~ C, C)
+
+StrokeBezierPath (width:Number, limit:Number, cap:Number) : Bezier >> Bezier
+    → SanitizeBezierPath () →
+      DupCat (→ StrokeOneSide (width, limit, cap),
+              → Reverse () → ReverseBeziers () → StrokeOneSide (width, limit, cap))
+
+DecomposeBeziers () : Bezier >> EdgeSample
+    ϵ = 0.1
+    ∀ (A, B, C)
+        P = ⌊A⌋ ◁ ⌊C⌋
+        if ∧(P ≤ A ≤ P + 1 ∧ P ≤ C ≤ P + 1)
+            (x, y) = P
+            (w, _) = P + 1 - (A ~ C)
+            (_, h) = C - A
+            >> (x + 0.5, y + 0.5, wh, h)
+        else
+            M            = (A ~ B) ~ (B ~ C)
+            ( min,  max) = (⌊M⌋, ⌈M⌉)
+            (Δmin, Δmax) = (M - min, M - max)
+            N = { min, if |Δmin| < ϵ
+                  max, if |Δmax| < ϵ
+                    M,     otherwise }
             << (N, B ~ C, C) << (A, A ~ B, N) 
 
-CombineEdgeSamples () : EdgeSample >> EdgeSpan
+CombineEdgeSamples () : EdgeSample >> SpanCoverage
     (x, y, A, H) = (0, 0, 0, 0)
     ∀ (x', y', a, h)
-        if y = y'
-            if x = x'
+        if y' = y
+            if x' = x
                 (A', H') = (A + a, H + h)
             else
                 (A', H') = (H + a, H + h)
-                l = {x' - x - 1, if |H| > 0.5; 0}
-                >> (x, y, |A| ◁ 1, l)
+                >> (x,     y, |A| ◁ 1,          1)
+                >> (x + 1, y, |H| ◁ 1, x' - x - 1)
         else
             (A', H') = (a, h)
-            >> (x, y, |A| ◁ 1, 0)
-    >> (x, y, |A| ◁ 1, 0)
+            >> (x, y, |A| ◁ 1, 1)
+    >> (x, y, |A| ◁ 1, 1)
 
-Rasterize () : Bezier >> EdgeSpan
+Rasterize () : Bezier >> SpanCoverage
     → DecomposeBeziers () → SortBy (1) → SortBy (2) → CombineEdgeSamples ()
 
-RectangleSpans ("min":Point, "max":Point) : Point >> EdgeSpan
-    l = ("max" - "min").x - 1
-    << "min" + 0.5
+RectangleSpans (x1:Number, y1:Number, x2:Number, y2:Number) : Point >> SpanCoverage
+    l = x2 - x1 - 1
+    << (x1 + 0.5, y1 + 0.5)
     ∀ (x, y)
-        if y < "max".y
+        if y < y2
             >> (x, y, 1, l)
             << (x, y + 1)
 
-LinearGradient (s00:Real, "dsdx":Real, "dsdy":Real) : Point >> Real
-    ∀ (x, y)
-        >> s00 + x"dsdx" + y"dsdy"
 
-RadialGradient (C:Point, r:Real) : Point >> Real
+ProjectLinearGradient (A:Point, B:Point) : Point >> Number
+    v   = B - A
+    Δs  = v / (v ∙ v)
+    s00 = A ∙ Δs
     ∀ P
-        >> ‖(P - C)‖ / r
+        >> P ∙ Δs - s00
 
-PadGradient () : Real >> Real
+ProjectRadialGradient (A:Point, r:Number) : Point >> Number
+    ∀ P
+        >> ‖(P - A)‖ / r
+
+PadGradient () : GradientExtender
     ∀ s
         >> 0 ▷ s ◁ 1
 
-RepeatGradient () : Real >> Real
+RepeatGradient () : GradientExtender
     ∀ s
         >> s - ⌊s⌋
 
-ReflectGradient () : Real >> Real
+ReflectGradient () : GradientExtender
     ∀ s
-        >> |((|(s - 1)| % 2 - 1))|
+        >> |(|(s - 1)| % 2 - 1)|
 
-ColorSpansBegin () : Real >> (Real, Color)
+BeginGradientColor () : Number >> (Number, Color)
     ∀ s
         >> (s, 0)
 
-ColorSpan (S1:Color, S2:Color, l:Real) : ColorSpans
-    d = (S2 - S1) / l
+GradientSpan (A:Color, a:Number, B:Color, b:Number) : GradientColor
     ∀ (s, C)
-        D = { S1 + sd, if s ≥ 0; C }
-        >> (s - l, D)
+        α = (b - s) / (b - a)
+        D = { αA + (1 - α)B, if a ≤ s ≤ b
+              C,             otherwise    }
+        >> (s, D)
 
-ColorSpansEnd () : (Real, Color) >> Color
-    ∀ (_, (a, r, g, b))
-        >> (a, ar, ag, ab)
+EndGradientColor () : (Number, Color) >> Color
+    ∀ (_, (r, g, b, α))
+        >> (αr, αg, αb, α)
 
-ApplyColorSpans (s:ColorSpans) : Real >> Color
-    → ColorSpansBegin () → s → ColorSpansEnd ()
+ApplyLinearGradient (A:Point, B:Point, e:GradientExtender, c:GradientColor) : Texturer
+    → ProjectLinearGradient (A, B) → e → BeginGradientColor () → c → EndGradientColor ()
+
+ApplyRadialGradient (A:Point, r:Number, e:GradientExtender, c:GradientColor) : Texturer
+    → ProjectRadialGradient (A, r) → e → BeginGradientColor () → c → EndGradientColor ()
+
+SumWeightedColors (n:Number) : (Number, Color) >> Color
+    (i, sum:Color) = (1, 0)
+    ∀ (w, C)
+        if i = n
+            (i', sum') = (1, 0)
+            >> 0 ▷ (sum + wC) ◁ 1
+        else
+            (i', sum') = (i + 1, sum + wC)
+
+BilinearFilterPoints () : Point >> Point
+    ∀ P
+        (x, y) = ⌊(P - 0.5)⌋ + 0.5
+        >> (x, y    ) >> (x + 1, y    )
+        >> (x, y + 1) >> (x + 1, y + 1)
+
+BilinearFilterWeights () : Point >> Number
+    ∀ P 
+        (x, y) = ⌊(P - 0.5)⌋ + 0.5
+        (u, v) = P - (x, y)
+        >> (1 - u) (1 - v) >> u (1 - v)
+        >> (1 - u) (    v) >> u (    v)
+
+BilinearFilter (t:Texturer) : Texturer
+    → DupZip (→ BilinearFilterWeights (),
+              → BilinearFilterPoints  () → t) →
+      SumWeightedColors (4)
+
+BicubicFilterPoints () : Point >> Point
+    ∀ P
+        (x, y) = ⌊(P - 0.5)⌋ + 0.5
+        >> (x - 1, y - 1) >> (x, y - 1) >> (x + 1, y - 1) >> (x + 2, y - 1)
+        >> (x - 1, y    ) >> (x, y    ) >> (x + 1, y    ) >> (x + 2, y    )
+        >> (x - 1, y + 1) >> (x, y + 1) >> (x + 1, y + 1) >> (x + 2, y + 1)
+        >> (x - 1, y + 2) >> (x, y + 2) >> (x + 1, y + 2) >> (x + 2, y + 2)
+
+BicubicFilterDeltas () : Point >> Vector
+    ∀ P 
+        (x, y) = ⌊(P - 0.5)⌋ + 0.5
+        >> P - (x - 1, y - 1) >> P - (x, y - 1) >> P - (x + 1, y - 1) >> P - (x + 2, y - 1)
+        >> P - (x - 1, y    ) >> P - (x, y    ) >> P - (x + 1, y    ) >> P - (x + 2, y    )
+        >> P - (x - 1, y + 1) >> P - (x, y + 1) >> P - (x + 1, y + 1) >> P - (x + 2, y + 1)
+        >> P - (x - 1, y + 2) >> P - (x, y + 2) >> P - (x + 1, y + 2) >> P - (x + 2, y + 2)
+
+\cubic(s:Number) : Number
+    {  1.5s³ - 2.5s²      + 1, if 0 ≤ s < 1
+      -0.5s³ + 2.5s² - 4s + 2, if 1 ≤ s < 2
+                            0, otherwise    }
+
+BicubicFilterWeights () : Vector >> Number
+    ∀ (Δx, Δy)
+        (w1, w2) = (\cubic(|Δx|), \cubic(|Δy|))
+        >> w1w2
+
+BicubicFilter (t:Texturer) : Texturer
+    → DupZip (→ BicubicFilterDeltas () → BicubicFilterWeights (),
+              → BicubicFilterPoints () → t) →
+      SumWeightedColors (16)
 
 CompositeClear () : Compositor
     ∀ (A, B)
@@ -264,35 +769,43 @@ CompositeDst () : Compositor
 
 CompositeOver () : Compositor
     ∀ (A, B)
-        >> A + (1 - A.a)B 
+        α = A.α
+        >> A + (1 - α)B 
 
 CompositeDstOver () : Compositor
     ∀ (A, B)
-        >> B + (1 - B.a)A 
+        β = B.α
+        >> B + (1 - β)A 
 
 CompositeSrcIn () : Compositor
     ∀ (A, B)
-        >> B.a A 
+        β = B.α
+        >> βA 
 
 CompositeDstIn () : Compositor
     ∀ (A, B)
-        >> A.a B
+        α = A.α
+        >> αB
 
 CompositeSrcOut () : Compositor
     ∀ (A, B)
-        >> (1 - B.a)A 
+        β = B.α
+        >> (1 - β)A 
 
 CompositeDstOut () : Compositor
     ∀ (A, B)
-        >> (1 - A.a)B 
+        α = A.α
+        >> (1 - α)B 
 
 CompositeSrcAtop () : Compositor
     ∀ (A, B)
-        >> B.a A + (1 - A.a)B 
+        (α, β) = (A.α, B.α)
+        >> βA + (1 - α)B 
 
 CompositeDstAtop () : Compositor
     ∀ (A, B)
-        >> A.a B + (1 - B.a)A
+        (α, β) = (A.α, B.α)
+        >> αB + (1 - β)A
 
 CompositeXor () : Compositor
     ∀ (A, B)
@@ -312,53 +825,68 @@ CompositeScreen () : Compositor
 
 CompositeOverlay () : Compositor
     ∀ (A, B)
+        (α, β) = (A.α, B.α)
         C = 2AB + (A ⊕ B)
-        D = A.a B.a - 2(B.a - B)(A.a - A) + (A ⊕ B)
-        >> {C, if 2B < B.a; D}
+        D = αβ - 2(β - B)(α - A) + (A ⊕ B)
+        >> { C, if 2B < β
+             D, otherwise }
 
 CompositeDarken () : Compositor
     ∀ (A, B)
-        >> (B.a A) ◁ (A.a B) + (A ⊕ B)
+        (α, β) = (A.α, B.α)
+        >> (βA ◁ αB) + (A ⊕ B)
 
 CompositeLighten () : Compositor
     ∀ (A, B)
-        >> (B.a A) ▷ (A.a B) + (A ⊕ B)
+        (α, β) = (A.α, B.α)
+        >> (βA ▷ αB) + (A ⊕ B)
 
 CompositeColorDodge () : Compositor
     ∀ (A, B)
-        C = A.a B.a + (A ⊕ B)
-        D = ((A.a B) / (1 - A / A.a) + (A ⊕ B)) ◁ 1
-        >> {C, if (B.a A) + (A.a B) ≥ (A.a B.a); D}
+        (α, β) = (A.α, B.α)
+        C = αβ + (A ⊕ B)
+        D = αB / (1 - A / α) + (A ⊕ B)
+        >> { C,     if βA + αB ≥ αβ
+             D ◁ 1, otherwise       }
 
 CompositeColorBurn () : Compositor
     ∀ (A, B)
-        C = B.a A + A.a B
-        D = A.a(C - A.a × B.a) / A + (A ⊕ B)
-        >> {A ⊕ B, if C ≤ A.a × B.a; D}
+        (α, β) = (A.α, B.α)
+        C = βA + αB
+        D = α(C - αβ) / A + (A ⊕ B)
+        >> { A ⊕ B, if C ≤ αβ
+             D,     otherwise }
 
 CompositeHardLight () : Compositor
     ∀ (A, B)
+        (α, β) = (A.α, B.α)
         C = 2AB + (A ⊕ B)
-        D = (A.a B.a) - 2(B.a - B)(A.a - A) + (A ⊕ B)
-        >> {C, if 2A < A.a; D}
+        D = αβ - 2(β - B)(α - A) + (A ⊕ B)
+        >> { C, if 2A < α
+             D, otherwise }
 
 CompositeSoftLight () : Compositor
     ∀ (A, B)
-        C = (1 - B / B.a)(2A - A.a)
-        D = B(A.a - C) + (A ⊕ B)
-        E = B(A.a - C(3 - 8B / B.a)) + (A ⊕ B)
-        F = (A.a B) + (√(B / B.a)B.a - B)(2A - A.a) + (A ⊕ B)
-        >> {D, if 2A < A.a; E, if 8B ≤ B.a; F}
+        (α, β) = (A.α, B.α)
+        C = (1 - B / β)(2A - α)
+        D = B(α - C) + (A ⊕ B)
+        E = B(α - C(3 - 8B / β)) + (A ⊕ B)
+        F = αB + (√(B / β)β - B)(2A - α) + (A ⊕ B)
+        >> { D, if 2A < α
+             E, if 8B ≤ β
+             F, otherwise }
 
 CompositeDifference () : Compositor
     ∀ (A, B)
-        C = A + B - 2((B.a A) ◁ (A.a B))
-        >> (C.a + (A.a B.a), C.r, C.g, C.b)
+        (α, β)       = (A.α, B.α)
+        (r, g, b, γ) = A + B - 2(βA ◁ αB)
+        >> (r, g, b, αβ + γ)
 
 CompositeExclusion () : Compositor
     ∀ (A, B)
-        C = B.a A + A.a B - 2AB + (A ⊕ B)
-        >> (A.a B.a + C.a, C.r, C.g, C.b)
+        (α, β)       = (A.α, B.α)
+        (r, g, b, γ) = βA + αB - 2AB + (A ⊕ B)
+        >> (r, g, b, αβ + γ)
 
 CompositeSubtract () : Compositor
     ∀ (A, B)
@@ -366,176 +894,65 @@ CompositeSubtract () : Compositor
 
 CompositeInvert () : Compositor
     ∀ (A, B)
-        >> (B.a, 1 - B.r, 1 - B.g, 1 - B.b)
+        α = A.α
+        (r, g, b, _) = 1 - (A / (α ? 1))
+        >> (αr, αg, αb, α)
 
-InverseOver (A : Real) : Color >> Color
-    ∀ C
-        D = C / (C.a ? 1)
-        E = A(1 - D) + D(1 - A)
-        >> (C.a, C.a E.r, C.a E.g, C.a E.b)
+InverseOver (β:Number) : Color >> Color
+    ∀ A
+        α = A.α
+        B = A / (α ? 1)
+        (r, g, b, _) = βB + (1 - β)(1 - B)
+        >> (αr, αg, αb, α)
 
 TransformBeziers (M:Matrix) : Bezier >> Bezier
     ∀ (A, B, C)
         >> (MA, MB, MC)
 
-ClipBeziers ("min":Point, "max":Point) : Bezier >> Bezier
-    ∀ (A, B, C)
-        "bmin"    = A ◁ B ◁ C
-        "bmax"    = A ▷ B ▷ C
-        ("inx",  "iny" ) = "min"  ≤ "bmin" ∧ "bmax" ≤ "max"
-        ("outx", "outy") = "bmax" ≤ "min"  ∨ "max"  ≤ "bmin"
-        if "inx" ∧ "iny"
-            >> (A, B, C)
-        else if "outx" ∨ "outy"
-            A' = "min" ▷ A ◁ "max"
-            C' = "min" ▷ C ◁ "max"
-            >> (A', A' ~ C', C')
+ClipBeziers (min:Point, max:Point) : Bezier >> Bezier
+    ϵ = 0.1
+    ∀ Z
+        if ∧(min ≤ Z ≤ max)
+            >> Z
+        else if ∨(Z ≤ min ∨ max ≤ Z)
+            >> min ▷ Z ◁ max
         else
-            M = (A ~ B) ~ (B ~ C)
-            N = { "min",  if |(M - "min")| < 0.1
-                  "max",  if |(M - "max")| < 0.1
-                      M,                otherwise }
+            (A, B, C)    = Z
+            M            = (A ~ B) ~ (B ~ C)
+            (Δmin, Δmax) = (M - min, M - max)
+            edge         = { min,  if |Δmin| < |Δmax|
+                             max,  otherwise          }
+            Δedge        = M - edge
+            N            = { edge, if |Δedge| < ϵ
+                             M,    otherwise      }
             << (N, B ~ C, C) << (A, A ~ B, N) 
 
 CalculateBounds () : Bezier >> (Point, Point)
-    ("min":Point, "max":Point) = (∞, -∞)
+    (min:Point, max:Point) = (∞, -∞)
     ∀ (A, B, C)
-        if A.y ≠ B.y ∨ B.y ≠ C.y
-            "min'" = "min" ◁ A ◁ B ◁ C
-            "max'" = "max" ▷ A ▷ B ▷ C
-    >> ("min", "max")
-
-TransformPoints (M:Matrix) : Point >> Point
-    ∀ P
-        >> MP
-
-PadTexture (D:Point) : Point >> Point
-    ∀ P
-        >> 0 ▷ P ◁ D
-
-RepeatTexture (D:Point) : Point >> Point
-    ∀ P
-        Q = P / D
-        >> D (Q - ⌊Q⌋)
-
-ReflectTexture (D:Point) : Point >> Point
-    ∀ P
-        Q = P / D
-        R = |(Q - 1)| % 2 - 1
-        >> D |R|
-
-UniformColor (C:Color) : Texture
-    (a, r, g, b) = C
-    ∀ _
-        >> (a, ar, ag, ab)
-
-CompositeTextures (t1:Texture, t2:Texture, c:Compositor) : Texture
-    → DupZip (t1, t2) → c
-
-ExpandSpans () : EdgeSpan >> PixelCoverage
-    ∀ (x, y, c, l)
-        if c ≠ 0
-            >> (x, y, c, 1 - c)
-            if l > 0
-                << (x + 1, y, 1, l - 1)
-
-ExtractSamplePoints () : PixelCoverage >> Point
-    ∀ (x, y, _, _)
-        >> (x, y)
-
-ApplyTexture (t:Texture) : EdgeSpan >> (Color, PixelCoverage)
-    → ExpandSpans () → DupZip (→ ExtractSamplePoints () → t,
-                               → PassThrough ())
-
-OffsetBezier (o:Real, Z:Bezier) : Bezier >> Bezier
-    (A, B, C) = Z
-    (u, v) = (A ⟂ B, B ⟂ C)
-    M = (A ~ B) ~ (B ~ C)
-    if u ∙ v ≥ 0.9
-        w = (A ~ B) ⟂ (B ~ C)
-        D = A + ou
-        F = C + ov
-        N = M + ow
-        E = 2N - (D ~ F)
-        >> (D, E, F)
-    else if u ≠ 0 ∧ v ≠ 0
-        → OffsetBezier (o, (M, B ~ C, C)) → OffsetBezier (o, (A, A ~ B, M))
-
-MiterJoin (o:Real, l:Real, P:Point, u:Vector, v:Vector) : Bezier >> Bezier
-    (A, C) = (P + ou, P + ov)
-    w = (A ⟂ C) ? u
-    if u ∙ w ≥ 1 / l
-        p = o / (u ∙ w)
-        M = P + pw
-        >> (M, M ~ C, C) >> (A, A ~ M, M)
-    else
-        >> (A, A ~ C, C)
-
-RoundJoin (o:Real, P:Point, u:Vector, v:Vector) : Bezier >> Bezier
-    (A, C) = (P + ou, P + ov)
-    w = (A ⟂ C) ? u
-    if u ∙ w ≥ 0.9
-        N = P + ow
-        B = 2N - (A ~ C)
-        >> (A, B, C)
-    else
-        → RoundJoin (o, P, u, w) → RoundJoin (o, P, w, v)
-
-JoinBeziers (o:Real, l:Real, Y:Bezier, Z:Bezier) : Bezier >> Bezier
-    (u, v) = (Y.B ⟂ Y.C, Z.A ⟂ Z.B)
-    if l < 1
-        → RoundJoin (o, Y.C, u, v)
-    else
-        → MiterJoin (o, l, Y.C, u, v)
-
-CapBezier (o:Real, c:Real, Z:Bezier) : Bezier >> Bezier
-    (A, B, C) = Z
-    u = B ⟂ C
-    v:Vector = (u.y, -u.x)
-    if c < 0
-        → RoundJoin (o, C, u, -u)
-    else
-        D = C + ou
-        G = C - ou
-        E = D + cv
-        F = G + cv
-        >> (D, D ~ E, E) >> (E, E ~ F, F) >> (F, F ~ G, G)
-
-OffsetAndJoin (o:Real, l:Real, c:Real, Z1:Bezier, Y:Bezier) : Bezier >> Bezier
-    ∀ Z
-        → OffsetAndJoin (o, l, c, Z1, Z) → JoinBeziers (o, l, Y, Z) → OffsetBezier (o, Y)
-    if Y.C.x = Z1.A.x ∧ Y.C.y = Z1.A.y
-        → JoinBeziers (o, l, Y, Z1) → OffsetBezier (o, Y)
-    else
-        → CapBezier (o, c, Y) → OffsetBezier (o, Y)
-
-StrokeOneSide (w:Real, l:Real, c:Real) : Bezier >> Bezier
-    ∀ Z1
-        → OffsetAndJoin (w / 2, l, c, Z1, Z1)
-
-ReverseBeziers () : Bezier >> Bezier
-    ∀ (A, B, C)
-        >> (C, B, A)
-
-SanitizeBezierPath () : Bezier >> Bezier
-    ∀ (A, B, C)
-        (u, v) = (A ⟂ B, B ⟂ C)
-        M = A ~ C
-        if u ∙ v < -0.9999
-            << (A, M, C)
-        else if u ≠ 0 ∧ v ≠ 0
-            >> (A, B, C)
-        else if (A ⟂ M) ≠ 0 ∧ (M ⟂ C) ≠ 0
-            >> (A, M, C)
-
-StrokeBezierPath (w:Real, l:Real, c:Real) : Bezier >> Bezier
-    → SanitizeBezierPath () →
-      DupCat (→ StrokeOneSide (w, l, c),
-              → Reverse () → ReverseBeziers () → StrokeOneSide (w, l, c))
+        if ¬(A.y = B.y = C.y)
+            min' = min ◁ A ◁ B ◁ C
+            max' = max ▷ A ▷ B ▷ C
+    >> (min, max)
 
     </textarea>
-    <button type="button" onclick="compile();">Compile</button>
-    <textarea id="ast" cols="100" rows="40"></textarea>
+    <button type="button" onclick="compileDefs();">Compile</button>
+    <textarea id="ast"  cols="50" rows="50"></textarea>
+    <textarea id="declarations"  cols="50" rows="50"></textarea>
+
+    <textarea id="block-input"  cols="50" rows="20">
+      [[[0, 0], [5, 5], [10, 10]],
+      [[10, 10], [10, 5], [10, 0]],
+      [[10, 0], [5, 0], [0, 0]]]
+    </textarea>
+    <textarea id="block" cols="80" rows="20">
+M:Matrix = (1, 2, 3, 4, 5, 6)
+(min:Point, max:Point) = ((1, 1), (8, 8))
+-> StrokeBezierPath (5, 2, -1) -> TransformBeziers (M) -> ClipBeziers (min, max) ->
+   Rasterize () -> ApplyTexturer (-> UniformColor (1, 1, 1, 1))
+    </textarea>
+    <button type="button" onclick="evaluateBlock();">Evalulate</button>
+    <textarea id="block-output" cols="50" rows="20"></textarea>
 
   </body>
 
