@@ -6,52 +6,7 @@
 //
 
 
-//====================================================================================
-//
-//  NLTypes
-//
-
-var NLTypes = {
-    "Real": { name:"Real" },
-    "Point": { name:"Point" },
-    "Bezier": { name:"Bezier" },
-};
-
-function NLReal (v) {
-    return {
-        "_type": NLTypes.Real,
-        "value": v,
-    };
-}
-
-function NLRealUnbox (r) {
-    return r.value;
-}
-
-function NLPoint (x,y) {
-    return {
-        "_type": NLTypes.Point,
-        "x": NLReal(x),
-        "y": NLReal(y),
-    };
-}
-
-function NLPointUnbox (p) {
-    return { x:p.x.value, y:p.y.value };
-}
-
-function NLBezier (x1,y1,x2,y2,x3,y3) {
-    return {
-        "_type": NLTypes.Bezier,
-        "A": NLPoint(x1,y1),
-        "B": NLPoint(x2,y2),
-        "C": NLPoint(x3,y3),
-    };
-}
-
-function NLBezierUnbox (b) {
-    return { A:NLPointUnbox(b.A), B:NLPointUnbox(b.B), C:NLPointUnbox(b.C) };
-}
+var NLTypes = {};
 
 
 //====================================================================================
@@ -169,6 +124,28 @@ function NLObjectExtract (obj, template, allOrAny) {
     }
 }
 
+function NLObjectGetDescription (obj, isSubObject) {
+    if (obj._type.fields) {
+        var fieldDescriptions = obj._type.fields.map(function (field) {
+            return (isSubObject ? "" : (field + ": ")) + NLObjectGetDescription(obj[field], true);
+        });
+        var joined = fieldDescriptions.join(", ");
+        return isSubObject ? ("(" + joined + ")") : joined;
+    }
+    else {
+        var v = obj.value;
+        var string = "0";
+
+        if (Math.abs(v) >= 1e-4) {
+            var precision = (-Math.floor(Math.log(Math.abs(v)) / Math.LN10) + 1).limit(0,3);
+            string = sprintf("%." + precision + "f", v);
+            string = string.replace(/(\.[1-9]*)0+$/, "$1");
+            string = string.replace(/\.$/, "");
+        }
+
+        return "<b>" + string + "</b>";
+    }
+}
 
 
 //====================================================================================

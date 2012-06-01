@@ -2,21 +2,11 @@
 ui
 ----
 arrows for zip
-hover help for expand
 
 canvas
 ------
 show length for SpanCoverage
 
-code
-----
-colors for text highlight (red only for object)
-
-
-minor
------
-drag reals
-cursor for bars
 
 
 bars

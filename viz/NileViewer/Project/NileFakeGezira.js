@@ -1,9 +1,142 @@
 //
-//  NileDummyContent.js
+//  NileFakeGezira.js
 //  NileViewer
 //
 //  Created by Bret Victor on 5/25/12.
 //
+
+
+//====================================================================================
+//
+//  data types
+//
+
+NLTypes["Real"] = { name:"Real" };
+
+function NLReal (v) {
+    return {
+        "_type": NLTypes.Real,
+        "value": v,
+    };
+}
+
+function NLRealUnbox (r) {
+    return r.value;
+}
+
+
+NLTypes["Point"] = { name:"Point", fields:["x","y"] };
+
+function NLPoint (x,y) {
+    return {
+        "_type": NLTypes.Point,
+        "x": NLReal(x),
+        "y": NLReal(y),
+    };
+}
+
+function NLPointUnbox (p) {
+    return { x:p.x.value, y:p.y.value };
+}
+
+
+NLTypes["Bezier"] = { name:"Bezier", fields:["A","B","C"]  };
+
+function NLBezier (x1,y1,x2,y2,x3,y3) {
+    return {
+        "_type": NLTypes.Bezier,
+        "A": NLPoint(x1,y1),
+        "B": NLPoint(x2,y2),
+        "C": NLPoint(x3,y3),
+    };
+}
+
+function NLBezierUnbox (b) {
+    return { A:NLPointUnbox(b.A), B:NLPointUnbox(b.B), C:NLPointUnbox(b.C) };
+}
+
+
+NLTypes["EdgeSample"] = { "name":"EdgeSample", fields:["x","y","area","height"] };
+
+function NLEdgeSample (x,y,area,height) {
+    return {
+        "_type": NLTypes.EdgeSample,
+        "x": NLReal(x),
+        "y": NLReal(y),
+        "area": NLReal(area),
+        "height": NLReal(height),
+    };
+}
+
+function NLEdgeSampleUnbox (s) {
+    return { x:s.x.value, y:s.y.value, area:s.area.value, height:s.height.value };
+}
+
+
+NLTypes["SpanCoverage"] = { "name":"SpanCoverage", fields:["x","y","coverage","length"] };
+
+function NLSpanCoverage (x,y,coverage,length) {
+    return {
+        "_type": NLTypes.SpanCoverage,
+        "x": NLReal(x),
+        "y": NLReal(y),
+        "coverage": NLReal(coverage),
+        "length": NLReal(length),
+    };
+}
+
+function NLSpanCoverageUnbox (s) {
+    return { x:s.x.value, y:s.y.value, coverage:s.coverage.value, length:s.length.value };
+}
+
+
+NLTypes["PointCoverage"] = { "name":"PointCoverage", fields:["x","y","coverage"] };
+
+function NLPointCoverage (x,y,coverage) {
+    return {
+        "_type": NLTypes.PointCoverage,
+        "x": NLReal(x),
+        "y": NLReal(y),
+        "coverage": NLReal(coverage),
+    };
+}
+
+function NLPointCoverageUnbox (s) {
+    return { x:s.x.value, y:s.y.value, coverage:s.coverage.value };
+}
+
+
+NLTypes["Color"] = { "name":"Color", fields:["r","g","b","a"] };
+
+function NLColor (r,g,b,a) {
+    return {
+        "_type": NLTypes.Color,
+        "r": NLReal(r),
+        "g": NLReal(g),
+        "b": NLReal(b),
+        "a": NLReal(a),
+    };
+}
+
+function NLColorUnbox (s) {
+    return { r:s.r.value, g:s.g.value, b:s.b.value, a:s.a.value };
+}
+
+
+NLTypes["Pixel"] = { "name":"Pixel", fields:["P","color"] };
+
+function NLPixel (x,y, r,g,b,a) {
+    return {
+        "_type": NLTypes.Pixel,
+        "P": NLPoint(x,y),
+        "color": NLColor(r,g,b,a),
+    };
+}
+
+function NLPixelUnbox (s) {
+    return { P:NLPointUnbox(s.P), color:NLColorUnbox(s.color) };
+}
+
 
 
 //====================================================================================
@@ -261,39 +394,6 @@ NLTypes["Rasterize"] = {
 };
 
 
-NLTypes["EdgeSample"] = { "name":"EdgeSample" };
-
-function NLEdgeSample (x,y,area,height) {
-    return {
-        "_type": NLTypes.EdgeSample,
-        "x": NLReal(x),
-        "y": NLReal(y),
-        "area": NLReal(area),
-        "height": NLReal(height),
-    };
-}
-
-function NLEdgeSampleUnbox (s) {
-    return { x:s.x.value, y:s.y.value, area:s.area.value, height:s.height.value };
-}
-
-NLTypes["SpanCoverage"] = { "name":"SpanCoverage" };
-
-function NLSpanCoverage (x,y,coverage,length) {
-    return {
-        "_type": NLTypes.SpanCoverage,
-        "x": NLReal(x),
-        "y": NLReal(y),
-        "coverage": NLReal(coverage),
-        "length": NLReal(length),
-    };
-}
-
-function NLSpanCoverageUnbox (s) {
-    return { x:s.x.value, y:s.y.value, coverage:s.coverage.value, length:s.length.value };
-}
-
-
 NLTypes["DecomposeBeziers"] = {
     "name": "DecomposeBeziers",
     "code": "DecomposeBeziers () : Bezier >> EdgeSample\n    ϵ = 0.1\n    ∀ (A, B, C)\n        inside = (⌊ A ⌋ = ⌊ C ⌋ ∨ ⌈ A ⌉ = ⌈ C ⌉)\n        if inside.x ∧ inside.y\n            P = ⌊A⌋ ◁ ⌊C⌋\n            (x, y) = P\n            (w, _) = P + 1 - (A ~ C)\n            (_, h) = C - A\n            >> (x + 0.5, y + 0.5, wh, h)\n        else\n            M            = (A ~ B) ~ (B ~ C)\n            ( min,  max) = (⌊M⌋, ⌈M⌉)\n            (Δmin, Δmax) = (M - min, M - max)\n            N = { min, if |Δmin| < ϵ\n                  max, if |Δmax| < ϵ\n                    M,     otherwise }\n            << (N, B ~ C, C) << (A, A ~ B, N)",
@@ -414,54 +514,6 @@ NLTypes["Texture"] = {
     "subprocessNames": [ "ExpandSpans", "ProjectLinearGradient", "PadGradient", "GradientSpan", "ZipPixels" ],
 };
 
-
-NLTypes["PointCoverage"] = { "name":"PointCoverage" };
-
-function NLPointCoverage (x,y,coverage) {
-    return {
-        "_type": NLTypes.PointCoverage,
-        "x": NLReal(x),
-        "y": NLReal(y),
-        "coverage": NLReal(coverage),
-    };
-}
-
-function NLPointCoverageUnbox (s) {
-    return { x:s.x.value, y:s.y.value, coverage:s.coverage.value };
-}
-
-NLTypes["Color"] = { "name":"Color" };
-
-function NLColor (r,g,b,a) {
-    return {
-        "_type": NLTypes.Color,
-        "r": NLReal(r),
-        "g": NLReal(g),
-        "b": NLReal(b),
-        "a": NLReal(a),
-    };
-}
-
-function NLColorUnbox (s) {
-    return { r:s.r.value, g:s.g.value, b:s.b.value, a:s.a.value };
-}
-
-
-NLTypes["Pixel"] = { "name":"Pixel" };
-
-function NLPixel (x,y, r,g,b,a) {
-    return {
-        "_type": NLTypes.Pixel,
-        "P": NLPoint(x,y),
-        "color": NLColor(r,g,b,a),
-    };
-}
-
-function NLPixelUnbox (s) {
-    return { P:NLPointUnbox(s.P), color:NLColorUnbox(s.color) };
-}
-
-
 NLTypes["ExpandSpans"] = {
     "name": "ExpandSpans",
     "code": "ExpandSpans () : SpanCoverage >> PointCoverage\n    ∀ (x, y, c, l)\n        if c > 0 ∧ l > 0\n            >> (x, y, c)\n            << (x + 1, y, c, l - 1)",
@@ -484,7 +536,7 @@ NLTypes["ProjectLinearGradient"] = {
     "code": "ProjectLinearGradient (A:Point, B:Point) : PointCoverage >> Real\n    v   = B - A\n    Δs  = v / (v ∙ v)\n    s00 = A ∙ Δs\n    ∀ (P,_)\n        >> P ∙ Δs - s00",
 
     "func": function (process) {
-        var A = {x:1, y:5}, B = {x:4, y:0};
+        var A = {x:1, y:4}, B = {x:4, y:2};
         var v = { x:B.x - A.x, y:B.y - A.y };
         var vn = v.x * v.x + v.y * v.y;
         var delS = { x:v.x / vn, y:v.y / vn };
@@ -540,6 +592,7 @@ NLTypes["ZipPixels"] = {
             var pointCoverage = NLPointCoverageUnbox(item2.object);
             var pixel = NLPixel(pointCoverage.x, pointCoverage.y, color.r, color.g, color.b, color.a * pointCoverage.coverage);
             NLStreamOutput(process.outputStream, NLStreamItem(pixel), trace);
+            NLTraceAddLineIndexes(trace, [2]);
         });
     }
 };

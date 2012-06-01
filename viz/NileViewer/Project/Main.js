@@ -105,7 +105,7 @@ function getDemos () {
             ].map(function (x) { return NLStreamItem(x); }),
             
             pipeline: [
-                NLProcess("Stroke"),
+//                NLProcess("Stroke"),
                 NLProcess("Rasterize"),
                 NLProcess("Texture"),
             ],
