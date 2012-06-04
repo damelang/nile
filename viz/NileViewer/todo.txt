@@ -1,4 +1,9 @@
 
+todo
+----
+too many stream items -- too many boxes, real bars don't show up
+
+
 ui
 ----
 arrows for zip
@@ -6,6 +11,8 @@ arrows for zip
 canvas
 ------
 show length for SpanCoverage
+
+
 
 
 

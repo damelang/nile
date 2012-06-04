@@ -296,12 +296,12 @@ var NVCanvasView = new Class({
             this.forEachWithHighlight(points, highlight, function (point) {
                 var x = Math.floor(point.x), y = Math.floor(point.y), w = 1, h = 1;
 
-                var r = Math.min(0.6, 4/this.scale);
-                ctx.fillStyle = "rgba(0,0,0,0.1)";
+                var r = NVPreferences.isHighContrast ? Math.min(0.6, 7/this.scale) : Math.min(0.6, 4/this.scale);
+                ctx.fillStyle = NVPreferences.isHighContrast ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.1)";
                 ctx.fillRect(x + w/2 - r, y + h/2 - r, r*2, r*2);
 
-                r = Math.min(0.5, 3/this.scale);
-                ctx.fillStyle = (highlight === "hot") ? "#ff0000" : "rgba(255,255,255,0.4)";
+                r = NVPreferences.isHighContrast ? Math.min(0.5, 5/this.scale) : Math.min(0.5, 3/this.scale);
+                ctx.fillStyle = (highlight === "hot") ? "#ff0000" : (NVPreferences.isHighContrast ? "rgba(0,0,0,1)" : "rgba(255,255,255,0.4)");
                 ctx.fillRect(x + w/2 - r, y + h/2 - r, r*2, r*2);
             }, this)
         }
