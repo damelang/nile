@@ -45,6 +45,10 @@ body {
     height: auto;
 }
 
+.NVPipelineHighContrast .NVSubpipeline {
+    left:445px;
+}
+
 .NVProcess {
     position:relative;
     width:100%;
@@ -57,6 +61,10 @@ body {
     top:-10px;
     width: 443px;
     height: inherit;
+}
+
+.NVPipelineHighContrast .NVProcessBackground {
+    width: 416px;
 }
 
 .NVProcessExpanded .NVProcessBackground {
@@ -75,12 +83,17 @@ body {
     text-align: right;
 }
 
+.NVPipelineHighContrast .NVProcessHeader {
+    width: 170px;
+}
+
 .NVProcessTitle {
     font-size: 13px;
+    padding-right: 2px;
 }
 
 .NVPipelineHighContrast .NVProcessTitle {
-    font-size: 18px;
+    font-size: 16px;
 }
 
 .NVProcessTitleTriangle {
@@ -88,7 +101,7 @@ body {
 }
 
 .NVPipelineHighContrast .NVProcessTitleTriangle {
-    font-size: 15px;
+    font-size: 13px;
 }
 
 .NVProcessName {
@@ -178,6 +191,7 @@ body {
 }
 
 .NVPipelineHighContrast .NVProcessCanvas {
+    left:184px;
     background: #e8e8e8;
 }
 
@@ -218,6 +232,10 @@ body {
     font: 12px monospace;
     color: #222;
     white-space:pre;
+}
+
+.NVPipelineHighContrast .NVProcessCode {
+    left:402px;
 }
 
 .NVProcessCodeLine {
