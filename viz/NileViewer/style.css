@@ -22,6 +22,21 @@ body {
     margin-top:20px;
 }
 
+#myHeadshot {
+    position:absolute;
+    right:20px;
+    top:20px;
+}
+
+#myHeadshot img {
+    display: block;
+    margin-bottom: 3px;
+}
+
+#myHeadshot span {
+    font: bold 16px/1.0 "Helvetica Neue", "Arial", sans-serif;
+}
+
 
 /* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */ 
 /* NileViewer */

@@ -147,6 +147,10 @@ var NVPipelineView = this.NVPipelineView = new Class({
         
         this.updateProcessViews();
         this.updateBracketForColumn(columnIndex);
+        
+        if (columnIndex === 0) {
+            $$(".NVHideWhenExpanded").each(function (el) { el.setStyle("display", shouldExpand ? "none" : "block"); });
+        }
     },
     
     updateBracketForColumn: function (columnIndex) {
