@@ -91,7 +91,8 @@ nile_Thread_append_to_q (nile_Thread_t *t, nile_Process_t *p)
     nile_Lock_acq (&t->lock);
         nile_Deque_push_tail (&t->q, (nile_Node_t *) p);
     nile_Lock_rel (&t->lock);
-    nile_Sleep_issue_wakeup (t->sleep);
+    if (t->sleep->nsleeping)
+        nile_Sleep_awaken (t->sleep);
 }
 
 static nile_Chunk_t *
@@ -145,7 +146,7 @@ nile_Thread_main (void *arg)
             npauses = MIN_PAUSES;
         }
         else if (npauses > MAX_PAUSES || t->sync) {
-            nile_Sleep_wait_for_wakeup (t->sleep);
+            nile_Sleep_sleep (t->sleep);
             npauses = MIN_PAUSES;
         }
         else {
@@ -153,7 +154,6 @@ nile_Thread_main (void *arg)
             npauses *= 2;
         }
     }
-    nile_Sleep_prepare_to_sleep (t->sleep);
     return arg;
 }
 

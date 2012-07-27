@@ -72,10 +72,14 @@ nile_sync (nile_Process_t *init)
 
     if ((p = nile_Thread_steal_from_q (worker)))
         nile_Thread_work (worker, p);
-    while (worker->status == NILE_STATUS_OK &&
-           (p = nile_Thread_steal (worker, nile_Thread_steal_from_q)))
-        nile_Thread_work (worker, p);
-    nile_Sleep_wait_for_quiescent (liaison->sleep);
+    while (worker->status == NILE_STATUS_OK) {
+        if ((p = nile_Thread_steal (worker, nile_Thread_steal_from_q)))
+            nile_Thread_work (worker, p);
+        else if (nile_Sleep_is_quiescent (worker->sleep))
+            break;
+        else
+            nile_Sleep_doze (1000);
+    }
 
     for (i = 1; i < liaison->nthreads; i++)
         liaison->threads[i].sync = 0;
@@ -97,7 +101,7 @@ nile_shutdown (nile_Process_t *init)
     for (i = 0; i < t->nthreads + 1; i++)
         t->threads[i].status = NILE_STATUS_SHUTTING_DOWN;
     for (i = 0; i < t->nthreads; i++)
-        nile_Sleep_issue_wakeup (t->sleep);
+        nile_Sleep_awaken (t->sleep);
     for (i = 1; i < t->nthreads; i++)
         nile_OSThread_join (&t->threads[i].osthread);
     nile_Sleep_fini (t->sleep);
