@@ -25,12 +25,13 @@
 
 #ifndef NILE_DISABLE_THREADS
 
-/* CPU pause */
+/* CPU pause and cache prefetch */
 
 #if defined (__i386__) || defined (__x86_64__) || \
     defined (_M_IX86)  || defined (_M_X64)
 #include <xmmintrin.h>
 #define nile_pause _mm_pause
+#define nile_prefetch(a) _mm_prefetch (a, _MM_HINT_T0)
 #else
 #error Unsupported architecture!
 #endif
