@@ -28,19 +28,25 @@ nile_Process_alloc_node (nile_Process_t *p)
 {
     nile_Chunk_t *c;
     void *v = nile_Heap_pop (&p->heap);
-    if (v)
+    if (v) {
+        nile_prefetch (p->heap);
         return (nile_Node_t *) v;
+    }
     c = nile_Thread_alloc_chunk (p->thread);
     if (c)
         nile_Heap_push_chunk (&p->heap, c);
-    return (nile_Node_t *) nile_Heap_pop (&p->heap);
+    v = nile_Heap_pop (&p->heap);
+    nile_prefetch (p->heap);
+    return (nile_Node_t *) v;
 }
 
 static void
 nile_Process_free_node (nile_Process_t *p, nile_Node_t *nd)
 {
-    if (nile_Heap_push (&p->heap, nd))
+    if (nile_Heap_push (&p->heap, nd)) {
         nile_Thread_free_chunk (p->thread, nile_Heap_pop_chunk (&p->heap));
+        nile_prefetch (p->heap);
+    }
 }
 
 static nile_Buffer_t *
@@ -393,12 +399,20 @@ nile_Process_pop_input (nile_Process_t *p)
     nile_Process_free_node (p, head);
     if (pstate == NILE_BLOCKED_ON_CONSUMER)
         p->heap = nile_Process_schedule (p->producer, p->thread, p->heap);
+
+    if (p->input.n > 1)
+        nile_prefetch (p->input.head->next);
 }
 
 static void
 nile_Process_run (nile_Process_t *p, nile_Thread_t *thread)
 {
     nile_Buffer_t *out;
+
+    nile_prefetch (p->input.head);
+    if (p->input.n > 1)
+        nile_prefetch (p->input.head->next);
+
     nile_Process_activate (p, thread);
     out = nile_Buffer (p);
     if (!out)
