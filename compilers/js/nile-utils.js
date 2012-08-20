@@ -1,9 +1,9 @@
 var nile = {};
 
-nile.stableSort = function(array, calcKey)
+nile.stableSort = function(array, extractKey)
 {
   var keysIndicesValues = array.map(function(value, index) {
-      return [calcKey(value), index, value];
+      return [extractKey(value), index, value];
   });
   keysIndicesValues.sort(function(a, b) {
     var result = a[0] - b[0];
@@ -14,19 +14,19 @@ nile.stableSort = function(array, calcKey)
 
 function cons(a, b) { return [a].concat(b); }
 
-Array.prototype.detect = function(predicate)
-{
-  var i = this.detectIndex(predicate);
-  if (i >= 0)
-      return this[i];
-};
-
 Array.prototype.detectIndex = function(predicate)
 {
   for (var i = 0; i < this.length; i++)
     if (predicate(this[i]))
       return i;
   return -1;
+};
+
+Array.prototype.detect = function(predicate)
+{
+  var i = this.detectIndex(predicate);
+  if (i >= 0)
+      return this[i];
 };
 
 Array.prototype.mapMethod = function()
