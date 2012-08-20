@@ -127,12 +127,7 @@ nile.opexpr.unchainRelational = function()
 
 nile.varexpr.splitVars = function()
 {
-  try {
-    var node = NileParser.matchAll(this.var, 'juxedvarsonly');
-    return node;
-  } catch(e) {
-    throw "Variable: " + this.var + " undeclared";
-  }
+  return NileParser.matchAll(this.var, 'juxedvarsonly');
 };
 
 nile.opdef.matchSig = function(name, fixity, argtype)
