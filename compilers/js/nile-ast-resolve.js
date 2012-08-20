@@ -62,7 +62,7 @@ nile.vardef.resolve = function(env)
 {
   var rvalue_ = this.rvalue.resolve(env);
   var lvalue_ = this.lvalue.resolveWithType(env, rvalue_.getType());
-  return nile.vardef(lvalue_, rvalue_, this.lineno);
+  return nile.vardef(lvalue_, rvalue_);
 };
 
 nile.typedef.resolve = function(env)
@@ -102,7 +102,7 @@ nile.ifstmt.resolve = function(env)
   env.pushScope();
     var fblock_ = this.fblock.resolve(env);
   env.popScope();
-  return nile.ifstmt(condition_, tblock_, fblock_, this.lineno);
+  return nile.ifstmt(condition_, tblock_, fblock_);
 };
 
 nile.processinst.resolve = function(env)
@@ -116,7 +116,7 @@ nile.processsig.resolve = function(env)
 {
   var param_ = this.param.resolve(env);
   var type_  = this.type.resolve(env);
-  var this_  = nile.processsig(this.name, param_, type_, this.lineno);
+  var this_  = nile.processsig(this.name, param_, type_);
   env.addProcessdef(nile.processdef(this_, null, null, null));
   return this_;
 };

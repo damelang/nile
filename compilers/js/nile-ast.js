@@ -52,8 +52,7 @@ nile.defineASTResolve = function(fieldnames)
       var field     = this[fieldname];
       var resolvedField = (field == null         ) ? null :
                           (field instanceof Array) ? field.mapMethod('resolve', env) :
-                          (field.resolve         ) ?  field.resolve(env) :
-                          field;
+                                                     field.resolve(env);
       resolvedFields.push(resolvedField);
     }
     return this.prototype.constructor.apply(this, resolvedFields);
@@ -90,17 +89,17 @@ nile.defineASTNode("recfieldexpr", ["record", "field"]);
 nile.defineASTNode("opexpr",       ["op", "fixity", "arg"]);
 nile.defineASTNode("processinst",  ["processdef", "arg"]);
 nile.defineASTNode("pipeline",     ["producer", "consumer"]);
-nile.defineASTNode("vardef",       ["lvalue", "rvalue", "lineno"]);
+nile.defineASTNode("vardef",       ["lvalue", "rvalue"]);
 nile.defineASTNode("block",        ["vardefs", "stmts"]);
-nile.defineASTNode("instmt",       ["values", "lineno"]);
-nile.defineASTNode("outstmt",      ["values", "lineno"]);
-nile.defineASTNode("ifstmt",       ["condition", "tblock", "fblock", "lineno"]);
-nile.defineASTNode("substmt",      ["pipeline", "lineno"]);
+nile.defineASTNode("instmt",       ["values"]);
+nile.defineASTNode("outstmt",      ["values"]);
+nile.defineASTNode("ifstmt",       ["condition", "tblock", "fblock"]);
+nile.defineASTNode("substmt",      ["pipeline"]);
 nile.defineASTNode("typedef",      ["name", "type"]);
 nile.defineASTNode("opsig",        ["name", "fixity", "param", "type"]);
 nile.defineASTNode("opbody",       ["vardefs", "result"]);
 nile.defineASTNode("opdef",        ["sig", "body"]);
-nile.defineASTNode("processsig",   ["name", "param", "type", "lineno"]);
+nile.defineASTNode("processsig",   ["name", "param", "type"]);
 nile.defineASTNode("processbody",  ["forpat", "block"]);
 nile.defineASTNode("processdef",   ["sig", "prologue", "body", "epilogue"]);
 
