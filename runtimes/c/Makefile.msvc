@@ -1,9 +1,11 @@
-CFLAGS = /nologo /W3 /wd4244 /wd4141 /fp:fast /O2 /arch:SSE2 /EHsc #/DNILE_DISABLE_THREADS /Zi
+CFLAGS = /nologo /TP /EHsc /GR- \
+         /W3 /wd4244 /wd4141 \
+         /fp:fast /arch:SSE2 /O2 /Oi
 
 libnile.lib: nile.obj
 	lib /nologo /OUT:libnile.lib nile.obj
 
-nile.obj: *.h
+nile.obj: *.h *.c
 	cl $(CFLAGS) /c nile.c
 
 clean:
