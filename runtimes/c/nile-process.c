@@ -23,17 +23,17 @@ struct nile_Process_ {
     nile_Process_t       *parent;
 };
 
-static void *
+static nile_Node_t *
 nile_Process_alloc_node (nile_Process_t *p)
 {
     nile_Chunk_t *c;
     void *v = nile_Heap_pop (&p->heap);
     if (v)
-        return v;
+        return (nile_Node_t *) v;
     c = nile_Thread_alloc_chunk (p->thread);
     if (c)
         nile_Heap_push_chunk (&p->heap, c);
-    return nile_Heap_pop (&p->heap);
+    return (nile_Node_t *) nile_Heap_pop (&p->heap);
 }
 
 static void
@@ -56,7 +56,7 @@ nile_Process (nile_Process_t *p, int quantum, int sizeof_vars,
     nile_Process_t *parent = p;
     if (!parent)
         return NULL;
-    p = nile_Process_alloc_node (p);
+    p = (nile_Process_t *) nile_Process_alloc_node (p);
     if (!p)
         return NULL;
     p->node.type = NILE_PROCESS_TYPE;
@@ -171,7 +171,7 @@ nile_Process_feed (nile_Process_t *p, float *data, int n)
 static int
 nile_Process_block_on_producer (nile_Process_t *p)
 {
-    nile_ProcessState_t pstate = -1;
+    nile_ProcessState_t pstate = (nile_ProcessState_t ) -1;
     if (!p->producer)
         return 0;
     nile_Lock_acq (&p->lock);
@@ -378,7 +378,7 @@ nile_Process_handle_out_of_input (nile_Process_t *p, nile_Buffer_t *out)
 static void
 nile_Process_pop_input (nile_Process_t *p)
 {
-    nile_ProcessState_t pstate = -1;
+    nile_ProcessState_t pstate = (nile_ProcessState_t) -1;
     nile_Node_t *head = p->input.head;
     int at_quota = (p->input.n == INPUT_QUOTA);
     if (!head || !nile_Buffer_is_empty (NODE_TO_BUFFER (head)))

@@ -13,7 +13,7 @@ typedef nile_Block_t *nile_Heap_t;
 static int
 nile_Heap_push (nile_Heap_t *h, void *v)
 {
-    nile_Block_t *b = v;
+    nile_Block_t *b = (nile_Block_t *)v;
     nile_Block_t *head = *h;
     b->next = head;
     if (head && head->i < CHUNK_MAX_LEN) {

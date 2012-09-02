@@ -105,7 +105,7 @@ nile_Thread_alloc_chunk (nile_Thread_t *t)
     nile_Lock_rel (&t->lock);
     if (c || t->status != NILE_STATUS_OK)
         return c;
-    c = nile_Thread_steal (t, nile_Thread_steal_from_heap);
+    c = (nile_Chunk_t *) nile_Thread_steal (t, nile_Thread_steal_from_heap);
     if (!c)
         for (i = 0; i < t->nthreads + 1; i++)
             t->threads[i].status = NILE_STATUS_OUT_OF_MEMORY;
@@ -134,14 +134,15 @@ nile_Thread_work (nile_Thread_t *t, nile_Process_t *p)
 static void *
 nile_Thread_main (void *arg)
 {
-    nile_Thread_t *t = arg;
+    nile_Thread_t *t = (nile_Thread_t *) arg;
     nile_Process_t *p;
     const int MIN_PAUSES =    1000;
     const int MAX_PAUSES = 1000000;
     int npauses = MIN_PAUSES;
 
     while (t->status == NILE_STATUS_OK) {
-        if ((p = nile_Thread_steal (t, nile_Thread_steal_from_q))) {
+        p = (nile_Process_t *) nile_Thread_steal (t, nile_Thread_steal_from_q);
+        if (p) {
             nile_Thread_work (t, p);
             npauses = MIN_PAUSES;
         }
@@ -180,7 +181,7 @@ nile_Thread_work_until_below (nile_Thread_t *liaison, int *var, int value)
             p = (nile_Process_t *) nile_Deque_pop_tail (&worker->q);
         nile_Lock_rel (&worker->lock);
         if (!p)
-            p = nile_Thread_steal (worker, nile_Thread_steal_from_q);
+            p = (nile_Process_t *) nile_Thread_steal (worker, nile_Thread_steal_from_q);
         if (!p)
             nile_Sleep_doze (1000);
         else
