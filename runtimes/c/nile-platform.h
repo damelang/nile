@@ -143,7 +143,8 @@ nile_OSThread_spawn (nile_OSThread_t *t, LPTHREAD_START_ROUTINE f, void *arg)
 static void
 nile_OSThread_join (nile_OSThread_t *t)
 {
-    WaitForSingleObject (*t, INFINITE); CloseHandle (*t);
+    WaitForSingleObject (*t, INFINITE);
+    CloseHandle (*t);
 }
 
 #else
