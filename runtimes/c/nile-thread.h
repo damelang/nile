@@ -131,8 +131,7 @@ nile_Thread_work (nile_Thread_t *t, nile_Process_t *p)
     } while (p && t->status == NILE_STATUS_OK);
 }
 
-static void *
-nile_Thread_main (void *arg)
+NILE_DECLARE_THREAD_START_ROUTINE (nile_Thread_main, arg)
 {
     nile_Thread_t *t = (nile_Thread_t *) arg;
     nile_Process_t *p;
@@ -155,7 +154,7 @@ nile_Thread_main (void *arg)
             npauses *= 2;
         }
     }
-    return arg;
+    return 0;
 }
 
 static void
