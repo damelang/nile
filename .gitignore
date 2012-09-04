@@ -1,3 +1,5 @@
 *.[oa]
+*.lib
+*.obj
 *.swp
 .DS_Store
