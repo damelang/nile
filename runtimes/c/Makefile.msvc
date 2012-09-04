@@ -5,7 +5,7 @@ CFLAGS = /nologo /TP /EHsc /GR- \
 libnile.lib: nile.obj
 	lib /nologo /OUT:libnile.lib nile.obj
 
-nile.obj: *.h *.c
+nile.obj: *.h *.c Makefile.msvc
 	cl $(CFLAGS) /c nile.c
 
 clean:
