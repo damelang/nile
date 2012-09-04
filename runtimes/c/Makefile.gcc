@@ -1,3 +1,4 @@
+TARGET      := $(shell $(CC) -dumpmachine)
 NO_NATIVE   := $(shell $(CC) -E - </dev/null >/dev/null 2>&1 -march=native; echo $$?)
 NO_FPMATH   := $(shell $(CC) -E - </dev/null >/dev/null 2>&1 -mfpmath=sse;  echo $$?)
 NO_SSSE3    := $(shell $(CC) -E - </dev/null >/dev/null 2>&1 -mssse3;       echo $$?)
@@ -5,6 +6,10 @@ NO_AVX_FLAG := $(shell $(CC) -E - </dev/null >/dev/null 2>&1 -mavx;         echo
 
 CFLAGS := -pipe -Wall -Werror \
           -O3 -ffast-math
+
+ifneq (,$(findstring mingw,$(TARGET))$(findstring cygwin,$(TARGET)))
+  CFLAGS += -mstackrealign
+endif
 
 ifeq ($(NO_NATIVE), 0)
   CFLAGS += -march=native
