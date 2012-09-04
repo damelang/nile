@@ -19,11 +19,11 @@ ifeq ($(NO_AVX_FLAG), 0)
   CFLAGS += -mno-avx
 endif
 
-%.o: %.c *.h Makefile.gcc
-	$(CC) -c $(CFLAGS) $<
-
 libnile.a: nile.o
 	$(AR) rcs $@ $^
+
+nile.o: *.h *.c Makefile.gcc
+	$(CC) $(CFLAGS) -c nile.c
 
 clean:
 	$(RM) *.o *.a
