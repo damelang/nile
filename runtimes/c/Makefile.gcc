@@ -4,7 +4,7 @@ NO_FPMATH   := $(shell $(CC) -E - </dev/null >/dev/null 2>&1 -mfpmath=sse;  echo
 NO_SSSE3    := $(shell $(CC) -E - </dev/null >/dev/null 2>&1 -mssse3;       echo $$?)
 NO_AVX_FLAG := $(shell $(CC) -E - </dev/null >/dev/null 2>&1 -mavx;         echo $$?)
 
-CFLAGS := -pipe -Wall -Werror \
+CFLAGS := -Wall -Werror \
           -O3 -ffast-math
 
 ifneq (,$(findstring mingw,$(TARGET))$(findstring cygwin,$(TARGET)))
