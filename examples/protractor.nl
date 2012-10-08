@@ -4,7 +4,15 @@ type Path   = (a1:Point, a2:Point, a3:Point, a4:Point, a5:Point, a6:Point,
                a7:Point, a8:Point, a9:Point, a10:Point, a11:Point, a12:Point,
                a13:Point, a14:Point, a15:Point, a16:Point)
 
+type Path = Point[16]
+
 (u:Path) \optimalCosineDistance (v:Path) : Real
+    ∀ i in u
+        a' = a + u[i].x v[i].x + u[i].y v[i].y
+        b' = b + u[i].x v[i].y - u[i].y v[i].x
+
+(u:Path) \optimalCosineDistance (v:Path) : Real
+
     a = u.a1.x v.a1.x + u.a1.y v.a1.y + u.a2.x v.a2.x + u.a2.y v.a2.y +
         u.a3.x v.a3.x + u.a3.y v.a3.y + u.a4.x v.a4.x + u.a4.y v.a4.y +
         u.a5.x v.a5.x + u.a5.y v.a5.y + u.a6.x v.a6.x + u.a6.y v.a6.y +
@@ -44,20 +52,20 @@ PathLength : Point >> Real
 Resample (I:Real) : Point >> Point
     D = 0
     p:Point = 0
-    first = 1
+    ∃ r
+        >> r
+        p' = r
     ∀ r
         d = ‖(r - p)‖
         q = p + ((I - D) / d)(r - p)
-        p' = { r, if first \or D + d < I
-               q, otherwise              }
-        D' = { 0,     if first \or D + d ≥ I
-               D + d, otherwise              }
-        first' = 0
-        if first = 1
-            >> r
-        else if D + d ≥ I
-                >> q
-                << r
+        surpassed = (D + d ≥ I)
+        p' = { q, if surpassed
+               r, otherwise    }
+        D' = { 0,     if surpassed
+               D + d, otherwise    }
+        if surpassed
+            >> q
+            << r
     >> p
 
 Centralize : Point >> Point
@@ -95,8 +103,8 @@ Recognize (vector:Path) : (Path, Real) >> Real
     maxScore = 0
     match = -1
     ∀ (t, id)
-        distance = vector ∙ t
-        score = 1 / ((vector ∙ t) ? 0.00001)
+        distance = vector \optimalCosineDistance t
+        score = 1 / (distance ? 0.00001)
         if score > maxScore
             match' = id
             maxScore' = score
