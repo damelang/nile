@@ -1,3 +1,25 @@
+- from latin-1 suppliment
+    [¬×]
+
+- from General Punctuation
+    [‖]
+
+- from Arrows (not for operators!)
+    [→⇒]
+
+- from Mathematical Operators
+    (don't use forall, infinity for user defined operators!)
+    [\x2201-\x221D\x221F-\x22FF]
+
+- from Misc Tech Block
+    [⌈⌉⌊⌋]
+
+- from Geometric Shapes
+    [▷◁]
+
+- from Miscellaneous Mathematical Symbols-A
+    [⟂]
+
 Unicode chars, code points and ASCII equivalents
     - ¬ 00AC \not
     - × 00D7 *
@@ -17,8 +39,22 @@ Unicode chars, code points and ASCII equivalents
     - ⌉ 2309
     - ⌊ 230A \floor()
     - ⌋ 230B
-    - ◁ 25C1 \min
     - ▷ 25B7 \max
+    - ◁ 25C1 \min
     - ⟂ 27C2 \perp (*)
 
     (*)  must add to DejaVu Sans Mono
+
+Feedback (p1 : (α, γ) >> β, p2 : β >> γ) : α >> β
+Feedback (p  : (α, β) >> β             ) : α >> β
+
+Type coersion rules:
+    Scalar -> Scalar (Integer -> Real ...)
+    Scalar -> Tuple (duplicate Scalar type to make Tuple, then invoke Tuple -> Tuple)
+    Scalar -> Record (First Scalar -> Tuple then Tuple -> Record)
+    Tuple -> Scalar (Not allowed)
+    Tuple -> Tuple (If same size and elements coerce recursively)
+    Tuple -> Record (If same size and elements coerce recursively)
+    Record -> Scalar (Not allowed)
+    Record -> Tuple (Not allowed)
+    Record -> Record (Not allowed)
