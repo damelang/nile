@@ -598,3 +598,39 @@ NLTypes["ZipPixels"] = {
 };
 
 
+
+//------------------------------------------------------------------------------------
+//
+//  test
+
+NLTypes["Test"] = {
+    "name": "Test",
+    "code": "",
+    "subprocessNames": [ "Test1", "Test1", "Test1" ],
+};
+
+NLTypes["Test1"] = {
+    "name": "Test1",
+    "code": "",
+    "subprocessNames": [ "Test2", "Test2" ],
+};
+
+NLTypes["Test2"] = {
+    "name": "Test2",
+    "code": "",
+    "subprocessNames": [ "Test3", "Test3" ],
+};
+
+NLTypes["Test3"] = {
+    "name": "Test3",
+    "code": "",
+    "subprocessNames": [],
+
+    "func": function (process) {
+        NLStreamForAll(process.inputStream, process, function (item, trace) {
+            NLStreamOutput(process.outputStream, NLStreamItem(item.object), trace);
+        });
+    }
+};
+
+

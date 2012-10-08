@@ -20,20 +20,18 @@ var NVPreferences = {
 
 //====================================================================================
 //
-//  NVPipelineView
+//  NVProgramView
 //
 
-var NVPipelineView = this.NVPipelineView = new Class({
+var NVProgramView = this.NVProgramView = new Class({
     
     initialize: function (container) {
         container.empty();
-        this.element = (new Element("div", { "class":"NVPipeline" })).inject(container);
-
-        if (NVPreferences.isHighContrast) { this.element.addClass("NVPipelineHighContrast"); }
-
-        this.columns = [];
-        this.expandedViewIndexes = [];
-        this.columnElements = [ this.element ];
+        this.element = (new Element("div", { "class":"NVProgram" })).inject(container);
+        
+        if (NVPreferences.isHighContrast) { this.element.addClass("NVHighContrast"); }
+        
+        this.pipelineViews = [];
     },
 
     setPipeline: function (pipeline, inputStream) {
@@ -42,7 +40,8 @@ var NVPipelineView = this.NVPipelineView = new Class({
         
         NLPipelineRun(pipeline,inputStream);
         
-        this.updateProcessViews();
+        this.setPipelineAtColumnIndex(pipeline, 0);
+        this.pipelineViews[0].setInitialInputStream(inputStream);
     },
     
     setInitialInputStream: function (newStream) {
@@ -53,147 +52,39 @@ var NVPipelineView = this.NVPipelineView = new Class({
 
     //--------------------------------------------------------------------------------
     //
-    //  process views
-    
-    updateProcessViews: function () {
-        this.setPipelineForColumn(this.pipeline, 0);
-        this.columns[0][0].setInitialInputStream(this.initialInputStream);
-
-        Array.each(this.expandedViewIndexes, function (viewIndex, columnIndex) {
-            var processView = this.columns[columnIndex][viewIndex];
-            if (processView && processView.process) {
-                this.setPipelineForColumn(processView.process.subpipeline, columnIndex + 1);
-            }
-        }, this);
-    },
-
-    forEachProcessView: function (f, bind) {
-        Array.each(this.columns, function (processViews) {
-            Array.each(processViews, f, bind);
-        }, this);
-    },
-    
-    getPreviousProcessView: function (processView) {
-        var column = this.columns[processView.columnIndex];
-        var index = column.indexOf(processView);
-        if (index >= 1) {
-            return column[index - 1];
-        }
-        
-        if (processView.columnIndex > 0) {
-            column = this.columns[processView.columnIndex - 1];
-            index = this.expandedViewIndexes[processView.columnIndex - 1];
-            if (index >= 1) {
-                return column[index - 1];
-            }
-        }
-
-        return null;
-    },
-
-
-    //--------------------------------------------------------------------------------
-    //
-    //  columns
-    
-    setPipelineForColumn: function (pipeline, columnIndex) {
-        while (this.columns.length <= columnIndex) { this.columns.push( [] ); }
-        
-        var column = this.columns[columnIndex];
-        var processViewOffset = (columnIndex == 0) ? 1 : 0;  // first column has initial input
-        var viewCount = pipeline.length + processViewOffset;
-
-        while (column.length < viewCount) { column.push(new NVProcessView(this, columnIndex)); }
-        while (column.length > viewCount) { column.pop().destroy(); }
-        
-        Array.each(pipeline, function (process, i) {
-            column[i + processViewOffset].setProcess(process);
-        }, this);
-
-        this.setCodeViewsShowingForColumn(false, columnIndex - 1);
-        this.setCodeViewsShowingForColumn(true, columnIndex);
-    },
-    
-    removeColumn: function (columnIndex) {
-        while (this.columns.length > columnIndex) {
-            var column = this.columns[this.columns.length - 1];
-            while (column.length > 0) { column.pop().destroy(); }
-            this.columns.pop();
-        }
-        this.setCodeViewsShowingForColumn(true, columnIndex - 1);
-    },
+    //  pipeline views
     
     getColumnCount: function () {
-        return this.columns.length;
+        return this.pipelineViews.length;
     },
     
-    toggleProcessViewExpanded: function (processView) {
-        var columnIndex = processView.columnIndex
-        var column = this.columns[columnIndex];
-        
-        var viewIndex = column.indexOf(processView);
-        if (viewIndex < 0) { return; }
-        
-        var shouldExpand = (this.expandedViewIndexes[columnIndex] !== viewIndex);
-        while (this.expandedViewIndexes.length > columnIndex) { this.expandedViewIndexes.pop(); }
-        
-        if (shouldExpand) {
-            this.removeColumn(columnIndex + 2);
-            this.expandedViewIndexes[columnIndex] = viewIndex;
-        }
-        else {
-            this.removeColumn(columnIndex + 1);
-        }
-        
-        this.updateProcessViews();
-        this.updateBracketForColumn(columnIndex);
-        
-        if (columnIndex === 0) {
-            $$(".NVHideWhenExpanded").each(function (el) { el.setStyle("display", shouldExpand ? "none" : "block"); });
-        }
+    getPipelineViewAtColumnIndex: function (columnIndex) {
+        return this.pipelineViews[columnIndex];
     },
     
-    updateBracketForColumn: function (columnIndex) {
-        var container = this.columnElements[columnIndex + 1];
-        if (!container) { return; }
-
-        var expandedViewIndex = this.expandedViewIndexes[columnIndex];
-        var isExpanded = (expandedViewIndex !== undefined);
-
-        container.getElement(".NVBracket").setStyle("display", isExpanded ? "block" : "none");
+    setPipelineAtColumnIndex: function (pipeline, columnIndex) {
+        while (this.pipelineViews.length <= columnIndex) { 
+            this.pipelineViews.push(new NVPipelineView(this, this.pipelineViews.length));
+        }
         
-        Array.each(this.columns[columnIndex], function (processView, i) {
-            processView.setExpandedAppearance(expandedViewIndex === i);
-        }, this);
-        
-        if (!isExpanded) { return; }
-
-        var column = this.columns[columnIndex + 1];
-        var subviewCount = column.length;
-        var processHeight = column[0].element.getHeight();
-        
-        var topElement = container.getElement(".NVBracketTop");
-        var bottomElement = container.getElement(".NVBracketBottom");
-        
-        topElement.setStyle("height", Math.round((expandedViewIndex + 0.5) * processHeight) - 38);
-        bottomElement.setStyle("height", Math.round((Math.max(0, subviewCount - expandedViewIndex - 1) + 0.5) * processHeight) - 38);
+        this.pipelineViews[columnIndex].setPipeline(pipeline);
+        this.updateCodeViewsShowing();
     },
-
-    setCodeViewsShowingForColumn: function (showing, columnIndex) {
-        Array.each(this.columns[columnIndex] || [], function (processView) {
-            processView.setCodeViewShowing(showing);
+    
+    removeColumnsAfterIndex: function (columnIndex) {
+        while (this.pipelineViews.length > columnIndex + 1) {
+            this.pipelineViews.pop().destroy();
+        }
+        this.updateCodeViewsShowing();
+    },
+    
+    updateCodeViewsShowing: function () {
+        var lastColumnIndex = this.pipelineViews.length - 1;
+        Array.each(this.pipelineViews, function (pipelineView, columnIndex) {
+            pipelineView.setCodeViewsShowing(columnIndex == lastColumnIndex);
         }, this);
     },
 
-    getContainerForColumn: function (columnIndex) {
-        if (!this.columnElements[columnIndex]) {
-            var previousContainer = this.getContainerForColumn(columnIndex - 1);
-            var templateElement = $("NVTemplates").getElement(".NVSubpipeline");
-            this.columnElements[columnIndex] = templateElement.clone().inject(previousContainer, "top");
-        }
-        return this.columnElements[columnIndex];
-    },
-    
 
     //--------------------------------------------------------------------------------
     //
@@ -256,14 +147,14 @@ var NVPipelineView = this.NVPipelineView = new Class({
     getCanvasViewsForStreamItem: function (streamItem, isHot) {
         var canvasViews = [];
         Array.each(streamItem.iconViews || [], function (iconView) {
-            if (!iconView.isInput) { canvasViews.include(iconView.parentView.parentView.canvasView); }
+            if (!iconView.isInput) { canvasViews.include(iconView.processView.canvasView); }
         }, this);
 
         if (canvasViews.length || !isHot) { return canvasViews; }
 
         Array.each(streamItem.iconViews || [], function (iconView) {
             if (iconView.isInput) {
-                var previousProcessView = this.getPreviousProcessView(iconView.parentView.parentView);
+                var previousProcessView = this.getPreviousProcessView(iconView.processView);
                 if (previousProcessView) { canvasViews.include(previousProcessView.canvasView); }
             }
         }, this);
@@ -286,6 +177,156 @@ var NVPipelineView = this.NVPipelineView = new Class({
         
         processView.codeView.setHighlightedLineIndexes( highlighted ? trace.lineIndexes : [] );
     },
+
+
+    //--------------------------------------------------------------------------------
+    //
+    //  process views
+    
+    forEachProcessView: function (f, bind) {
+        Array.each(this.pipelineViews, function (pipelineView) {
+            Array.each(pipelineView.processViews, f, bind);
+        }, this);
+    },
+    
+    getPreviousProcessView: function (processView) {
+        var siblingProcessViews = processView.pipelineView.processViews;
+        var index = siblingProcessViews.indexOf(processView);
+        if (index >= 1) {
+            return siblingProcessViews[index - 1];
+        }
+        
+        var previousPipelineView = this.pipelineViews[processView.pipelineView.columnIndex - 1];
+        if (previousPipelineView) {
+            return previousPipelineView.processViews[previousPipelineView.expandedViewIndex - 1];
+        }
+
+        return null;
+    },
+    
+});
+
+
+
+//====================================================================================
+//
+//  NVPipelineView
+//
+
+var NVPipelineView = new Class({
+    
+    initialize: function (programView, columnIndex) {
+        this.programView = programView;
+        this.columnIndex = columnIndex;
+
+        this.element = new Element("div", { "class":"NVPipeline", "html":this.getTemplateHTML() });
+        this.element.inject(programView.element);
+        this.element.setStyle("left", this.columnIndex * this.element.offsetWidth);
+
+        this.processViews = [];
+        this.expandedViewIndex = -1;
+        this.hasInitialInput = (columnIndex == 0);
+        
+        this.updateBracket();
+    },
+
+    setPipeline: function (pipeline) {
+        this.pipeline = pipeline;
+    
+        var processViewOffset = this.hasInitialInput ? 1 : 0;
+        var viewCount = pipeline.length + processViewOffset;
+
+        while (this.processViews.length < viewCount) { this.processViews.push(new NVProcessView(this)); }
+        while (this.processViews.length > viewCount) { this.processViews.pop().destroy(); }
+        
+        Array.each(pipeline, function (process, i) {
+            this.processViews[i + processViewOffset].setProcess(process);
+        }, this);
+        
+        if (this.expandedViewIndex >= 0) {
+            var processView = this.processViews[this.expandedViewIndex];
+            if (processView && processView.process) {
+                this.programView.setPipelineAtColumnIndex(processView.process.subpipeline, this.columnIndex + 1);
+            }
+        }
+    },
+        
+    setInitialInputStream: function (stream) {
+        if (!this.hasInitialInput) { return; }
+        this.processViews[0].setInitialInputStream(stream);
+    },
+
+    destroy: function () {
+        while (this.processViews.length) {
+            this.processViews.pop().destroy();
+        }
+        this.element.destroy();
+    },
+
+
+    //--------------------------------------------------------------------------------
+    //
+    //  expansion
+    
+    isProcessViewExpanded: function (processView) {
+        var viewIndex = this.processViews.indexOf(processView);
+        return (viewIndex >= 0) && (this.expandedViewIndex == viewIndex);
+    },
+
+    toggleProcessViewExpanded: function (processView) {
+        var shouldExpand = !this.isProcessViewExpanded(processView);
+        this.setProcessViewExpanded(processView, shouldExpand);
+    },
+    
+    setProcessViewExpanded: function (processView, shouldExpand) {
+        var viewIndex = this.processViews.indexOf(processView);
+        if (viewIndex < 0) { return; }
+        if (shouldExpand == this.isProcessViewExpanded(processView)) { return; }
+
+        this.expandedViewIndex = shouldExpand ? viewIndex : -1;
+        this.programView.removeColumnsAfterIndex(this.columnIndex);
+        
+        if (shouldExpand) {
+            this.programView.setPipelineAtColumnIndex(processView.process.subpipeline, this.columnIndex + 1);
+        }
+
+        this.updateBracket();
+    },
+    
+    updateBracket: function () {
+        var hasBracket = (this.expandedViewIndex >= 0);
+        this.element.getElement(".NVBracket").setStyle("display", hasBracket ? "block" : "none");
+        
+        Array.each(this.processViews, function (processView, i) {
+            processView.setExpandedAppearance(this.expandedViewIndex === i);
+        }, this);
+        
+        if (!hasBracket) { return; }
+        
+        var subpipelineView = this.programView.getPipelineViewAtColumnIndex(this.columnIndex + 1);
+        var subviewCount = subpipelineView.processViews.length;
+        var processHeight = subviewCount ? subpipelineView.processViews[0].element.getHeight() : 0;
+        
+        var topElement = this.element.getElement(".NVBracketTop");
+        var bottomElement = this.element.getElement(".NVBracketBottom");
+        
+        topElement.setStyle("height", Math.round((this.expandedViewIndex + 0.5) * processHeight) - 38);
+        bottomElement.setStyle("height", Math.round((Math.max(0, subviewCount - this.expandedViewIndex - 1) + 0.5) * processHeight) - 38);
+    },
+
+    setCodeViewsShowing: function (showing) {
+        Array.each(this.processViews, function (processView) {
+            processView.setCodeViewShowing(showing);
+        }, this);
+    },
+    
+    getTemplateHTML: function () {
+        return ''
+        +' <div class="NVBracket">'
+        +'     <div class="NVBracketTop"></div>'
+        +'     <div class="NVBracketBottom"></div>'
+        +' </div>'
+    },
     
 });
 
@@ -297,16 +338,11 @@ var NVPipelineView = this.NVPipelineView = new Class({
 
 var NVProcessView = new Class({
     
-    initialize: function (parentView, columnIndex) {
-        this.pipelineView = parentView;
-        this.parentView = parentView;
-        this.columnIndex = columnIndex;
+    initialize: function (pipelineView) {
+        this.pipelineView = pipelineView;
         
-        var container = parentView.getContainerForColumn(columnIndex);
-        var templateElement = $("NVTemplates").getElement(".NVProcess");
-        
-        this.element = templateElement.clone();
-        this.element.inject(container);
+        this.element = new Element("div", { "class":"NVProcess", "html":this.getTemplateHTML() });
+        this.element.inject(pipelineView.element);
 
         this.canvasView = new NVInteractiveCanvasView(this);
         this.codeView = new NVCodeView(this);
@@ -325,14 +361,14 @@ var NVProcessView = new Class({
         nameElement.set("text", NLProcessGetName(process));
         this.updateTitleTriangle();
         
+        nameElement.removeEvents("click");
+
         if (process.subpipeline.length) {
             nameElement.addClass("NVProcessNameClickable");
-            nameElement.removeEvents("click");
             nameElement.addEvent("click", this.nameWasClicked.bind(this));
         }
         else {
             nameElement.removeClass("NVProcessNameClickable");
-            nameElement.removeEvents("click");
         }
         
         this.element.getElement(".NVProcessParameters").set("text", "( )");
@@ -389,7 +425,33 @@ var NVProcessView = new Class({
     
     nameWasClicked: function (event) {
         event.stop();
-        this.parentView.toggleProcessViewExpanded(this, this.process.subpipeline);
+        this.pipelineView.toggleProcessViewExpanded(this, this.process.subpipeline);
+    },
+    
+    getTemplateHTML: function () {
+        return ''
+        +' <div class="NVProcessBackground"></div>'
+        +' <div class="NVProcessHeader">'
+        +'     <div class="NVProcessTitle">'
+        +'         <span class="NVProcessTitleTriangle"></span>'
+        +'         <span class="NVProcessName">StrokeBezierPath</span>'
+        +'         <span class="NVProcessParameters">(4,0,0)</span>'
+        +'     </div>'
+        +'     <div class="NVProcessInput">'
+        +'         <div class="NVProcessIcons"></div>'
+        +'         <div class="NVProcessIconsCaption">Input: 4 Beziers</div>'
+        +'     </div>'
+        +'     <div class="NVProcessOutput">'
+        +'         <div class="NVProcessIcons"></div>'
+        +'         <div class="NVProcessIconsCaption">Output: 6 Beziers</div>'
+        +'     </div>'
+        +' </div>'
+        +' <div class="NVProcessCanvas">'
+        +'     <canvas width="200" height="150"></canvas>'
+        +'     <div class="NVProcessCanvasHelp">zoom: shift-drag<br>reset: double-click</div>'
+        +'     <div class="NVProcessCanvasCaption"></div>'
+        +' </div>'
+        +' <div class="NVProcessCode"></div>'
     },
     
 });
@@ -402,12 +464,12 @@ var NVProcessView = new Class({
 
 var NVStreamView = new Class({
     
-    initialize: function (parentView, isInput) {
-        this.pipelineView = parentView.pipelineView;
-        this.parentView = parentView;
+    initialize: function (processView, isInput) {
+        this.processView = processView;
+        this.pipelineView = processView.pipelineView;
         
         this.isInput = isInput;
-        this.element = parentView.element.getElement(".NVProcess" + (this.isInput ? "Input" : "Output"));
+        this.element = processView.element.getElement(".NVProcess" + (this.isInput ? "Input" : "Output"));
 
         this.iconViews = [];
     },
@@ -463,17 +525,17 @@ var NVStreamView = new Class({
 
 var NVIconView = new Class({
     
-    initialize: function (parentView) {
-        this.pipelineView = parentView.pipelineView;
-        this.processView = parentView.parentView;
-        this.parentView = parentView;
+    initialize: function (streamView) {
+        this.streamView = streamView;
+        this.processView = streamView.processView;
+        this.pipelineView = streamView.pipelineView;
         
-        var container = parentView.element.getElement(".NVProcessIcons");
+        var container = streamView.element.getElement(".NVProcessIcons");
         
         this.element = (new Element("span", { "class":"NVProcessIcon" })).inject(container);
         this.innerElement = (new Element("span", { "class":"NVProcessIconInner" })).inject(this.element);
 
-        this.isInput = parentView.isInput;
+        this.isInput = streamView.isInput;
 
         this.element.addEvent("mouseenter", this.mouseEnter.bind(this));
         this.element.addEvent("mouseleave", this.mouseLeave.bind(this));
@@ -524,11 +586,11 @@ var NVIconView = new Class({
     },
 
     mouseEnter: function () {
-        this.pipelineView.setHighlightedWithStreamItem(true, this.streamItem, this.parentView.isInput);
+        this.pipelineView.programView.setHighlightedWithStreamItem(true, this.streamItem, this.streamView.isInput);
     },
     
     mouseLeave: function () {
-        this.pipelineView.setHighlightedWithStreamItem(false, this.streamItem, this.parentView.isInput);
+        this.pipelineView.programView.setHighlightedWithStreamItem(false, this.streamItem, this.streamView.isInput);
     },
     
 });
@@ -541,10 +603,10 @@ var NVIconView = new Class({
 
 var NVCodeView = new Class({
     
-    initialize: function (parentView, process) {
-        this.pipelineView = parentView.pipelineView;
-        this.parentView = parentView;
-        this.element = parentView.element.getElement(".NVProcessCode");
+    initialize: function (processView, process) {
+        this.processView = processView;
+
+        this.element = processView.element.getElement(".NVProcessCode");
 
         this.lineViews = [];
         this.code = "";
@@ -584,9 +646,9 @@ var NVCodeView = new Class({
 
 var NVCodeLineView = new Class({
     
-    initialize: function (parentView) {
-        this.parentView = parentView;
-        this.element = (new Element("div", { "class":"NVProcessCodeLine" })).inject(parentView.element);
+    initialize: function (codeView) {
+        this.codeView = codeView;
+        this.element = (new Element("div", { "class":"NVProcessCodeLine" })).inject(codeView.element);
     },
     
     destroy: function () {

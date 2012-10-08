@@ -13,11 +13,12 @@
 
 var NVCanvasView = new Class({
     
-    initialize: function (parentView) {
-        this.pipelineView = parentView.pipelineView;
-        this.parentView = parentView;
+    initialize: function (processView) {
+        this.processView = processView;
+        this.pipelineView = processView.pipelineView;
+        this.programView = this.pipelineView.programView;
         
-        this.element = parentView.element.getElement(".NVProcessCanvas");
+        this.element = processView.element.getElement(".NVProcessCanvas");
         this.captionElement = this.element.getElement(".NVProcessCanvasCaption");
 
         this.canvas = this.element.getElement("canvas");
@@ -566,8 +567,8 @@ var NVInteractiveCanvasView = new Class({
 
     Extends: NVCanvasView,
     
-    initialize: function (parentView) {
-        this.parent(parentView);
+    initialize: function (processView) {
+        this.parent(processView);
         
         Array.each(this.element.getChildren(), function (element) {
             element.setStyle("pointerEvents", "none");  // needed so hover events don't bubble up from children
@@ -610,7 +611,7 @@ var NVInteractiveCanvasView = new Class({
     //  adjust object
     
     translatePointInStream: function (point, dx, dy) {
-        var oldStream = this.pipelineView.initialInputStream;
+        var oldStream = this.programView.initialInputStream;
         var newStream = NLStream();
         
         for (var i = 0; i < oldStream.length; i++) {
@@ -619,11 +620,11 @@ var NVInteractiveCanvasView = new Class({
             newStream.push(NLStreamItem(translatedObject));
         }
         
-        this.pipelineView.setInitialInputStream(newStream);
+        this.programView.setInitialInputStream(newStream);
     },
     
     subdivideItem: function (item) {
-        var oldStream = this.pipelineView.initialInputStream;
+        var oldStream = this.programView.initialInputStream;
         var newStream = NLStream();
         
         for (var i = 0; i < oldStream.length; i++) {
@@ -637,12 +638,12 @@ var NVInteractiveCanvasView = new Class({
             }
         }
         
-        this.pipelineView.setInitialInputStream(newStream);
+        this.programView.setInitialInputStream(newStream);
     },
 
     adjustRealInStream: function (item, delta) {
         var index = this.stream.indexOf(item);
-        var oldStream = this.pipelineView.initialInputStream;
+        var oldStream = this.programView.initialInputStream;
         var newStream = NLStream();
         
         for (var i = 0; i < oldStream.length; i++) {
@@ -651,7 +652,7 @@ var NVInteractiveCanvasView = new Class({
             newStream.push(NLStreamItem(adjustedObject));
         }
         
-        this.pipelineView.setInitialInputStream(newStream);
+        this.programView.setInitialInputStream(newStream);
     },
 
 
@@ -776,14 +777,14 @@ var NVInteractiveCanvasView = new Class({
     
     setHoverItem: function (item) {
         if (this.hoverItem) {
-            this.pipelineView.setHighlightedWithStreamItem(false, this.hoverItem);
+            this.programView.setHighlightedWithStreamItem(false, this.hoverItem);
         }
 
         this.hoverItem = item;
         if (!item) { this.hoverPoint = null; }
         
         if (item) {
-            this.pipelineView.setHighlightedWithStreamItem(true, item);
+            this.programView.setHighlightedWithStreamItem(true, item);
         }
         
         if (this.isEditable) {
@@ -875,7 +876,7 @@ var NVInteractiveCanvasView = new Class({
             progress = Math.min(1, progress + (1000/30) / duration);
             this.helpOpacity = initialOpacity + (targetOpacity - initialOpacity) * progress;
 
-            var canShowHelp = (this.visualization == "plot") && (this.parentView.columnIndex == this.pipelineView.getColumnCount() - 1);
+            var canShowHelp = (this.visualization == "plot") && (this.pipelineView.columnIndex == this.programView.getColumnCount() - 1);
             
             var colorComponent = "" + Math.round(255 * (0.75 + 0.25 * (1.0 - this.helpOpacity)));
             var color = "rgba(" + colorComponent + "," + colorComponent + "," + colorComponent + ",1)";
