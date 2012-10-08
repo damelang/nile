@@ -21,7 +21,7 @@ window.addEvent('domready', function () {
         link.addEvent("click", function () { showDemoWithName(name); return false; });
     });
     
-    showDemoWithName("Shape");
+    showDemoWithName(NVPreferences.demo || "Shape");
 });
 
 
