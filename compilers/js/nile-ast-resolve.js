@@ -152,4 +152,5 @@ nile.processdef.resolve = function(env)
     }
   env.popScope();
   env.addProcessdef(this_);
+  return this_;
 };
