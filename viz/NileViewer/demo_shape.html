@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <base target="_top">
+
+    <title>Nile Viewer</title>
+
+    <!-- style -->
+    <link rel="stylesheet" href="style.css" type="text/css">
+
+    <!-- lib -->
+    <script type="text/javascript" src="Lib/mootools.js"></script>
+    <script type="text/javascript" src="Lib/sprintf.js"></script>
+
+    <!-- Nile -->
+    <script type="text/javascript" src="NileVM/NileVM.js"></script>
+    <script type="text/javascript" src="NileVM/NileFakeGezira.js"></script>
+
+    <!-- NileViewer -->
+    <link rel="stylesheet" href="NileViewer/NileViewer.css" type="text/css">
+    <script type="text/javascript" src="NileViewer/NileViewer.js"></script>
+    <script type="text/javascript" src="NileViewer/NVCanvasView.js"></script>
+
+    <!-- demo -->
+    <script type="text/javascript">
+    
+        window.addEvent('domready', function () {
+            NVPreferences.isHighContrast = false;
+
+            var stream = [
+                NLBezier(0.1,0.1, 0.1,3.0, 0.1,5.9),
+                NLBezier(0.1,5.9, 5.9,5.9, 5.9,3.0),
+                NLBezier(5.9,3.0, 5.9,0.1, 0.1,0.1),
+            ].map(function (x) { return NLStreamItem(x); });
+            
+            var pipeline = [
+//                NLProcess("Stroke"),
+                NLProcess("Rasterize"),
+                NLProcess("Texture"),
+            ];
+        
+            var programView = new NVProgramView($("myViewer"));
+            programView.setPipeline(pipeline, stream);
+        });
+
+    </script>
+
+</head>
+
+<body>
+
+<div id="myViewer">
+</div>
+
+</body></html>

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <base target="_top">
+
+    <title>Nile Viewer</title>
+
+    <!-- style -->
+    <link rel="stylesheet" href="style.css" type="text/css">
+
+    <!-- lib -->
+    <script type="text/javascript" src="Lib/mootools.js"></script>
+    <script type="text/javascript" src="Lib/sprintf.js"></script>
+
+    <!-- Nile -->
+    <script type="text/javascript" src="NileVM/NileVM.js"></script>
+    <script type="text/javascript" src="NileVM/NileFakeGezira.js"></script>
+
+    <!-- NileViewer -->
+    <link rel="stylesheet" href="NileViewer/NileViewer.css" type="text/css">
+    <script type="text/javascript" src="NileViewer/NileViewer.js"></script>
+    <script type="text/javascript" src="NileViewer/NVCanvasView.js"></script>
+
+    <!-- demo -->
+    <script type="text/javascript">
+    
+        window.addEvent('domready', function () {
+            NVPreferences.isHighContrast = false;
+
+            var stream = [
+                NLPoint(0,0, 0,2),
+                NLPoint(0,2, 2,3),
+                NLPoint(2,3, 3,2),
+                NLPoint(3,2, 0,0),
+                NLPoint(0,0, 0,2),
+            ].map(function (x) { return NLStreamItem(x); });
+            
+            var pipeline = [
+                NLProcess("MakePolygon"),
+                NLProcess("RoundPolygon"),
+                NLProcess("TransformBeziers"),
+                NLProcess("SubdivideBeziers"),
+                NLProcess("StrokeBezierPath"),
+            ];
+        
+            var programView = new NVProgramView($("myViewer"));
+            programView.setPipeline(pipeline, stream);
+        });
+
+    </script>
+
+</head>
+
+<body>
+
+<div id="myViewer">
+</div>
+
+</body></html>
