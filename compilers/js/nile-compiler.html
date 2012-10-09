@@ -42,13 +42,6 @@
         }
       }
 
-      new Ajax.Request(nileGrammarFile, {
-        method: 'get',
-        onException: function(request, error) { alert(error); },
-        onSuccess:   function(transport)      { translateGrammar(transport.responseText);
-                                                nile.builtin.env.init(NileParser);        }
-      });
-
       function compileDefs() {
         var defs = document.getElementById('defs').value;
         // TODO put syntax error messages on the page somewhere?
@@ -57,7 +50,7 @@
 
         // TODO put errors where?
         ast.mapMethod('resolve', nileEnv);
-        document.getElementById('declarations').value =
+        document.getElementById('resolved-ast').value =
           nileEnv.getTypedefs().join("") + nileEnv.getOpdefs().join("") + nileEnv.getProcessdefs().join("");
       }
 
@@ -85,8 +78,16 @@
           }
         }
         document.getElementById('block-output').value = nileEnv.getOutput();
+        document.getElementById('block-output-trace').value = nileEnv.traceOutput;
         nileEnv.clear();
       }
+
+      new Ajax.Request(nileGrammarFile, {
+        method: 'get',
+        onException: function(request, error) { alert(error); },
+        onSuccess:   function(transport)      { translateGrammar(transport.responseText);
+                                                nile.builtin.env.init(NileParser);        }
+      });
     </script>
   </head>
 
@@ -939,7 +940,7 @@ CalculateBounds () : Bezier >> (Point, Point)
     </textarea>
     <button type="button" onclick="compileDefs();">Compile</button>
     <textarea id="ast"  cols="50" rows="50"></textarea>
-    <textarea id="declarations"  cols="50" rows="50"></textarea>
+    <textarea id="resolved-ast"  cols="50" rows="50"></textarea>
 
     <textarea id="block-input"  cols="50" rows="20">
       [[[0, 0], [5, 5], [10, 10]],
@@ -948,12 +949,18 @@ CalculateBounds () : Bezier >> (Point, Point)
     </textarea>
     <textarea id="block" cols="80" rows="20">
 M:Matrix = (1, 2, 3, 4, 5, 6)
-(min:Point, max:Point) = ((1, 1), (8, 8))
--> StrokeBezierPath (5, 2, -1) -> TransformBeziers (M) -> ClipBeziers (min, max) ->
-   Rasterize () -> ApplyTexturer (-> UniformColor (1, 1, 1, 1))
+min:Point = (1, 1)
+max:Point = (8, 8)
+C:Color = (1, 1, 1, 1)
+-> StrokeBezierPath (5, 2, -1) ->
+   TransformBeziers (M) ->
+   ClipBeziers (min, max) ->
+   Rasterize () ->
+   ApplyTexturer (-> UniformColor (C))
     </textarea>
     <button type="button" onclick="evaluateBlock();">Evalulate</button>
     <textarea id="block-output" cols="50" rows="20"></textarea>
+    <textarea id="block-output-trace" cols="50" rows="20"></textarea>
 
   </body>
 

@@ -4,12 +4,19 @@ nile.Environment = function()
   this.opdefs = [];
   this.processdefs = [];
   this.scopes = [];
+  this.traceRanges = [];
 
   this.vars = {};
   this.output = [];
   this.input = [];
+  this.traceOutput = [];
 
   return this;
+};
+
+nile.Environment.prototype.appendTrace = function()
+{
+  this.traceOutput.push(this.traceRanges.slice(0));
 };
 
 nile.Environment.prototype.addTypedef = function(typedef)
@@ -121,4 +128,10 @@ nile.Environment.prototype.swapInputAndOutput = function()
   this.output = input;
 };
 
-nile.Environment.prototype.clear = function() { this.input = []; this.output = []; this.vars = {}; };
+nile.Environment.prototype.clear = function() {
+  this.input = [];
+  this.output = [];
+  this.vars = {};
+  this.traceRanges = [];
+  this.traceOutput = [];
+};

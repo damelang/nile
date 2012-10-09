@@ -39,6 +39,10 @@ nile.defineASTToString = function(name, fieldnames)
            (typeof fieldvalue == "number") ? fieldvalue + "\n" :
            fieldvalue.toString(col_);
     }
+    if (this.sourceCodeRange) {
+      s += indentation_ + "CharacterRange=" +
+           this.sourceCodeRange[0] + "-" + this.sourceCodeRange[1] + "\n";
+    }
     return s + indentation + "}\n";
   };
 };

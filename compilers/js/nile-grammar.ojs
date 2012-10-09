@@ -149,6 +149,21 @@ definitions   = (EOL* definition)*:defs EOL* spaces (end | error) -> defs
 
 }
 
+NileParser.setSourceCodeRangeOfResult = function(methodName) {
+  var oldMethod = NileParser[methodName];
+  NileParser[methodName] = function() {
+    var startIndex = this.input.idx;
+    var result = oldMethod.apply(this, arguments);
+    if (result && result["resolve"])
+      result.sourceCodeRange = [startIndex, this.input.idx];
+    return result;
+  };
+}
+
+NileParser.setSourceCodeRangeOfResult("_apply");
+NileParser.setSourceCodeRangeOfResult("_applyWithArgs");
+NileParser.setSourceCodeRangeOfResult("_superApplyWithArgs");
+
 NileParser.error = function () {
   var input = this.input;
   var start = input.idx - 20;

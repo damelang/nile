@@ -273,3 +273,13 @@ if ( !Array.prototype.forEach ) {
     // 8. return undefined  
   };  
 }  
+
+if (!Function.prototype.wrap) {
+  Function.prototype.wrap = function(wrapper) {
+    var __method = this;
+    return function() {
+      var args = Array.prototype.slice.call(arguments, 0);
+      return wrapper.apply(this, [__method.bind(this)].concat(args));
+    }
+  };
+}

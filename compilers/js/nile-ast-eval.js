@@ -131,6 +131,10 @@ nile.processinst.run = function(env)
   var pdef = this.processdef;
   console.log("Running process " + pdef.sig.name);
   env.setVars({});
+  if (pdef.body.eval)
+    env.traceOutput = [];
+  env.traceRanges = [];
+  env.traceRanges.push(pdef.sig.sourceCodeRange);
   pdef.sig.param.evalWithValue(env, this.arg);
   try {
     (pdef.prologue.eval || pdef.prologue).call(pdef.prologue, env);
@@ -187,8 +191,10 @@ nile.instmt.eval = function(env)
 nile.outstmt.eval = function(env)
 {
   // TODO coerce
-  for (var i = this.values.length - 1; i >= 0; i--)
+  for (var i = this.values.length - 1; i >= 0; i--) {
     env.appendOutput(this.values[i].eval(env));
+    env.appendTrace();
+  }
 };
 
 nile.block.eval = function(env)

@@ -154,3 +154,28 @@ nile.processdef.resolve = function(env)
   env.addProcessdef(this_);
   return this_;
 };
+
+// Wrap resolve and resolveWithType methods to set the sourceCodeRange on the result
+for (objName in nile) {
+  var obj = nile[objName];
+  var resolve = obj["resolve"];
+  var resolveWithType = obj["resolveWithType"];
+  if (resolve) {
+    obj["resolve"] = resolve.wrap(function(previous, env) {
+      var range = this.sourceCodeRange;
+      var result = previous(env);
+      if (result && result["resolve"])
+        result.sourceCodeRange = range;
+      return result;
+    });
+  }
+  if (resolveWithType) {
+    obj["resolveWithType"] = resolveWithType.wrap(function(previous, env, type) {
+      var range = this.sourceCodeRange;
+      var result = previous(env, type);
+      if (result && result["resolve"])
+        result.sourceCodeRange = range;
+      return result;
+    });
+  }
+}
