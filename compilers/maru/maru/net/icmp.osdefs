@@ -1,0 +1,3 @@
+header	netinet/ip_icmp.h
+
+integer	ICMP_ECHO ICMP_ECHOREPLY

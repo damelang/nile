@@ -1,0 +1,5 @@
+(define-constant TCP_FLAG_FIN 256)
+(define-constant TCP_FLAG_SYN 512)
+(define-constant TCP_FLAG_RST 1024)
+(define-constant TCP_FLAG_PSH 2048)
+(define-constant TCP_FLAG_ACK 4096)

@@ -1,0 +1,137 @@
+* constant folding
+
+* remove frame from <ir> and move it to <ir-gen>
+  + each ir-gen-function-implementation walks the tree to allocate resources
+  + seperate pools for temps and locals means the final value of a let can outlive the local context
+  + register allocation is the responsibility of the gen, not the ir
+  + move of function into var during init is a special case
+
+* use int64_t (or larger) for boxed Long
+
+* coercion from literal to different size
+
+* pragma to enable (* x) = (indir x), (& x) = (addressof x), etc.
+
+* x86 backend
+
+================================================================
+
+node args should be array not list
+
+----------------------------------------------------------------
+
+ARGUMENTS SHOULD NOT BE CONSed
+
+	push them in the caller's context
+	refer to them as locals with negative offsets in callee
+	need to store actual arg count somewhere?
+		in the caller context is more flexible
+
+----------------------------------------------------------------
+
+debugging:
+	read -> (cons value next location)
+
+	(+ 3 4) -> (cons '+ '3 '4 (<filepos> "filename" 100 106))
+  100 --^
+  106---------^
+
+	(+ (+ 3 4) 1) -> (+ (+ 3 4 <"name" 3 9>) 1 <"name" 0 12>)
+
+----------------------------------------------------------------
+
+optimise the PEG for 'select':
+	(match-first
+		(match-all (match-object .:a) .*:aa
+		(match-all (match-object .:b) .*:bb
+		(match-all (match-object .:c) .*:cc
+		(match-all (match-object .)+:d	-> (match-select (,a ,b ,c ,@d) (,aa ,bb ,cc ,@dd))
+
+----------------------------------------------------------------
+
+char classes should support range syntax and not depend on order
+
+Simplify define() to avoid replicating the search loop of findVariable.
+
+Add source field to <pair> and use for error reporting.
+
+----------------------------------------------------------------
+
+Syntax for namespaces.
+
+reader:
+	Foo.bar.baz -> (in (in Foo bar) baz)
+
+expand:
+	(in x y) ->	spc = findVariable(env, x)->value;
+			var = findVariable(spc, y);
+
+----------------------------------------------------------------
+
+strings are arrays of ucs4
+symbols are ucs4
+read converts utf8 to ucs4
+write converts ucs4 to utf8
+
+tokens should contain the FILE name and the LINE number and maybe character COLUMNs for debugging
+
+put support only in peg.l, boot only in peg-boot.l
+
+make experimental/demo syntax for stdin
+	m-expr like?
+	Smalltalk like?
+		make selectors be:
+			.*: = keyword
+			<bin>.*<bin> = binary
+			anything else is unary
+
+put peg IR -> s-exp compiler in peg-boot and generate peg-compile.l (grammar in PEG -> compiled parser)
+	add mechanism to instantiate in-place
+
+PEG grammar should look like structure:
+	$> = output stream
+	$< = input stream
+	$* = current list result
+	$@ = current result
+	rules are methods defined on the structure, prefixed with $
+	structures inherit dynamically
+
+make eval.c eval.l use WIDE CHARACTERS
+
+propagate changes eval.c -> eval.l
+
+inheritance between structures
+
+active variables
+	implement inst var access by name
+
+split emit.l into
+	emit-common.l	the stuff that does not depend on the target language
+	emit-386.l	static x86 code
+	emit-c.l	static C code
+
+make local variables store level delta not absolute level
+	-> new <variable> object for each delta of free reference
+
+optimise eval.c for
+	size check on invocation
+	cached allocation behavior - dlist
+
+----------------------------------------------------------------
+
+make encode rewrite r-value variables as the value when value is subr
+
+----------------------------------------------------------------
+
+split <ptr> type from <long>.
+
+port streams.
+
+port PEG.
+
+----------------------------------------------------------------
+
+The crux of the biscuit is: If it entertains you, fine.  Enjoy it.  If
+it doesn't, then blow it out your ass.  I do it to amuse myself.  If I
+like it, I release it.  If somebody else likes it, that's a bonus.
+-- Frank Zappa

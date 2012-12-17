@@ -1,0 +1,20 @@
+header	stdio.h stddef.h stdint.h wchar.h
+
+integer __APPLE__? __ELF__? __LITTLE_ENDIAN__? __MACH__? __WIN32__? __i386__? __i586__? __linux__?
+string	__USER_LABEL_PREFIX__?
+
+type	longlong	long long
+type	longdouble	long double
+type	pointer		void *
+type	int32		int32_t
+type	int64		int64_t
+type	wchar		wchar_t
+
+sizes	char short int long longlong int32 int64 wchar float double longdouble pointer
+
+header	dlfcn.h		(!defined __WIN32__)
+header	w32dlfcn.h	( defined __WIN32__)
+
+default	RTLD_DEFAULT 0
+
+integer	RTLD_DEFAULT RTLD_NOW RTLD_GLOBAL

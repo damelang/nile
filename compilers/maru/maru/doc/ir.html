@@ -1,0 +1,585 @@
+<!-- -*- html -*- -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<html>
+  <head>
+<title>IR</title>
+</head>
+<body>
+<h1><tt>IR</tt></h1>
+
+<tt>IR</tt> is an intermediate target language for Maru compilers with
+semantics similar to those of <tt>C</tt>.  Some advantages compared to <tt>C</tt>
+are:
+
+<blockquote><dl>
+  <dt>tree-structure</dt><dd>
+    Program elements are tree structures that are trivial to generate, e.g., during parsing.
+  </dd><br><dt>simpler type rules</dt><dd>
+    Scalar and structured types correspond closely to hardware capabilities, but operations
+    on them never perfom the implict promotions or coercions that <tt>C</tt> operators perform.
+  </dd><br><dt>easily retargettable</dt><dd>
+    Back-ends are easy to write and include generators for machine code (e.g., Intel x86) and
+    for an equivalent <tt>C</tt> program (for portability and/or bootstrapping).
+  </dd><br><dt>potentially interpretable</dt><dd>
+    The tree structure is simple and equally conducive to interpretation, dynamic compilation, and static compilation.
+  </dd><br><dt>compact representation</dt><dd>
+    Programs could be linearised into a very compact external representation.
+  </dd>
+</dl></blockquote>
+
+The remainder of this document presents the high-level (client)
+programming interface of <tt>IR</tt> and a small example of a compiled
+language built using it.
+
+<h2>Typographic conventions</h2>
+
+Code is set in a <tt>typewriter</tt> face.
+
+Symbols that should appear explicitly in code are set in
+<tt><b>bold</b></tt>.
+
+Symbols that are descriptive, standing in place of another symbol or
+expression, are set <tt>medium</tt>.
+
+Descriptive symbols representing optional items (that can be omitted)
+are given the subscript `<tt>opt</tt>'.
+
+Descriptive symbols representing several items (typically appearing at
+the end of a list) are followed by an ellipsis `<tt>...</tt>'.
+
+<h2>High-level programming interface</h2>
+
+Clients construct an object of type <tt>&lt;ir&gt;</tt> and then manipulate it
+to add program statements and then generate target code for them.
+
+<dl>
+  <dt><tt>(<b>ir-new</b>)</tt></dt><dd>creates a new, empty <tt>ir</tt> object.  Where
+  `<tt>ir</tt>' appears below, an instance of this type of object is
+  indicated.</dd><br><dt><tt>(<b>ir-dump</b> <tt>ir</tt>)</tt></dt><dd>prints a symbolic representation of the
+  program stored in the <tt>ir</tt>, which can be useful for debugging.
+  The format of the information printed will be explained below.</dd><br>
+
+  <dt><tt>(<b>ir-gen</b> <tt>ir</tt> target options<sub>opt</sub>)</tt></dt><dd>generates code for the
+  program stored in the <tt>ir</tt>.  The <tt>target</tt> controls what kind of
+  output is generated.  Possible values currently include: <blockquote><table>
+
+    <tr valign=top><td><tt><b><tt>&lt;ir-backend-c&gt;</tt></b></tt>&nbsp;</td><td>generates a C program.</td></tr>
+
+    <tr valign=top><td><tt><b><tt>&lt;ir-backend-x86&gt;</tt></b></tt>&nbsp;</td><td>generates an x86 binary program.</td></tr>
+
+  </table></blockquote>
+
+  The details are currently beyond the scope of this document but
+  <tt>options</tt> can control the target's data model (LP32, LP64),
+  whether a symbolic listing of the generated code will be produced,
+  whether binary code is to be generated in-memory or written to a
+  file, whether the file is a linkable object or an executable,
+  whether the file format should be ELF, Mach-O, etc...</dd><br>
+
+  <dt><tt>(<b>ir-put</b> <tt>ir</tt> statements...)</tt></dt><dd>adds one or more <tt>statement</tt>s
+  to the program stored in the <tt>ir</tt>.</dd><br>
+</dl>
+
+The remainder of the programming interface consists of constants and
+constructors that are used to create the types and statements passed
+to <tt>ir-put</tt>.  The constants representing types are as follows:
+
+<blockquote><table>
+  <tr valign=top><td><tt><b>IR-VOID</b></tt>&nbsp;</td><td>the type of an object of unknown type, or of an absence of objects (in a parameter list, for example)</td></tr>
+  <tr valign=top><td><tt><b>IR-INT8</b></tt>&nbsp;</td><td>a byte, equivalent to <tt>C</tt>'s <tt>char</tt></td></tr>
+  <tr valign=top><td><tt><b>IR-INT16</b></tt>&nbsp;</td><td>a halfword, equivalent to <tt>C</tt>'s <tt>short</tt> on most architectures</td></tr>
+  <tr valign=top><td><tt><b>IR-INT32</b></tt>&nbsp;</td><td>a word, equivalent to <tt>C</tt>'s <tt>int</tt> and <tt>long</tt> on LP32 architectures</td></tr>
+  <tr valign=top><td><tt><b>IR-INT64</b></tt>&nbsp;</td><td>equivalent to <tt>C</tt>'s <tt>long long</tt> on LP32, and both <tt>long</tt> and <tt>long long</tt> on LP64</td></tr>
+  <tr valign=top><td><tt><b>IR-FLOAT32</b></tt>&nbsp;</td><td>single-precision, equivalent to <tt>C</tt>'s <tt>float</tt> on most architectures</td></tr>
+  <tr valign=top><td><tt><b>IR-FLOAT64</b></tt>&nbsp;</td><td>double-precision, equivalent to <tt>C</tt>'s <tt>double</tt> on most architectures</td></tr>
+</table></blockquote>
+
+The constructors used to create derived types are as follows:
+
+<blockquote><dl>
+
+  <dt><tt>(<b>ir-pointer-type</b> type)</tt></dt><dd>creates the type describing a pointer to
+  (address of) an object of the given <tt>type</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-function-type</b> ir return-type argument-types...<sub>opt</sub>)</tt></dt><dd>creates
+  the type describing a function that accepts arguments of the given
+  <tt>argument-types</tt> and that returns an object of the given
+  <tt>return-type</tt>.  Note that
+  <blockquote><tt>(ir-function-type IR-INT)</tt></blockquote>
+  and
+  <blockquote><tt>(ir-function-type IR-INT IR-VOID)</tt></blockquote>
+  are not the same: the former can be called with any number and type of arguments, while the latter
+  must be called with no arguments.</dd><br>
+
+</dl></blockquote>
+
+Several aliases and predefined derived types are provided for convenience:
+
+<blockquote><table>
+  <tr valign=top><td><tt><b>IR-BOOL</b></tt>&nbsp;</td><td>the type of a logical value, curently always <tt>IR-INT</tt></td></tr>
+  <tr valign=top><td><tt><b>IR-INT</b></tt>&nbsp;</td><td>the natural width of an integer, curently always <tt>IR-INT32</tt></td></tr>
+  <tr valign=top><td><tt><b>IR-LONG</b></tt>&nbsp;</td><td>the integer type having the same width as a pointer</td></tr>
+  <tr valign=top><td><tt><b>IR-FLOAT</b></tt>&nbsp;</td><td>the natural width of a float, currently always <tt>IR-FLOAT32</tt></td></tr>
+  <tr valign=top><td><tt><b>IR-STRING</b></tt>&nbsp;</td><td>the type of a string, equivalent to <tt>(ir-pointer-type IR-INT8)</tt></td></tr>
+</table></blockquote>
+
+Note that the objects representing structurally-equal types are always
+identical.  This applies to scalars, structures, pointers, and fuction
+types.
+
+<p>
+
+The constructors used to create statements are as follows:
+
+<dl>
+  <dt><tt>(<b>ir-lit</b> value type<sub>opt</sub>)</tt></dt><dd>Creates a literal value.  If <tt>type</tt> is
+  omitted then it will be inferred from <tt>value</tt>, as follows:
+  <blockquote><table>
+    <tr valign=top><td><i>literal value</i>&nbsp;</td><td><i>inferred type</i></td></tr>
+    <tr valign=top><td>any <tt>&lt;long&gt;</tt>&nbsp;</td><td><tt>IR-INT</tt></td></tr>
+    <tr valign=top><td>any <tt>&lt;double&gt;</tt>&nbsp;</td><td><tt>IR-FLOAT</tt></td></tr>
+    <tr valign=top><td>any <tt>&lt;string&gt;</tt>&nbsp;</td><td><tt>IR-STRING</tt></td></tr>
+  </table></blockquote></dd><br>
+
+  <dt><tt>(<b>ir-def</b> name type<sub>opt</sub> value<sub>opt</sub>)</tt></dt><dd> defines a new global variable of the given <tt>type</tt>,
+  initialised to the given <tt>value</tt>.  If the <tt>value</tt> is omitted then the variable will be
+  uninitialised.  If the <tt>type</tt> is omitted then it will be set implicitly from the type of the
+  value first stored (in program textual order) into the variable via <tt>ir-set</tt>, which must occur
+  before any attempt to read the variable via <tt>ir-get</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-get</b> name)</tt></dt><dd>reads the value stored in the variable with the given <tt>name</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-get</b> address)</tt></dt><dd>reads the value stored in memory at the given <tt>address</tt> which must be of
+  pointer type.  The result is the referent type of <tt>address</tt>, unless that is an integer narrower
+  than <tt>IR-INT</tt> in which case the value is zero-extended to make a result of type <tt>IR-INT</tt>.
+  (Dereferencing a pointer to <tt>IR-VOID</tt> is not supported.)</dd><br>
+
+  <dt><tt>(<b>ir-set</b> name value)</tt></dt><dd>stores <tt>value</tt> in the variable with the given <tt>name</tt>.  If the
+  variable previously had no type, its type will be made that of <tt>value</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-set</b> address value)</tt></dt><dd>stores <tt>value</tt> in memory at the given <tt>address</tt> which must be of
+  pointer type.  The width of the store operation is determined by the referent type of <tt>address</tt>
+  which must be equal to the type of <tt>value</tt>, unless it is an integral type narrower than
+  <tt>IR-INT</tt> in which case <tt>value</tt> is effectively (but not actually) truncated to the width of
+  the store operation.  (Storing through a pointer to <tt>IR-VOID</tt> is not supported.)</dd><br>
+
+  <dt><tt>(<b>ir-cvt</b> type value)</tt></dt><dd>converts <tt>value</tt> to the given <tt>type</tt>.
+  Conversions can be performed between the following source and destination types:
+  <blockquote><table>
+    <tr valign=top><td><i>from value of type</i>	&nbsp;</td><td><i>to type</i>		</td></tr>
+    <tr valign=top><td><tt>IR-INT32</tt>			&nbsp;</td><td><tt>IR-INT64</tt>		</td></tr>
+    <tr valign=top><td><tt>IR-INT64</tt>			&nbsp;</td><td><tt>IR-INT32</tt>		</td></tr>
+    <tr valign=top><td><i>any pointer type</i>		&nbsp;</td><td><tt>IR-LONG</tt>		</td></tr>
+    <tr valign=top><td><tt>IR-LONG</tt>			&nbsp;</td><td><i>any pointer type</i>	</td></tr>
+    <tr valign=top><td><tt>IR-FLOAT32</tt>		&nbsp;</td><td><tt>IR-FLOAT64</tt>	</td></tr>
+    <tr valign=top><td><tt>IR-FLOAT64</tt>		&nbsp;</td><td><tt>IR-FLOAT32</tt>	</td></tr>
+    <tr valign=top><td><tt>IR-FLOAT32</tt>		&nbsp;</td><td><tt>IR-INT32</tt>		</td></tr>
+    <tr valign=top><td><tt>IR-FLOAT64</tt>		&nbsp;</td><td><tt>IR-INT64</tt>		</td></tr>
+    <tr valign=top><td><tt>IR-INT32</tt>			&nbsp;</td><td><tt>IR-FLOAT32</tt>	</td></tr>
+    <tr valign=top><td><tt>IR-INT64</tt>			&nbsp;</td><td><tt>IR-FLOAT64</tt>	</td></tr>
+  </table></blockquote>
+  </dd><br>
+
+  <dt><tt>(<b>ir-neg</b> value)</tt></dt><dd>the arithmetic negation of <tt>value</tt>, which must be of numeric type.  The
+  result has the same type as <tt>value</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-com</b> a)</tt></dt><dd>the one's-complement bitwise inversion of <tt>value</tt>, which must be of integral
+  type.</dd><br>
+
+  <dt><tt>(<b>ir-not</b> value)</tt></dt><dd>the logical negation of <tt>value</tt>, which much be of type <tt>IR-BOOL</tt>.
+  The result is of type <tt>IR-BOOL</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-add</b> a b)</tt></dt><dd>the sum of <tt>a</tt> and <tt>b</tt>.  If <tt>a</tt> is a numeric type then <tt>b</tt> must be
+  of the same type.  If <tt>a</tt> is a pointer type then <tt>b</tt> must be of type <tt>IR-LONG</tt> and the
+  result is the sum of <tt>a</tt> and <tt>b</tt> (scaled up by the width of the referent type of <tt>a</tt>) and
+  of the same type as <tt>a</tt>.  (If <tt>a</tt> is a pointer to <tt>IR-VOID</tt> then no scaling is
+  performed.)</dd><br>
+
+<dt><tt>(<b>ir-sub</b> a b)</tt></dt><dd>the difference between <tt>a</tt> and <tt>b</tt>.  If <tt>a</tt>
+  is a numeric type then <tt>b</tt> must be of the same type.  If <tt>a</tt>
+  is a pointer type and <tt>b</tt> of type <tt>IR-LONG</tt> then the result is
+  the sum of <tt>a</tt> and <tt>b</tt> negated (and scaled up by the width of
+  the referent type of <tt>a</tt>) and of the same type as <tt>a</tt>.  If
+  <tt>b</tt> is a pointer type then it must be identical to the type of
+  <tt>a</tt> and the result is the difference bettwen the addresses <tt>a</tt>
+  and <tt>b</tt> scaled down by the width of the referent type of <tt>a</tt>.
+  (If <tt>a</tt> is a pointer to <tt>IR-VOID</tt> then no scaling is performed.)</dd><br>
+
+<dt><tt>(<b>ir-mul</b> a b)</tt></dt><dd>the product of <tt>a</tt> and <tt>b</tt> which must be of
+the same numeric type.</dd><br>
+
+<dt><tt>(<b>ir-div</b> a b)</tt></dt><dd>the quotient after division of <tt>a</tt> by <tt>b</tt>,
+which must be of the same numeric type.</dd><br>
+
+<dt><tt>(<b>ir-mod</b> a b)</tt></dt><dd>the remainder after division of <tt>a</tt> by <tt>b</tt>,
+which must be of the same numeric type.</dd><br>
+
+  <dt><tt>(<b>ir-shl</b> a b)</tt></dt><dd>The result of shifting <tt>a</tt> left by <tt>b</tt> bits.
+  The result has the same type as <tt>a</tt>.
+  <tt>a</tt> must be of integral type and <tt>b</tt> must be of type <tt>IR-INT</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-shr</b> a b)</tt></dt><dd>The result of shifting <tt>a</tt> right by <tt>b</tt> bits.
+  The result has the same type as <tt>a</tt>.
+  <tt>a</tt> must be of integral type and <tt>b</tt> must be of type <tt>IR-INT</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-bitand</b> a b)</tt></dt><dd>bitwise `and' of <tt>a</tt> and <tt>b</tt>, which must be of the same integral type.</dd><br>
+
+  <dt><tt>(<b>ir-bitor</b> a b)</tt></dt><dd>bitwise `inclusive or' of <tt>a</tt> and <tt>b</tt>, which must be of the same integral type.</dd><br>
+
+  <dt><tt>(<b>ir-bitxor</b> a b)</tt></dt><dd>bitwise `exclusive or' of <tt>a</tt> and <tt>b</tt>, which must be of the same integral type.</dd><br>
+
+  <dt><tt>(<b>ir-lt</b> a b)</tt></dt><dd>compares <tt>a</tt> and <tt>b</tt>, which must be of the same numeric or pointer type, and produces a <tt>IR-BOOL</tt> that is non-zero iff <tt>a&lt;b</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-le</b> a b)</tt></dt><dd>compares <tt>a</tt> and <tt>b</tt>, which must be of the same numeric or pointer type, and produces a <tt>IR-BOOL</tt> that is non-zero iff <tt>a&lt;=b</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-eq</b> a b)</tt></dt><dd>compares <tt>a</tt> and <tt>b</tt>, which must be of the same numeric or pointer type, and produces a <tt>IR-BOOL</tt> that is non-zero iff <tt>a==b</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-ne</b> a b)</tt></dt><dd>compares <tt>a</tt> and <tt>b</tt>, which must be of the same numeric or pointer type, and produces a <tt>IR-BOOL</tt> that is non-zero iff <tt>a!=b</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-ge</b> a b)</tt></dt><dd>compares <tt>a</tt> and <tt>b</tt>, which must be of the same numeric or pointer type, and produces a <tt>IR-BOOL</tt> that is non-zero iff <tt>a&gt;=b</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-gt</b> a b)</tt></dt><dd>compares <tt>a</tt> and <tt>b</tt>, which must be of the same numeric or pointer type, and produces a <tt>IR-BOOL</tt> that is non-zero iff <tt>a&gt;b</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-logand</b> a b)</tt></dt><dd>evaluates the <tt>a</tt> and yields its result if
+  zero, otherwise yields the result of evaluating <tt>b</tt>.  Both
+  <tt>a</tt> and <tt>b</tt> must be of type <tt>IR-BOOL</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-logor</b> a b)</tt></dt><dd>evaluates the <tt>a</tt> and yields its result if
+  non-zero, otherwise yields the result of evaluating <tt>b</tt>.  Both
+  <tt>a</tt> and <tt>b</tt> must be of type <tt>IR-BOOL</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-if</b> test consequent alternate)</tt></dt><dd>evaluates <tt>test</tt>, which must
+  be of type <tt>IR-BOOL</tt>.  If the result is non-zero then
+  <tt>consequent</tt> is evaluated to produce the overall result, otherwise
+  <tt>alternate</tt> is evaluated to produce the result.  <tt>consequent</tt>
+  and <tt>alternate</tt> must be of the same type.</dd><br>
+
+  <dt><tt>(<b>ir-while</b> test statements...<sub>opt</sub>)</tt></dt><dd>evaluates <tt>test</tt>, which
+  must be of type <tt>IR-BOOL</tt>.  If the result is non-zero then each
+  of the <tt>statements</tt> is evaluated.  The process repeats until the
+  evaluation of <tt>test</tt> yields zero.  There is no result and the
+  type of the expression is <tt>IR-VOID</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-seq</b> statements...)</tt></dt><dd>groups <tt>statements</tt> into a sequence
+  that behaves as a single compound expression to the enclosing
+  program structure.  The result and type of the overall expression
+  are those of the last <tt>statement</tt>.  The group also delimits the
+  scope of any local variables declared within <tt>statements</tt> via
+  <tt>ir-var</tt>, whose lifetimes extend only to the end of the
+  <tt>statements</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-fun</b> name type statements...<sub>opt</sub>)</tt></dt><dd>declares and defines a function.  <tt>name</tt> must be a
+  <tt>&lt;symbol&gt;</tt>, or <tt>nil</tt> (in which case the function is given a unique temporary name).
+  <tt>type</tt> must be a function type, or <tt>nil</tt> (in which case it is inferred from the types of any
+  function arguments declared within <tt>statements</tt> and the type of any <tt>ir-ret</tt>s that occur
+  within <tt>statements</tt>).
+  <br><br> If <tt>name</tt> is non-nil then an entry will be created for it in the global symbol table,
+  bound to an object of the given <tt>type</tt>, before any <tt>statements</tt> are considered.  (This
+  allows the function to be called recursively by name from within <tt>statements</tt>, provided
+  <tt>type</tt> is non-nil.)  The type of the function is also inferred from any <tt>ir-arg</tt>s and
+  <tt>ir-ret</tt>s that occur within <tt>statements</tt>.  If <tt>type</tt> was non-nil then it must be
+  congruent with this infferred type; if <tt>type</tt> was nil then the global binding for <tt>name</tt> is
+  updated with the inferred type.</dd><br>
+
+  <dt><tt>(<b>ir-arg</b> name type)</tt></dt><dd>declares a function parameter with the given <tt>name</tt> and <tt>type</tt>.
+  This statement must occur within an enclosing <tt>ir-fun</tt>, with each successive <tt>ir-arg</tt>
+  corresponding to each successive function parameter from first to last.</dd><br>
+
+  <dt><tt>(<b>ir-var</b> name type value<sub>opt</sub>)</tt></dt><dd>declares, and optionally initialises, a local variable with the
+  given <tt>name</tt> and <tt>type</tt> whose scope begins with the declaration and extends to the end of the
+  nearest enclosing <tt>ir-seq</tt> or <tt>ir-fun</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-ret</b> value<sub>opt</sub>)</tt></dt><dd>returns the given <tt>value</tt> from the nearest enclosing function.  The
+  type of <tt>value</tt> must correspond to the return type of the enclosing function.  If <tt>value</tt> is
+  omitted then the return value is undefined and of type <tt>IR-VOID</tt>.  All occurences of
+  <tt>it-ret</tt> within a function must have the same <tt>value</tt> type, and this must be the same as the
+  fuction's return type (whether it was declared or is to be inferred).</dd><br>
+
+  <dt><tt>(<b>ir-call</b> function arguments...<sub>opt</sub>)</tt></dt><dd>performs a call to <tt>function</tt> with zero or more
+  <tt>arguments</tt>.  <tt>function</tt> must be of function type (i.e., via an <tt>ir-get</tt> on the name of
+  the function) or an expression whose type is a pointer to a function.  The overall type of the
+  expression is the return type of <tt>function</tt>.</dd><br>
+
+  <dt><tt>(<b>ir-ext</b> name type options...<sub>opt</sub>)</tt></dt><dd>declares an external object of the given <tt>type</tt>.  (The
+  details of how <tt>name</tt> is resolved, and the interpretation of any <tt>options</tt>, are dependent on
+  the kind of code that will be generated and currently beyond the scope of this document.)</dd><br>
+
+  <dt><tt>(<b>ir-addr</b> name)</tt></dt><dd>produces the address of <tt>name</tt>, which must be a symbol naming a variable
+  that is currently in-scope.  The type of the resulting address is a pointer to the declared type
+  of the <tt>name</tt>d variable.</dd><br>
+
+</dl>
+
+<h3>Structures</h3>
+
+Structure values and structure types can be used anywhere a scalar value of arbitrary type is
+allowed: variable declarations, initialisations and assignments, function parameters and arguments,
+etc.  Structure types are tagged with a name (in a namespace distinct from normal variable
+definitions) and two functions are provided to declare and retrieve them:
+
+<dl>
+  <dt><tt>(<b>ir-def-struct</b> ir name members...<sub>opt</sub>)</tt></dt><dd>defines a structure type called <tt>name</tt> containing
+  the fiven <tt>members</tt>.  Each <tt>member</tt> must be a list whose elements are a type followed by one
+  or more symbols naming structure members of that type.</dd><br>
+
+  <dt><tt>(<b>ir-struct-type</b> ir name)</tt></dt><dd>yields the previously-defined structure type called <tt>name</tt>.</dd><br>
+</dl>
+
+Two constructors are provided to create <tt>IR</tt> expressions that produce a new structure-valued object
+and deconstruct an existing structure value:
+
+<dl>
+  <dt><tt>(<b>ir-struct</b> name values...)</tt></dt><dd>creates a structure value.  The <tt>name</tt> must identify a
+  previously-declared structure type and the <tt>values</tt> must produce objects whose types correspond
+  (in order) to its declared member types.</dd><br>
+
+  <dt><tt>(<b>ir-member</b> name value)</tt></dt><dd>produces the contents of a <tt>name</tt>d field within a <tt>structure</tt>
+  value.  The <tt>structure</tt> must be a pointer to a object of structure type having a member
+  identified by <tt>name</tt>.  The overall type of the result is the declared type of the named member.
+  Note that, because the <tt>structure</tt> value is a pointer, extracting a member from a
+  structure-valued variable must be accomplished by first taking the address of that variable (with
+  <tt>ir-addr</tt>) and then providing that address as the <tt>structure</tt> operand of <tt>ir-member</tt>.</dd><br>
+</dl>
+
+
+<h2>Example <tt>IR</tt> program</h2>
+
+Below is a complete example showing the construction and code
+generation of the popular benchmark function `<tt>nfibs</tt>'.
+
+<pre><font size=-1>
+(require "ir.k")
+
+(let ((ir (ir-new)))
+
+  ;; the function prototype is required here because nfibs will call itself recursively
+  (ir-put ir
+    (ir-fun 'nfibs (ir-function-type IR-INT IR-INT)
+      (ir-arg 'n IR-INT)
+      (ir-ret
+        (ir-if (ir-lt (ir-get 'n) (ir-lit 2))
+          (ir-lit 1)
+          (ir-add (ir-add (ir-call (ir-get 'nfibs) (ir-sub (ir-get 'n) (ir-lit 1)))
+                          (ir-call (ir-get 'nfibs) (ir-sub (ir-get 'n) (ir-lit 2))))
+                  (ir-lit 1))))))
+
+  (ir-ext 'printf (ir-function-type IR-INT))
+
+  ;; here the function prototype can be nil, and is inferred from the returned value
+  (ir-put ir
+    (ir-fun 'main ()
+      (ir-call
+        (ir-get 'printf)
+        (ir-lit "%d\n")
+        (ir-call (ir-get 'nfibs) 5))  ;; => 15
+      (ir-ret (ir-lit 0)))
+
+  (ir-gen ir &lt;ir-backend-c&gt;))
+</font></pre>
+
+<h2>Example <tt>IR</tt>-based compiler</h2>
+
+Below is a complete example showing a compiler for a simple Algol-60-like language that constructs
+an <tt>IR</tt> program during parsing and then generates code from it.
+
+<pre><font size=-1>
+(require "ir.k")
+
+(set peg-invoke-rule peg-invoke-rule-with-recursion)
+
+(define-function param-list-types (pl)  (map car pl))
+(define-function param-list-decls (pl)  (map (lambda (p) `(ir-arg ',(cadr p) ,(car p))) pl))
+
+(println "#include <stdint.h>")
+
+{
+  expected      = .:what -> (error what " expected near: "(parser-stream-context self.source)) ;
+
+  blank         = [\t ] ;
+  eol           = "\n""\r"* | "\r""\n"* ;
+  comment1      = "//" (&. !eol .)* ;
+  commentN      = "/*" (&. !"*/" (commentN | .))* "*/" ;
+  comment       = comment1 | commentN ;
+  _             = (blank | eol | comment)* ;
+
+  digit         = [0-9] ;
+  higit         = [0-9A-Za-z] ;
+  letter        = [A-Z_a-z] ;
+
+  uinteger      = digit+ $#:x _                                     -> x ;
+  integer       = "-"uinteger:x                                     -> (- x)
+                |    uinteger
+                ;
+
+  ufloat        = (digit+ "."digit+ ("e"digit+)?)@$:s _             -> (string->double s) ;
+  float         = "-"ufloat:x                                       -> (- x)
+                |    ufloat
+                ;
+
+  number        = float | integer ;
+
+  char          = "\\"  ( "t"                       ->  9
+                        | "n"                       -> 10
+                        | "r"                       -> 13
+                        | "x" (higit higit) @$#16
+                        | "u" (higit higit higit higit) @$#16
+                        | .
+                        )
+                | . ;
+
+  string        = "\"" ("\"\""->34 | !"\"" char)* $:x "\"" _        -> x ;
+
+  idpart        = (letter (letter | digit)*) @ $$ ;
+  identifier    = idpart:x !":" _                                   -> x ;
+
+  prefix        = identifier:e                                      -> `(ir-get ',e)
+                | number:e                                          -> `(ir-lit ,e)
+                | string:e                                          -> `(ir-lit ,e)
+                ;
+
+  arglist       = expression?:a (","_ expression)*:b                -> `(,@a ,@b) ;
+
+  primary       = prefix:a ( "("_ arglist:b ")"_                    -> `(ir-call ,a ,@b) :a
+                           )*                                       -> a ;
+
+  factor        = primary:a "*"_ factor:b                           -> `(ir-mul ,a ,b)
+                | primary:a "/"_ factor:b                           -> `(ir-div ,a ,b)
+                | primary:a "                | primary
+                ;
+
+  term          = factor:a "+"_ term:b                              -> `(ir-add ,a ,b)
+                | factor:a "-"_ term:b                              -> `(ir-sub ,a ,b)
+                | factor
+                ;
+
+  relation      = term:a "<" _ term:b                               -> `(ir-lt ,a ,b)
+                | term:a "<="_ term:b                               -> `(ir-le ,a ,b)
+                | term:a "=="_ term:b                               -> `(ir-eq ,a ,b)
+                | term:a "!="_ term:b                               -> `(ir-ne ,a ,b)
+                | term:a ">="_ term:b                               -> `(ir-ge ,a ,b)
+                | term:a ">" _ term:b                               -> `(ir-gt ,a ,b)
+                | term
+                ;
+
+  expression    = "if"_ "("_ expression:a ")"_
+                  "then"_ expression:b
+                  "else"_ expression:c                              -> `(ir-if ,a ,b ,c)
+                | relation:a "="_ expression:b                      -> `(ir-set ,a ,b)
+                | relation
+                ;
+
+  sequence      = "{"_ statement*:s "}"_                            -> `(ir-seq ,@s) ;
+
+  statement     = sequence
+                | "return"_ expression:e ";"_                       -> `(ir-ret ,e)
+                | expression:e ";"_                                 -> e
+                ;
+
+  type          = "int"_                                            -> IR-INT ;
+
+  param         = type:t identifier:i                               -> `(,t ,i) ;
+
+  paramlist     = param?:p (","_ param)*:q                          -> `(,@p ,@q) ;
+
+  fndecl        = type:t identifier:i "("_ paramlist:p ")"_
+                   statement:e                                      -> `(ir-fun
+                                                                          ',i
+                                                                          (ir-function-type ,t ,@(param-list-types p))
+                                                                          ,@(param-list-decls p)
+                                                                          ,e) ;
+
+  definition    = "extern"_ identifier:i ";"_                       -> `(ir-ext ',i (ir-function-type IR-INT))
+                | identifier:i "="_ fndecl:e                        -> `(ir-def ',i () ,e)
+                |                   fndecl
+                | identifier:i "="_ statement:e                     -> `(ir-def ',i () ,e)
+                |                   statement:e
+                ;
+
+  program       = _ (definition:d -> `(ir-put ir ,d))*:p
+                    (!. | { expected "definition or expression" })  -> p ;
+
+  # read a 'program' from the rest of the file
+
+  program:p                     -> (eval `(let ((ir (ir-new ())))
+                                            ,@p
+                                            (ir-gen ir &lt;ir-backend-c&gt; 'main)))
+}
+
+int nfibs(int n)
+  return
+    if (n < 2)
+    then 1
+    else nfibs(n - 1) + nfibs(n - 2) + 1;
+
+extern printf;
+
+printf("%i\n", nfibs(5));
+
+</font></pre>
+
+The example generates a C program which can be compiled and run.  Assuming the above program is in a
+file called <tt>test-ir.k</tt>:
+
+<blockquote><pre>
+$ maru repl.k test-ir.k > c.c
+
+$ cat c.c
+#include &lt;stdint.h&gt;
+int32_t nfibs(int32_t n) {
+return ((n<2)?1:(nfibs((n-1))+(nfibs((n-2))+1)));
+}
+int main() {
+printf("%i\012", nfibs(5));
+return 0;
+}
+
+$ cc -o c c.c
+
+$ ./c
+15
+</pre></blockquote>
+
+
+
+
+
+<h2>BUGS</h2>
+
+<table>
+<tr valign=top><td>&bull;&nbsp;</td><td>structure types are declared outside the program and are global (they should be local to the nearest enclosing scope, whether global or local)</td></tr>
+<tr valign=top><td>&bull;&nbsp;</td><td>structure tags are in a different namespace to regular variables (fake namespaces are easy to
+simulate in the client by prepending something unattainable as a program variable name)</td></tr>
+</table>
+
+<h2>TO DO</h2>
+
+<table>
+<tr valign=top><td>&bull;&nbsp;</td><td>varargs</td></tr>
+<tr valign=top><td>&bull;&nbsp;</td><td>option to support closures, nested functions with free variables</td></tr>
+<tr valign=top><td>&bull;&nbsp;</td><td>option to support oop type and GC; cooperation between code generator and GC make memory management transparent</td></tr>
+<tr valign=top><td>&bull;&nbsp;</td><td>low-level programming interface, i.e: how to extend with new instructions, data types, code generators, etc.</td></tr>
+<tr valign=top><td>&bull;&nbsp;</td><td>explanation of output from \ttir-dump</td></tr>
+<tr valign=top><td>&bull;&nbsp;</td><td>example of code generation from within a parser (complete implementation of a small language)</td></tr>
+<tr valign=top><td>&bull;&nbsp;</td><td>find a real name to use instead of `\IR', and... do we \breally need all those <tt>ir-</tt> prefixes?</td></tr>
+</table>
+
+<!-- <address> -->
+<!-- <a href="mailto:com -dot- gmail -at- piumarta (backwards)">Ian Piumarta</a> -->
+<!-- </address> -->
+</body>
+</html>

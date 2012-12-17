@@ -1,0 +1,60 @@
+(define-function list-index-of (key list)
+  (let ((i 0))
+    (while (and list (!= key (car list)))
+      (incr i)
+      (set list (cdr list)))
+    (and list i)))
+
+(define-function indent (n . objs)
+  (for (i 0 n) (print "  "))
+  (and objs (apply print objs)))
+
+(define print-structure-fields) ;; forward
+
+(define-function default-print-structure (self n)
+  (let ((t (type-of self)))
+    (if (<= t <context>)
+	(dumpln self)
+      (print-structure-fields self (+ n 1) (array-at %structure-fields t)))))
+
+(define-selector print-structure (self n)	;; <--- this is the entry point, n = indentation level
+  (default-print-structure self n))
+
+(define-selector print-structure-simply? (self) ())
+
+(define-method print-structure-simply? <undefined> () 1)
+(define-method print-structure-simply? <long>	   () 1)
+(define-method print-structure-simply? <double>	   () 1)
+(define-method print-structure-simply? <string>	   () 1)
+(define-method print-structure-simply? <symbol>	   () 1)
+
+(define-function print-structure-fields (self n fields)
+  (let* ((t (type-of self))
+	 (m (array-at %structure-fields t))
+	 (i ()))
+    (println (array-at %type-names t) " {")
+    (indent (- n 1))
+    (while (pair? fields)
+      (let* ((field (car fields))
+	     (value (oop-at self (list-index-of field m))))
+	(if (set i (print-structure-simply? value))
+	    (print "  "field"="value)
+	  (print "  "field"=")
+	  (print-structure value n)
+	  (indent (- n 1))))
+      (set fields (cdr fields)))
+    (and i (let () (println) (indent (- n 1))))
+    (println "}")))
+
+(define-method print-structure <pair> (n)
+  (print "( ")
+  (print-structure self.head (+ n 1))
+  (while (pair? (set self (cdr self)))
+    (indent (+ n 1))
+    (print-structure self.head (+ n 1)))
+  (and self
+       (let ()
+	 (indent (+ n 1))
+	 (print ". ")
+	 (print-structure self (+ n 1))))
+  (indent n ")\n"))

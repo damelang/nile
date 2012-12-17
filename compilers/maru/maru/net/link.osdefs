@@ -1,0 +1,10 @@
+header	fcntl.h
+header	sys/types.h sys/socket.h sys/ioctl.h
+header	linux/if.h
+header	linux/if_tun.h
+
+integer	O_RDWR
+integer	IFHWADDRLEN IFNAMSIZ
+
+integer	IFF_TUN IFF_TAP IFF_NO_PI
+integer	TUNSETIFF

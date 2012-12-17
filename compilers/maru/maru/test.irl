@@ -1,0 +1,131 @@
+// import type identifier ;
+//	
+//	imports a symbol from an external library.  The 'identifier' contains alphanumeric
+//	characters and '_' and must not start with a number.  The 'type' is a scalar type name or a
+//	structure name (desribed below) followed by one or more modifier suffixes.
+//	
+//	The scalar types are:
+//	
+//		int8, int16, int32, int64	= integer type with the specified number of bits
+//		float32, float64		= floating point type with the specified number of bits
+//		int, long, float, double	= aliases for the "natural" size of each of those types
+//						  (where 'long' is guaranteed to be the same size as a
+//						   pointer)
+//		void				= no value, or unknown pointer referent type
+//	
+//	The modifier suffixes are:
+//	
+//		type *				= pointer to type
+//		type ()				= function of unspecified arguments that returns type
+//		type (param-type, ...)		= function of specified parameter types returning type
+
+import int() printf;	// import 'printf' from an external library
+
+//	type identifier := expression ;
+//	
+//	declares and defines the initial value of a variable.  The 'expression' must yield a value
+//	of the given 'type'.
+
+int()* fun := &printf;	// declare pointer to function 'fun' and initialise with the address of 'printf'
+
+//	fn-expression (arg-expression, ...)
+//	
+//	makes a function call to the value of 'fn-expression' with the given 'arg-expression's as
+//	arguments.  'fn-expression' must yield a function or a pointer to a function.
+
+printf("hello, ");
+
+fun("world\n");
+
+//	type identifier(param-type, ...) statement ;
+//	
+//	declares a procedure or function called 'identifier' that returns 'type' and accepts
+//	arguments of the given 'param-type's.  When declaring a procedure 'type' will be "void".
+
+void doit() printf("hello again\n");
+
+doit();
+
+//	When declaring a function, the 'statement' will be a 'return' statement whose value
+//	corresponds to 'type'.
+
+int forty_two() return 42;
+
+printf("%i\n", forty_two());
+
+//	The usual arithmetic (~ + - * / % << >> & | ^), relational (< <= == != >= >) and logical
+//	operators (! && ||) are provided.  In the conditional expression
+//	
+//		condition-expression ? consequent-expression : alternative-expression
+//	
+//	the types of 'consequent-expression' and 'alternative-expression' must match and determine
+//	the type of the overall expression.
+
+int nfibs1(int n)
+  if n < 2
+  then return 1;
+  else return nfibs1(n - 1) + nfibs1(n - 2) + 1;
+
+printf("%i\n", nfibs1(5));
+
+int nfibs2(int n)
+  return
+    n < 2
+      ? 1
+      : nfibs2(n - 1) + nfibs2(n - 2) + 1;
+
+printf("%i\n", nfibs2(5));
+
+struct Point { int x, y; };
+
+struct Point p := struct Point ( 1, 2 );
+
+struct Point* pp := &p;
+
+printf("Point with x = %d and y = %d\n", &p.x, &p.y);
+
+void printPoint(struct Point* p)
+  printf("Point with x = %d and y = %d\n", p.x, p.y);
+
+printPoint(&p);
+
+import char*(int) malloc;
+import void(char *) free;
+
+void sieve1(int n) {
+  let char* flags := malloc(n + 1);
+  let int i := 0;
+  i := 2;  while i <= n do { *(flags + i) := 1;  i := i + 1; }
+  i := 2;  while i <= n do {
+    if *(flags + i) then {
+      printf("%4d", i);
+      let int j := i;
+      while j <= n do {
+        *(flags + j) := 0;
+        j := j + i;
+      }
+    }
+    i := i + 1;
+  }
+  printf("\n");
+  free(flags);
+}
+
+sieve1(50);
+
+// the same again with some syntactic sugar
+
+void sieve2(int n)
+begin
+  for i := 2 until n do flags[i] := true;
+  for i := 2 until n do
+    if flags[i] then begin
+      printf("%4d", i);
+      for j := i step i until n do flags[j] := false;
+    end
+  printf("\n");
+  free(flags);
+end
+  where char* flags := malloc(n + 1);
+
+sieve2(100);

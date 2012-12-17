@@ -1,0 +1,23 @@
+(require "dlopen.k")
+
+(define-constant GLFW_WINDOW		0x10001)
+(define-constant GLFW_OPENED		0x20001)
+
+(define-constant GLFW_KEY_SPECIAL	256)
+(define-constant GLFW_KEY_SPACE		32)
+(define-constant GLFW_KEY_ESC		(+ GLFW_KEY_SPECIAL 1))
+
+(define-function init-libglfw ()
+  (init-dlopen)
+  (let ((lib "libglfw"))
+    (define glfwInit		(dlextern lib "glfwInit"		""))
+    (define glfwOpenWindow	(dlextern lib "glfwOpenWindow"		"iiiiiiiii"))
+    (define glfwSetWindowTitle	(dlextern lib "glfwSetWindowTitle"	"s"))
+    (define glfwGetWindowSize	(dlextern lib "glfwGetWindowSize"	"pp"))
+    (define glfwGetMousePos	(dlextern lib "glfwGetMousePos"		"pp"))
+    (define glfwSwapBuffers	(dlextern lib "glfwSwapBuffers"		""))
+    (define glfwGetKey		(dlextern lib "glfwGetKey"		"i"))
+    (define glfwGetWindowParam	(dlextern lib "glfwGetWindowParam"	"i"))
+    (define glfwTerminate	(dlextern lib "glfwTerminate"		""))
+    (define glfwWaitEvents	(dlextern lib "glfwWaitEvents"		""))
+    (define glfwSleep		(dlextern lib "glfwSleep"		"d"))))

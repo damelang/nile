@@ -1,0 +1,7 @@
+(define-constant O_RDWR 2)
+(define-constant IFHWADDRLEN 6)
+(define-constant IFNAMSIZ 16)
+(define-constant IFF_TUN 1)
+(define-constant IFF_TAP 2)
+(define-constant IFF_NO_PI 4096)
+(define-constant TUNSETIFF 1074025674)

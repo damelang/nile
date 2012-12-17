@@ -1,0 +1,33 @@
+(define-function make-record-case-getter (depth)
+  (if (< 0 depth)
+      (list 'cdr (make-record-case-getter (- depth 1)))
+    '_exp_))
+
+(define-function make-record-case-inits (vars depth)
+  (cond
+    ((pair? vars)
+     (cons (list (car vars) (list 'car (make-record-case-getter depth)))
+	   (make-record-case-inits (cdr vars) (+ depth 1))))
+    ((symbol? vars)
+     (list (list vars (make-record-case-getter depth))))))
+
+(define-function make-record-cases (cases)
+  (if (pair? cases)
+      (let* ((case (car  cases))
+	     (tag  (car  case))
+	     (vars (cadr case))
+	     (body (cddr case)))
+	(if (= 'else tag)
+	    (cdr case)
+	  `((if (= _tag_ ,(list 'quote tag))
+		(let ,(make-record-case-inits vars 1) ,@body)
+	      ,@(make-record-cases (cdr cases))))))))
+
+(define-form record-case (exp . cases)
+  `(let* ((_exp_ ,exp)
+	  (_tag_ (car _exp_)))
+     ,@(make-record-cases cases)))
+
+(define-form get-record (exp vars . body)
+  `(let ((_exp_ ,exp))
+     (let ,(make-record-case-inits vars 0) ,@body)))

@@ -1,0 +1,3 @@
+header	linux/tcp.h
+
+integer	TCP_FLAG_FIN TCP_FLAG_SYN TCP_FLAG_RST TCP_FLAG_PSH TCP_FLAG_ACK
