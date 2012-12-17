@@ -1,40 +1,63 @@
-- finish type resolution
-- still need to clean up gezira source code:
-    - bezier.nl is a bit of a mess
-    - clean up compositor.nl
-    - rewrite filter.nl
-- add the infinity symbol to the nile grammar
-- add epsilon to nile grammar, to be used a a variable name (and other letters like it? alpha, etc.)
-- have a verification pass on the AST to:
-    - restrict stmts to vardefs in operator definitions
-    - enforce single assignmen
-    - the "if" stmt is only allowed to appear as the last statement in a list of statements
-    - ???
-- several places should use symbols instead of strings
-- make ast nodes simply lists with a symbol at the head?
-  Then use pattern matching instead of method lookup?
+- change sortby index to @x like before and solve all the below
+- check that sortby index is literal
+- check that sortby index is integer
+- check that sortby index is in range
 
-- maru-related
-    - we can speed up parsing significantly with memoization
+- fix typeref and typevar. Really should have separate ast nodes. ?
+
+- make sure ops and typedef don't have abstract types.
+
+; TODO in other pass, check that there are no prime vars defined in
+;   tblock or fblock of ifstmt
+; TODO check that type/op/processdefs aren't redefined?
+;   And the same thing with variables (no shadowing, and must be single assignment)?
+; TODO
+;   No prime vars in opdefs?
+; TODO what other "checking" would help?
+
+- rename "nile-primtype to nile-scalartype" ?
+
+- should postfix require symbol?
+  Then we can do c = a\sin(b)
+
+- should we introduce "unless a < c ..."
+
+- revisit operator lookup
+    - direct match
+    - if one arg is a non-scalar typedef, try coercion (making scalars and tuples into records)
+    - if all args are tuples of same size, and elements have the same type (w/in a tuple),
+        try applying the operator to the element, create opdef on the fly (or a special opexpr)
+        (making tuples into other types)
+
+- think about input suffixing
+
+    MakePolygon () : Point >> Bezier
+        p:Point = 0
+        i = 1
+        ∀ p', i
+            i' = i + 1
+            if i = 1
+                <<<< p'
+            else
+                >> (p, p ~ p', p')
+
+- let vars (wrongly) at end of nested if/else block can be interpreted (wrongly)
+    as beloging to an else statement further below. because {block i} allows
+    for let vars further out -- at the level of a previestly indented, hiher indendented
+    lines. (me, later: what?)
+
+- no need for argument names for built in operator declarations? Like this?
+    (Number = Number) : Number
+- optional implicit return type for operators?
+
+- implement nile runtime in maru
+
+- discuss about maru:
+    - see notes in code
+    - selector namespace clashing (e.g., _name)
+    - how to retrieve line numbers/character ranges for ast nodes
     - adding a profiler would help to address performance issues in an informed way
-    - rename concat-symbol to symbol-concat (and others like it)
+    - rename concat-symbol to symbol-concat (and others like it) to be consistent
+      with list-... and array-... ?
       There may be more function/method names that are inconsistent
-    - for map, inject, etc. what about making the function the last arg?
-      right now the other args, coming after, are lost visually.
-    - get left recursion to work?
-    - make it easier to go from file to string
-        (file->string "file")
-        or (file->string (open "file"))
-        or (string-from-file...
-        or (file-read-contents "file")
-    - make it easier to instantiate parser, run it, and get result?
-      (see my "invoke-parser" function)
-      Random ideas:
-
-        parser := NileParser new.
-        result := parser parse: stream. " 'start' rule implied "
-        result := parser parse: stream start: #start.
-        result := parser parse: (FileStream on: 'filename').
-        result := parser parse: (FileStream on: 'filename') start: #start.
-
-        (let ((result ($start (new <nile-parser> stream)))))
+    - template engine for code generation?
