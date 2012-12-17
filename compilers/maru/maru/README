@@ -1,9 +1,0 @@
-This is a snapshot of Ian Piumarta's metacircular evaluator, maru.
-See .hg_archival.txt for version information.
-
-The code is a work-in-progress and intended only to support work on Nile.
-Making a clone of this snapshot is neither advised nor advisable. Anyone
-tempted to do so would be better off cloning from one of the below locations:
-
-http://piumarta.com/software/maru/
-http://code.google.com/p/maru/
