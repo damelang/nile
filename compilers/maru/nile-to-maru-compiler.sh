@@ -1,7 +1,13 @@
 #!/bin/sh
 
+DIR="$( cd "$( dirname "$0" )" && pwd )"
+
 set -x
-#make -C maru eval tpeg.l
-#maru/eval -b maru/boot.l -L maru/ nile-compiler.l maru $@
-make -C maru eval gceval tpeg.l
-maru/gceval -g -b maru/boot.l -L maru/ nile-compiler.l maru $@
+
+#make -C $DIR/maru eval tpeg.l
+#$DIR/maru/eval -b $DIR/maru/boot.l -L $DIR/maru/ $DIR/nile-compiler.l \
+#  maru $DIR/../prelude.nl $@
+
+make -C $DIR/maru eval gceval tpeg.l
+$DIR/maru/gceval -b $DIR/maru/boot.l -L $DIR/maru/ $DIR/nile-compiler.l \
+  $DIR maru $@

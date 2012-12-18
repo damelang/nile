@@ -1,4 +1,4 @@
-(load "nile-resolve-env.l")
+(nile-load "nile-resolve-env.l")
 
 (define-method resolve <nile-typeref> (env)
   (let ((typedef (_get env <nile-typedef> self.name)))

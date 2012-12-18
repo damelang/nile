@@ -46,25 +46,30 @@
   (print-structure param-type 2)
   (println) (exit))
 
+
+(define nile-current-dir (++ (next-argument) "/"))
 (define nile-target-lang (next-argument))
 (define nile-module-name (next-argument))
 (define nile-program-string
   (foldr ++ "" (map contents-of-file-named
-    (cons "../prelude.nl" *arguments*))))
+    (cons (++ nile-current-dir "../prelude.nl") *arguments*))))
 
 (if (not nile-module-name)
   (nile-fatal-error "Must specify module name as first argument!"))
 
-(load "nile-ast-nodes.l")
-(load "nile-resolve.l")
-(load "nile-type-check.l")
+(define-function nile-load (file-name)
+  (load (++ nile-current-dir file-name)))
+
+(nile-load "nile-ast-nodes.l")
+(nile-load "nile-resolve.l")
+(nile-load "nile-type-check.l")
 
 (println "Parsing and compiling Nile grammar...")
-(map eval (parse-and-compile-grammar "nile-grammar.g"))
+(map eval (parse-and-compile-grammar (++ nile-current-dir "nile-grammar.g")))
 (peg-enable-recursion)
 
-(cond ((= nile-target-lang "c")    (load "nile-gen-code-c.l"))
-      ((= nile-target-lang "maru") (load "nile-gen-code-maru.l"))
+(cond ((= nile-target-lang "c")    (nile-load "nile-gen-code-c.l"))
+      ((= nile-target-lang "maru") (nile-load "nile-gen-code-maru.l"))
       (else
         (nile-fatal-error "Unknown compilation target")))
 

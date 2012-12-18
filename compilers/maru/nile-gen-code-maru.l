@@ -1,5 +1,5 @@
-(load "nile-gen-code-env.l")
-(load "nile-builtins-maru.l")
+(nile-load "nile-gen-code-env.l")
+(nile-load "nile-builtins-maru.l")
 
 (define nile-set-cvars-from-primed)
 
@@ -173,4 +173,4 @@
     (map-with gen-code ast env)
     (contents-to-file-named (port-contents (out-port env)) source-file-name)))
 
-(load "nile-gen-code.l")
+(nile-load "nile-gen-code.l")
