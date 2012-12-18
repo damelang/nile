@@ -1,4 +1,97 @@
-- the _pipe functions could be simplified
+- make nile_Process_pipe take 2 args. nile_Process_pipeline
+    - the _pipe functions could be simplified
+
+- make the liaison index -1 or 0, so its index can be a macro
+
+- maybe get rid of blocking on consumer?
+
+- redo the process sequencing. Use pointer to int within a process structure.
+
+- use "order" instead of "gate"? serialize, sequence?
+  Make "gate" be the actual identity process used as a gate?
+
+  nile_Process_t *gate = nile_Gate (p);
+
+    and move Identity to PROCESS_API
+
+    make gezira_image type, put gate in it.
+        (see function bert added)
+    
+    add nile_Gate_wait (gate) to replace nile_sync, using
+        nile_Gate_wait (NULL)
+
+- introduce new in/out buffer approach
+
+    - get rid of TAG_OOM and tags in general
+    - get rid of enqueue_output
+
+  - unify nile_Process_body_t and logue_t
+
+  - create in buffer for prologue. Set up head, etc. like prefix_input.
+    pop_input to remove possible empty in buffer
+
+  - create an out buffer field in the process struct?
+    this could simplify the quota_hit situation a bit.
+
+- rerun with QUOTA_HIT tag fixed
+
+  - setting the QUOTA_HIT flag on an empty buffer means
+    the producer won't get unblocked at the normal time,
+    because the input->n will not equal INPUT_QUOTA.
+
+- I don't like seeing a long pipeline of processes with
+  input.n = 4 and blocked on producer. This means that
+  an upstream process will run, but only for one output
+  buffer, then run the next down for only on output buffer,
+  etc.
+
+  Might this be caused by the QUOTA_HIT flag getting set too
+  early (see above)?
+
+  Run a test that checks how often process is run with consumer input = 4.
+
+  To solve this, have _schedule still schedule even if
+  below input quota? Probably not.
+
+  For a process to run for a good while, it needs both
+  input and room downstream.
+
+  when starting a round (_run()), don't set the QUOTA_HIT flag
+  unless we're over quota (but this prevents the downstream from
+  running for a while...)
+
+
+
+
+- the compiler is generating NULL for passthroughs!
+  dupzip must be aware!
+
+- new zip approach (see new-zip.patch)
+
+- when setting process state to BLOCKED_ON_PRODUCER,
+  this can trigger the process to be scheduled immediately
+  (and thus could run immediately, and finish)
+  which means the rest of the critical section could be run
+  on a process that is already released. Do we just need to
+  run an empty critical section on a process when it is run?
+  Is this true for BLOCK_ON_CONSUMER?
+
+- if you've filled a gated processes input, instead of blocking
+  on consumer, put yourself on the head of the liaison q.
+  This means that pipelines in progress get priority over
+  new pipelines. We need to allow the producer to
+  go past input max in this situation, but stop every so often
+  to look to help out.
+
+  So, hit quota on (n % INPUT_MAX == 0) (so it's periodic),
+  and push_head on liaison q if consumer is gated.
+
+  We still need a mechanism to prevent threads from getting
+  too far ahead (filling up the input queues too much, and
+  running out of memory). Perhaps an absolute INPUT_MAX?
+  Perhaps a more general INPUT_QUOTA_PERIOD?
+
+- make sync more lightweight (try to avoid using OS semaphores)
 
 - why is snow-demo 10% faster when rendering 500/505 flakes or changing
     _work_until_below to trigger when q.n > 28 (as opposed to 27)?
@@ -8,6 +101,9 @@
 
 - change nile_Real_t to typedef to float (for vectorizing)
     - and fix the places I cast to float
+
+- put in checks to make sure that the init process is being properly used.
+  also, checks for Funnel.
 
 - optimizations
     - in SortBy, perform the shifting in a single pass rather than
@@ -120,4 +216,4 @@
 - we can calculate approx. how many blocks we'll need (discounting
   hoarders like SortBy) using this formula:
 
-      nprocesses + 2 * inputquota * nprocesses + 2 * chunksize * nthreads
+      nprocesses + inputmax * nprocesses + 2 * chunksize * nthreads
