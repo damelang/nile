@@ -38,12 +38,6 @@
 (define compile-tpeg-definitions-only 1)
 (require "compile-tpeg.l")
 
-(define nile-target-lang (next-argument))
-(define nile-module-name (next-argument))
-(define nile-program-string
-  (foldr ++ "" (map contents-of-file-named
-    (cons "../prelude.nl" *arguments*))))
-
 (define-form nile-fatal-error message
   `(and (println ,@message) (exit)))
 
@@ -51,6 +45,15 @@
   (println "Couldn't find operation with name: "name" fixity: "fixity" parameter type(s): ")
   (print-structure param-type 2)
   (println) (exit))
+
+(define nile-target-lang (next-argument))
+(define nile-module-name (next-argument))
+(define nile-program-string
+  (foldr ++ "" (map contents-of-file-named
+    (cons "../prelude.nl" *arguments*))))
+
+(if (not nile-module-name)
+  (nile-fatal-error "Must specify module name as first argument!"))
 
 (load "nile-ast-nodes.l")
 (load "nile-resolve.l")
