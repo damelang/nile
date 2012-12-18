@@ -68,7 +68,8 @@ expr    = opexpr1 ;
 # Variable juxtaposition
 juxtavar  = juxtavarname:n                   -> (nile-varexpr n) ;
 juxtavars = juxtavars:a    NULL:n juxtavar:b -> (nile-opexpr n 'in `(,a ,b))
-          | juxtavar:a     NULL:n juxtavar:b -> (nile-opexpr n 'in `(,a ,b)) ;
+          | juxtavar:a     NULL:n juxtavar:b -> (nile-opexpr n 'in `(,a ,b))
+          |                                  -> '() ;
 
 # Variable declarations, definitions, and patterns
 vardecl  = varname:n COLON stype:t                       -> (nile-vardecl n  t)
