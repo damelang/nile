@@ -23,8 +23,6 @@
 #endif
 #define CACHE_ALIGNED ALIGNED (CACHE_LINE_SIZE)
 
-#ifndef NILE_DISABLE_THREADS
-
 /* CPU pause and cache prefetch */
 
 #if defined (__i386__) || defined (__x86_64__) || \
@@ -35,6 +33,8 @@
 #else
 #error Unsupported architecture!
 #endif
+
+#ifndef NILE_DISABLE_THREADS
 
 /* Spin locks */
 
@@ -154,7 +154,6 @@ nile_OSThread_join (nile_OSThread_t *t)
 
 #else
 
-#define nile_pause()
 typedef int nile_Lock_t;
 #define nile_Lock_acq(l)
 #define nile_Lock_rel(l)
