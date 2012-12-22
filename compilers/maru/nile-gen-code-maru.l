@@ -63,11 +63,8 @@
         (out env "(set (indir out j) "val")\n") ; TODO what if val is int (bool)?
         (out env "(set j (+ j 1))\n")))))
 
-(define-method gen-code <nile-block> (env)
-  (list-do stmt self.stmts (gen-code stmt env)))
-
 (define-method gen-code <nile-processbody> (env)
-  (out env "(while (= return-code 0)\n")
+  (out env "(while (= status 0)\n")
   (push-indent env)
     (out env "(while (< i m)\n")
     (push-indent env)
@@ -80,7 +77,7 @@
       (nile-set-cvars-from-primed env)
     (pop-indent env)
     (out env ")\n")
-    (out env "(set return-code (nile_Process_advance_input p (addressof in) (addressof i) (addressof m)))\n")
+    (out env "(set status (nile_Process_advance_input p (addressof in) (addressof i) (addressof m)))\n")
   (pop-indent env)
   (out env ")\n"))
 
@@ -142,8 +139,8 @@
     (push-indent env)
       (out env "(let (\n")
         (push-indent env) (push-indent env)
+          (out env "((status int) 0)\n")
           (out env "((vars struct "cname"_vars *) (nile_Process_memory p))\n")
-          (out env "((return-code int) 0)\n")
           (list-do (name . type) all-cvars
             (out env "(("name" "type"))\n"))
         (pop-indent env) (pop-indent env)
@@ -157,7 +154,7 @@
         (list-do (vardecl . cvars) (list-reverse (bindings _env))
           (list-do (cvar val) (zip (flatten cvars) (flatten (lookup env (name vardecl))))
             (out env "(set (. vars "cvar") "val")\n")))
-        (out env "(return (nile_Process_return p i j return-code))))\n\n")
+        (out env "(return (nile_Process_return p i j status))))\n\n")
       (pop-indent env)
     (pop-indent env)))
 

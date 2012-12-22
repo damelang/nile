@@ -88,6 +88,9 @@
       (nile-gen-code-for-processinst full-name arg-vals_ result-var env)
       result-var))
 
+(define-method gen-code <nile-block> (env)
+  (list-do stmt self.stmts (gen-code stmt env)))
+
 (define-method gen-code <nile-typedef> (env))
 (define-method gen-code <nile-opdef>   (env))
 
@@ -97,9 +100,12 @@
            (env    (clone _env (out-port _env)))
            (cname  (++ (++ (module-name env) "_") (name self))))
       (gen-code-for-vars-struct self cname env)
-      (out env (nile-gen-work-function-decl (++ cname "_prologue")))
-      (out env (nile-gen-work-function-decl (++ cname "_body")))
-      (out env (nile-gen-work-function-decl (++ cname "_epilogue")))
+      (if (not (empty? self.prologue))
+        (out env (nile-gen-work-function-decl (++ cname "_prologue"))))
+      (if self.body
+        (out env (nile-gen-work-function-decl (++ cname "_body"))))
+      (if (not (empty? self.epilogue))
+        (out env (nile-gen-work-function-decl (++ cname "_epilogue"))))
       (map-with gen-code (params self.sig) env)
       (gen-code-for-constructor self cname env)
       (map-with gen-code (vardecls self.prologue) env)

@@ -32,6 +32,15 @@
       (cons (car l) (filter predicate (cdr l)))
       (filter predicate (cdr l)))))
 
+(define-method to-upper-case <string> ()
+  (let ((uppered (array)))
+    (string-do char self
+      (array-append uppered
+        (if (and (<= ?a char) (<= char ?z))
+            (- char 32)
+            char)))
+     (array->string uppered)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (require "print-structure.l")
