@@ -1,3 +1,5 @@
+# !INCLUDE this stuff from a ../../mscv-defaults.mk
+# TODO changed /TP to /TC
 CFLAGS = /nologo /TP /EHsc /GR- \
          /W3 /wd4244 /wd4141 \
          /fp:fast /arch:SSE2 /O2 /Oi
