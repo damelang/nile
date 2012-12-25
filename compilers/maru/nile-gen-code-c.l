@@ -25,6 +25,9 @@
 (define-method alloc-cvars <nile-processtype> (env)
   (list (alloc-cvar env "nile_Process_t *")))
 
+(define-method gen-code <nile-numexpr> (env)
+  (list (string->double self.number)))
+
 (define-method gen-code <nile-pipeline> (env)
   (let ((process-var (gen-code self.process env)))
     (if self.downstream

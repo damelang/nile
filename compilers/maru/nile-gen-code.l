@@ -8,9 +8,6 @@
 (define-method alloc-cvars <nile-recordtype> (env) (map-with alloc-cvars (map type self.fields) env))
 (define-method alloc-cvars <nile-typedef>    (env) (alloc-cvars self.type env))
 
-(define-method gen-code <nile-numexpr> (env)
-  (list (string->double self.number)))
-
 (define-method gen-code <nile-varexpr> (env)
   (lookup env (name self.var)))
 
