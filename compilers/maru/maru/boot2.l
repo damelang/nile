@@ -665,7 +665,7 @@
   ;;(println "; backtrace disabled")
   )
 
-(define-function printf (fmt arg) (print (format fmt arg)))
+;;(define-function printf (fmt arg) (print (format fmt arg)))
 
 ;;; multimethod
 
@@ -725,6 +725,17 @@
   `(let* ((_list_ ,list) (_head_ (car _list_)))
      (set ,list (cdr _list_))
      _head_))
+
+(define-form delete (list element)
+  `(let ((_elt ,element))
+     (if (= _elt (car ,list))
+	 (set ,list (cdr ,list))
+       (let ((_list ,list))
+	 (while (cdr _list)
+	   (if (!= _elt (cadr _list))
+	       (set _list (cdr _list))
+	     (set (cdr _list) (cddr _list))
+	     (set _list ())))))))
 
 (define-function member? (key list)
   (while (and (pair? list) (!= key (car list)))
@@ -1025,12 +1036,12 @@
 
 ;;; command line
 
-(define *load-path*)
+(define *load-paths*)
 
-(and (= "-L" (car *arguments*))
-     (let ()
-       (pop *arguments*)
-       (set *load-path* (pop *arguments*))))
+(while (= "-L" (car *arguments*))
+  (let ()
+    (pop *arguments*)
+    (push *load-paths* (pop *arguments*))))
 
 (define-form next-argument () '(pop *arguments*))
 
@@ -1042,9 +1053,14 @@
     (and (> (verbose) 1) (println "=> "result))
     result))
 
+(define-function find-and-read-in (name paths)
+  (if paths
+      (or (read (concat-string (car paths) name))
+	  (find-and-read-in name (cdr paths)))
+    (read name)))
+
 (define-function find-and-read (name)
-  (or (and *load-path* (read (concat-string *load-path* name)))
-      (read name)))
+  (find-and-read-in name *load-paths*))
 
 (define-function load (name)
   (let ((exps (find-and-read name)))
@@ -1090,4 +1106,3 @@
 (define-method nth <pair> (n)
   (while (< 0 (decr n)) (set self (cdr self)))
   (car self))
-

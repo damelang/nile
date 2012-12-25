@@ -1,7 +1,7 @@
 (require "ir2.k")
 (require "port.l")	(define-function long->string (x) (format "%d" x))
 
-(define *info-level* 99)
+(define *info-level* 0)
 
 (define *optimise-literals*	())
 (define *optimise-globals*	())
@@ -188,7 +188,7 @@
 ;
 
 (define-method ir-gen-x86-allocate <ir-insn> (gen)
-  (reverse-map-with ir-gen-x86-allocate self.operands gen)
+  (list-do opd self.operands (ir-gen-x86-allocate   opd gen))
   (list-do opd self.operands (ir-gen-x86-deallocate opd gen))
   (set self.location (ir-gen-x86-allocate gen self.type)))
 
@@ -262,14 +262,16 @@
 ;
 
 (define-method ir-gen-x86-allocate <ir-let> (gen)
-  (set self.location (ir-gen-x86-allocate gen self.type))
+  (or (= IR-VOID self.type)
+      (set self.location (ir-gen-x86-allocate gen self.type)))
   (let ((vars self.parameters))
     (list-do bind vars (ir-gen-x86-allocate (cdr bind) gen))
     (list-do expr self.operands
       (ir-gen-x86-allocate expr gen)
       (or (ir-return? expr)
 	  (ir-gen-x86-deallocate expr gen)))
-    (reverse-map (lambda (bind) (ir-gen-x86-deallocate (cdr bind) gen)) vars))
+    (list-do bind vars (ir-gen-x86-deallocate (cdr bind) gen)))
+  ;;(reverse-map (lambda (bind) (ir-gen-x86-deallocate (cdr bind) gen)) vars))
   self.location)
 
 (define-method ir-gen-x86 <ir-let> (gen)
@@ -281,7 +283,8 @@
 (define-method ir-gen-x86-allocate <ir-while> (gen)
   (ir-gen-x86-allocate   (car   self.operands) gen)  (ir-gen-x86-deallocate (car   self.operands) gen)
   (ir-gen-x86-allocate   (cadr  self.operands) gen)  (ir-gen-x86-deallocate (cadr  self.operands) gen)
-  (set self.location (ir-gen-x86-allocate gen self.type)))
+  (or (= IR-VOID self.type)
+      (set self.location (ir-gen-x86-allocate gen self.type))))
 
 (define-method ir-gen-x86 <ir-while> (gen)
   (let ((test (car  self.operands))
@@ -302,7 +305,8 @@
   (ir-gen-x86-allocate   (car   self.operands) gen)  (ir-gen-x86-deallocate (car   self.operands) gen)
   (ir-gen-x86-allocate   (cadr  self.operands) gen)  (ir-gen-x86-deallocate (cadr  self.operands) gen)
   (ir-gen-x86-allocate   (caddr self.operands) gen)  (ir-gen-x86-deallocate (caddr self.operands) gen)
-  (set self.location (ir-gen-x86-allocate gen self.type)))
+  (or (= IR-VOID self.type)
+      (set self.location (ir-gen-x86-allocate gen self.type))))
 
 (define-method ir-gen-x86 <ir-if> (gen)
   (let ((test (car   self.operands))
@@ -327,12 +331,11 @@
 
 (define-function ir-gen-x86-allocate-logical (self gen)
   (with-instance-accessors <ir-insn>
-    (let ((exps self.operands))
-      (while exps
-	(set self.location (ir-gen-x86-allocate (car exps) gen))
-	(and (cdr exps) (ir-gen-x86-deallocate (car exps) gen))
-	(set exps (cdr exps))))
-    self.location))
+    (list-do exp self.operands
+      (ir-gen-x86-allocate   exp gen)
+      (ir-gen-x86-deallocate exp gen))
+    (or (= IR-VOID self.type)
+	(set self.location (ir-gen-x86-allocate gen self.type)))))
 
 (define-method ir-gen-x86-allocate <ir-logand> (gen)	(ir-gen-x86-allocate-logical self gen))
 (define-method ir-gen-x86-allocate <ir-logor>  (gen)	(ir-gen-x86-allocate-logical self gen))
@@ -493,7 +496,8 @@
     (incr self.offset advance)))
 
 (define-method ir-gen-x86-allocate <ir-call> (gen)
-  (set self.location (ir-gen-x86-allocate gen self.type))
+  (or (= IR-VOID self.type)
+      (set self.location (ir-gen-x86-allocate gen self.type)))
   (list-do arg self.operands (ir-gen-x86-allocate arg gen))
   (let* ((offset 0)
 	 (fun-type  self.signature)
@@ -703,15 +707,15 @@
     ((= self.type IR-INT64)	(emitln gen "	negl	%eax")
 				(emitln gen "	adcl	$0, %edx")
 				(emitln gen "	negl	%edx"))
-    ((= self.type IR-FLOAT32)	(let ((label ir-gen-x86-temp-label gen))
-				  (ir-gen-x86-section 'data)
+    ((= self.type IR-FLOAT32)	(let ((label (ir-gen-x86-temp-label gen)))
+				  (ir-gen-x86-section gen 'data)
 				  (emitln gen label":	.long	-2147483648,0,0,0")
-				  (ir-gen-x86-section 'text)
+				  (ir-gen-x86-section gen 'text)
 				  (emitln gen "	xorps	"label", %xmm0")))
-    ((= self.type IR-FLOAT64)	(let ((label ir-gen-x86-temp-label gen))
-				  (ir-gen-x86-section 'data)
+    ((= self.type IR-FLOAT64)	(let ((label (ir-gen-x86-temp-label gen)))
+				  (ir-gen-x86-section gen 'data)
 				  (emitln gen label":	.long	0,-2147483648,0,0")
-				  (ir-gen-x86-section 'text)
+				  (ir-gen-x86-section gen 'text)
 				  (emitln gen "	xorpd	"label", %xmm0")))
     (else			(ir-gen-x86-unary self "neg" gen))))
 
@@ -852,7 +856,7 @@
 (define-method ir-gen-x86 <ir-bitor>  (gen)	(ir-gen-x86-binary self "or"  "or"  "or"  gen))
 (define-method ir-gen-x86 <ir-bitxor> (gen)	(ir-gen-x86-binary self "xor" "xor" "xor" gen))
 
-(define-function ir-gen-x86-inequality (self op gen)
+(define-function ir-gen-x86-inequality (self iop fop gen)
   (with-instance-accessors <ir-insn>
     (let* ((lhs (car  self.operands) gen)  (type (<ir-insn>-type lhs))
 	   (rhs (cadr self.operands) gen))
@@ -862,30 +866,30 @@
       (and (ir-pointer-type? type) (set type IR-LONG))
       (cond
 	((= type IR-INT8)	(emitln gen "	cmpb	"(<ir-insn>-location rhs)", %al")
-				(emitln gen "	set"op"	%al")
+				(emitln gen "	set"iop"	%al")
 				(emitln gen "	movzbl	%al, %eax"))
 	((= type IR-INT16)	(emitln gen "	cmpw	"(<ir-insn>-location rhs)", %ax")
-				(emitln gen "	set"op"	%al")
+				(emitln gen "	set"iop"	%al")
 				(emitln gen "	movzbl	%al, %eax"))
 	((= type IR-INT32)	(emitln gen "	cmpl	"(<ir-insn>-location rhs)", %eax")
-				(emitln gen "	set"op"	%al")
+				(emitln gen "	set"iop"	%al")
 				(emitln gen "	movzbl	%al, %eax"))
 	((= type IR-INT64)	(emitln gen "	leal	"(<ir-insn>-location rhs)", %ecx")
 				(emitln gen "	call	___cmpi64"op))
 	((= type IR-FLOAT32)	(emitln gen "	ucomiss	"(<ir-insn>-location rhs)", %xmm0")
-				(emitln gen "	set"op"	%al")
+				(emitln gen "	set"fop"	%al")
 				(emitln gen "	movzbl	%al, %eax"))
-	((= type IR-FLOAT32)	(emitln gen "	ucomisd	"(<ir-insn>-location rhs)", %xmm0")
-				(emitln gen "	set"op"	%al")
+	((= type IR-FLOAT64)	(emitln gen "	ucomisd	"(<ir-insn>-location rhs)", %xmm0")
+				(emitln gen "	set"fop"	%al")
 				(emitln gen "	movzbl	%al, %eax"))
 	(else			(error "cannot generate inequality on type: "type))))))
 
-(define-method ir-gen-x86 <ir-eq> (gen) (ir-gen-x86-inequality self "e"  gen))
-(define-method ir-gen-x86 <ir-ne> (gen) (ir-gen-x86-inequality self "ne" gen))
-(define-method ir-gen-x86 <ir-lt> (gen)	(ir-gen-x86-inequality self "l"  gen))
-(define-method ir-gen-x86 <ir-le> (gen) (ir-gen-x86-inequality self "le" gen))
-(define-method ir-gen-x86 <ir-ge> (gen) (ir-gen-x86-inequality self "ge" gen))
-(define-method ir-gen-x86 <ir-gt> (gen) (ir-gen-x86-inequality self "g"  gen))
+(define-method ir-gen-x86 <ir-eq> (gen) (ir-gen-x86-inequality self "e"  "e"  gen))
+(define-method ir-gen-x86 <ir-ne> (gen) (ir-gen-x86-inequality self "ne" "ne" gen))
+(define-method ir-gen-x86 <ir-lt> (gen)	(ir-gen-x86-inequality self "l"  "b"  gen))
+(define-method ir-gen-x86 <ir-le> (gen) (ir-gen-x86-inequality self "le" "be" gen))
+(define-method ir-gen-x86 <ir-ge> (gen) (ir-gen-x86-inequality self "ge" "ae" gen))
+(define-method ir-gen-x86 <ir-gt> (gen) (ir-gen-x86-inequality self "g"  "a"  gen))
 
 ;
 

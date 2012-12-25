@@ -67,6 +67,7 @@
   (test-bytes)
   (test-words)
   (test-ints)
+  (test-floats)
   (test-structs)
   (test-pointers)
   (test-forms)
@@ -192,6 +193,11 @@
     (assert (= 7 (| b1 b7)))    (assert (= 7 (| b2 b7)))    (assert (= 15 (| b8 b7)))
     (assert (= 6 (^ b1 b7)))    (assert (= 5 (^ b2 b7)))    (assert (= 15 (^ b8 b7)))
     )
+  (let (((b1 int8) -1)  ((b2 int8) 2)  ((b7 int8) 7))
+    (assert (= b1 -1))	(assert (= 2 b2))	(assert (= b7 7))	(assert (!= b1 1))
+    (assert (< b1 2))	(assert (<= b2 2))	(assert (< 2 b7))
+    (assert (> 2 b1))	(assert (>= 2 b2))	(assert (> b7 2))
+    )
   (printf "bytes ok\n")
   )
 
@@ -224,6 +230,11 @@
     (assert (= 0x707 (| w1 w7)))    (assert (= 0x707 (| w2 w7)))    (assert (= 0xf0f (| w8 w7)))
     (assert (= 0x606 (^ w1 w7)))    (assert (= 0x505 (^ w2 w7)))    (assert (= 0xf0f (^ w8 w7)))
     )
+  (let (((w1 int16) -1)  ((w2 int16) 2)  ((w7 int16) 7))
+    (assert (= w1 -1))	(assert (= 2 w2))	(assert (= w7 7))	(assert (!= w1 1))
+    (assert (< w1 2))	(assert (<= w2 2))	(assert (< 2 w7))
+    (assert (> 2 w1))	(assert (>= 2 w2))	(assert (> w7 2))
+    )
   (printf "words ok\n")
   )
 
@@ -255,6 +266,11 @@
     (assert (= 0x70707 (| l1 l7)))    (assert (= 0x70707 (| l2 l7)))    (assert (= 0xf0f0f (| l8 l7)))
     (assert (= 0x60606 (^ l1 l7)))    (assert (= 0x50505 (^ l2 l7)))    (assert (= 0xf0f0f (^ l8 l7)))
     )
+  (let (((i1 int32) -1)  ((i2 int32) 2)  ((i7 int32) 7))
+    (assert (= i1 -1))	(assert (= 2 i2))	(assert (= i7 7))	(assert (!= i1 1))
+    (assert (< i1 2))	(assert (<= i2 2))	(assert (< 2 i7))
+    (assert (> 2 i1))	(assert (>= 2 i2))	(assert (> i7 2))
+    )
   ;; Variables are typed implicitly from their initialiser.  Integers have type INT by default.
   (let ((x 0x12345678))
     ;; Casts can be used to truncate a value.
@@ -273,6 +289,15 @@
 		     (- (* 7 8) (/ 100 2)))
 		  (>> 96 (<< 1 2)))))
   (printf "ints ok\n")
+  )
+
+(define-function test-floats void ()
+  (let (((f1 float32) -1.0)  ((f2 float32) 2.0)  ((f7 float32) 7.0))
+    (assert (=  f1 -1.0))	(assert (=  2.0 f2 ))	(assert (=  f7  7.0))	(assert (!= f1  1.0))
+    (assert (<  f1  2.0))	(assert (<= f2  2.0))	(assert (<  2.0 f7 ))
+    (assert (>  2.0 f1 ))	(assert (>= 2.0 f2 ))	(assert (>  f7  2.0))
+    )
+  (printf "floats ok\n")
   )
 
 ;; Structure types can be defined anywhere a statement or global declaration is legal.  (Their scope

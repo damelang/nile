@@ -167,11 +167,13 @@
   (print "))"))
 
 (define-function ir-gen-c-unary (insn op gen)
-  (print "((")
-  (print-c-declaration (car self.type) ())
-  (print ")(")
-  (ir-gen-c (car (<ir-insn>-operands insn)) gen)
-  (print ")"))
+  (let* ((type (<ir-insn>-type insn))
+	 (opd  (car (<ir-insn>-operands insn))))
+    (print "("op"((")
+    (print-c-declaration type ())    ;;(print-c-declaration (car self.type) ())
+    (print ")(")
+    (ir-gen-c opd gen)
+    (print ")))")))
 
 (define-method ir-gen-c <ir-neg>    (gen)	(ir-gen-c-unary self '- (car self.operands)))
 (define-method ir-gen-c <ir-com>    (gen)	(ir-gen-c-unary self '~ (car self.operands)))

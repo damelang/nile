@@ -237,13 +237,21 @@
 
 (define-function ir-error-handler-new () (new <ir-error-handler>))
 
-(define-method ir-warning <ir-error-handler> (message source)	(println "warning: "message": "source))
-(define-method ir-error <ir-error-handler> (message source)	(error message": "source))
-
 (define ir-error-source) ;; forward
 
-(define-function ir-error-no-value    (ir insn)		(ir-error   (<ir>-error-handler ir) "statement has no value"   (ir-error-source insn)))
-(define-function ir-warning-no-effect (ir insn)		(ir-warning (<ir>-error-handler ir) "expression has no effect" (ir-error-source insn)))
+(define-method ir-warning <ir-error-handler> (message insn)
+  (let ((source (ir-error-source insn)))
+    (and source (print (car source)":"(cdr source)" "))
+    (println "warning: "message": "insn)))
+
+(define-method ir-error <ir-error-handler> (message insn)
+  (let ((source (ir-error-source insn)))
+    (and source (print (car source)":"(cdr source)" "))
+    (error message": "insn)))
+
+(define-function ir-error-no-value      (ir insn)	(ir-error   (<ir>-error-handler ir) "statement has no value"   insn))
+(define-function ir-warning-no-effect   (ir insn)	(ir-warning (<ir>-error-handler ir) "expression has no effect" insn))
+(define-function ir-error-type-mismatch (ir insn)	(ir-error   (<ir>-error-handler ir) "type mismatch"            insn))
 
 ;;; instructions
 
@@ -538,7 +546,7 @@
 							  (or vartype
 							      (set vartype (set (<ir-variable>-type init) valtype)))
 							  (or (ir-can-assign vartype valtype (car self.operands))
-							      (error "assigning value of type: "type" to variable of type: "self.type))
+							      (ir-error-type-mismatch ir self))
 							  (set self.type (<ir-insn>-type init))))
 
 ;
@@ -622,7 +630,12 @@
 							(let ((t1 (ir-check-type (cadr  self.operands) ir val?))
 							      (t2 (ir-check-type (caddr self.operands) ir val?)))
 							  (if val?
-							      (or (= (set self.type t1) t2) (error "type mismatch: "self))
+							      (let ()
+								(or (= t1 t2)
+								    (ir-can-coerce t1 (caddr self.operands))
+								    (ir-can-coerce t2 (cadr  self.operands))
+								    (ir-error-type-mismatch ir self))
+								(set self.type (<ir-insn>-type (cadr self.operands))))
 							    (set self.type IR-VOID)))
 							self.type)
 
@@ -762,8 +775,8 @@
 							(let* ((lhs (car  self.operands))  (lht (ir-check-type lhs ir 1))
 							       (rhs (cadr self.operands))  (rht (ir-check-type rhs ir 1)))
 							  (or (= lht rht)
-							      (and (ir-integral-type? lht) (ir-can-coerce lht rhs))
-							      (and (ir-integral-type? rht) (ir-can-coerce rht lhs))
+							      (and (ir-numeric-type? lht) (ir-can-coerce lht rhs))
+							      (and (ir-numeric-type? rht) (ir-can-coerce rht lhs))
 							      (and (ir-scalar-type?   lht) (= lht             rht))
 							      (and (ir-struct-type?   lht) (= lht             rht))
 							      (and (ir-pointer-type?  lht) (= IR-VOID*        rht))
@@ -785,8 +798,8 @@
 							(let* ((lhs (car  self.operands))  (lht (ir-check-type lhs ir 1))
 							       (rhs (cadr self.operands))  (rht (ir-check-type rhs ir 1)))
 							  (or (and (ir-scalar-type?   lht) (= lht rht))
-							      (and (ir-integral-type? lht) (ir-can-coerce lht rhs))
-							      (and (ir-integral-type? rht) (ir-can-coerce rht lhs))
+							      (and (ir-numeric-type? lht) (ir-can-coerce lht rhs))
+							      (and (ir-numeric-type? rht) (ir-can-coerce rht lhs))
 							      (error "illegal types in: "self))
 							  (set self.type IR-BOOL))))))
 
@@ -896,25 +909,54 @@
 
 ;
 
-(define-structure <ir-zone> (type locations index limit))	;; one or more contiguous locations sharing a common type
+;; (define-structure <ir-zone> (type locations index limit))	;; one or more contiguous locations sharing a common type
+
+;; (define-method do-print <ir-zone> ()		(print "@"self.type))
+
+;; (define-function ir-zone-new (type)		(new <ir-zone> type (array) 0 0))
+
+;; (define-function ir-zone-allocate (self)
+;;   (with-instance-accessors <ir-zone>
+;;     (let ((var (if (< self.index self.limit)
+;; 		   (array-at self.locations self.index)
+;; 		 (set-array-at self.locations self.index (new <ir-location> self.index self)))))
+;;       (set self.limit (max self.limit (incr self.index)))
+;;       var)))
+
+;; (define-function ir-zone-deallocate (self loc)
+;;   (with-instance-accessors <ir-zone>
+;;     (decr self.index)
+;;     (or (= loc (array-at self.locations self.index))
+;; 	(error "non-lifo frame allocation"))))
+
+;; (define-function ir-location-deallocate (self)
+;;   (with-instance-accessors <ir-location>
+;;     (ir-zone-deallocate self.zone self)))
+
+(define-structure <ir-zone> (type size all-locations free-locations live-locations))	;; one or more contiguous locations sharing a common type
 
 (define-method do-print <ir-zone> ()		(print "@"self.type))
 
-(define-function ir-zone-new (type)		(new <ir-zone> type (array) 0 0))
+(define-function ir-zone-new (type)		(new <ir-zone> type 0 () ()))
 
 (define-function ir-zone-allocate (self)
   (with-instance-accessors <ir-zone>
-    (let ((var (if (< self.index self.limit)
-		   (array-at self.locations self.index)
-		 (set-array-at self.locations self.index (new <ir-location> self.index self)))))
-      (set self.limit (max self.limit (incr self.index)))
-      var)))
+    (or self.free-locations
+	(let ((loc (new <ir-location> self.size self)))
+	  (push self.free-locations loc)
+	  (push self.all-locations  loc)
+	  (incr self.size)))
+    (let ((loc (pop self.free-locations)))
+      (push self.live-locations loc)
+      loc)))
 
 (define-function ir-zone-deallocate (self loc)
   (with-instance-accessors <ir-zone>
-    (decr self.index)
-    (or (= loc (array-at self.locations self.index))
-	(error "non-lifo frame allocation"))))
+    (assert      (memq loc self.all-locations ) )
+    (assert      (memq loc self.live-locations) )
+    (assert (not (memq loc self.free-locations)))
+    (delete self.live-locations loc)
+    (push self.free-locations loc)))
 
 (define-function ir-location-deallocate (self)
   (with-instance-accessors <ir-location>
@@ -927,6 +969,7 @@
 (define-function ir-frame-new ()	(new <ir-frame>))
 
 (define-function ir-frame-allocate (self type)
+  (assert (!= type IR-VOID))
   (with-instance-accessors <ir-frame>
     (ir-zone-allocate (cdr (or (assq type self.zones)
 			       (car (push self.zones (cons type (ir-zone-new type)))))))))
@@ -936,8 +979,10 @@
     (list-do name-zone self.zones
       ;;(println name-zone)
       (let ((zone (cdr name-zone)))
+	;;(println "## ZONE LIVE "(<ir-zone>-live-locations zone))
 	(let ((type (<ir-zone>-type zone)))
-	  (array-do loc (<ir-zone>-locations zone)
+	  ;;(array-do loc (<ir-zone>-locations zone)
+	  (list-do loc (<ir-zone>-all-locations zone)
 	    ;;(println loc)
 	    (set offset (align offset (<ir-type>-alignment type)))
 	    (set (<ir-location>-offset loc) offset)

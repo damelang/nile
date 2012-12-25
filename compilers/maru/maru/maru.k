@@ -99,8 +99,10 @@
 
 (define-function maru-compile-set (exp ir)
   (let* ((name (cadr exp))
-	 (init (maru-compile (caddr exp) ir)))
-    (ir-set-var name init)))
+	 (init (maru-compile (caddr exp) ir))
+	 (insn (ir-set-var name init)))
+    (set (<ir-insn>-source insn) (<pair>-source exp))
+    insn))
 
 (define-function maru-compile-while (exp ir)
   (let ((test (maru-compile (cadr exp) ir))
@@ -111,14 +113,16 @@
       (else			(ir-while test (ir-let () () () body))))))
 
 (define-function maru-compile-if (exp ir)
-  (ir-if (maru-compile (cadr exp) ir)
-	 (maru-compile (caddr exp) ir)
-	 (let ((body (cdddr exp)))
-	   (if body
-	       (if (cdr body)
-		   (ir-let () () () (map-with maru-compile body ir))
-		 (maru-compile (car body) ir))
-	     (ir-nop)))))
+  (let ((insn (ir-if (maru-compile (cadr exp) ir)
+		     (maru-compile (caddr exp) ir)
+		     (let ((body (cdddr exp)))
+		       (if body
+			   (if (cdr body)
+			       (ir-let () () () (map-with maru-compile body ir))
+			     (maru-compile (car body) ir))
+			 (ir-nop))))))
+    (set (<ir-insn>-source insn) (<pair>-source exp))
+    insn))
 
 (define-function maru-compile-sizeof (exp ir)
   (let ((type (maru->ir-type (cdr exp) ir)))

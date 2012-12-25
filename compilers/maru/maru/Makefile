@@ -61,19 +61,21 @@ test3-maru : eval2
 	./eval2 ir-gen-x86.k maru.k maru-test3.k > test.s && cc -m32 -fno-builtin -g -o test3 test.s && ./test3
 
 maru-check : eval2 .force
-	./eval2 ir-gen-x86.k maru.k maru-check.k > maru-check.s
+	./eval2 -g ir-gen-x86.k maru.k maru-check.k > maru-check.s
 	cc -m32 -o maru-check maru-check.s
 	./maru-check
 
 maru-check-c : eval2 .force
 	./eval2 ir-gen-c.k maru.k maru-check.k > maru-check.c
-	cc -o maru-check maru-check.c
+	cc -o maru-check maru-check.c -ldl
 	./maru-check
 
 maru-bench : eval2 .force
-	cc -O2 -fomit-frame-pointer -mdynamic-no-pic -o nfibs nfibs.c
+##	cc -O2 -fomit-frame-pointer -mdynamic-no-pic -o nfibs nfibs.c
+	cc -O2 -fomit-frame-pointer -o nfibs nfibs.c
 	./eval2 ir-gen-x86.k maru.k maru-nfibs.k > maru-nfibs.s
-	cc -O2 -fomit-frame-pointer -mdynamic-no-pic -o maru-nfibs maru-nfibs.s
+##	cc -O2 -fomit-frame-pointer -mdynamic-no-pic -o maru-nfibs maru-nfibs.s
+	cc -O2 -fomit-frame-pointer -o maru-nfibs maru-nfibs.s
 	time ./nfibs 38
 	time ./nfibs 38
 	time ./maru-nfibs 38

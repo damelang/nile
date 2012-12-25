@@ -1,4 +1,4 @@
-// last edited: 2012-12-11 20:00:42 by piumarta on emilia.local
+// last edited: 2012-12-23 23:25:00 by piumarta on emilia.local
 
 #define DEMO_BITS	1
 
@@ -92,7 +92,7 @@ struct Data	{ };
 struct Long	{ long_t    bits; };
 struct Double	{ double    bits; };
 struct String	{ oop	    size;  wchar_t *bits; };	/* bits is in managed memory */
-struct Symbol	{ wchar_t  *bits; };
+struct Symbol	{ wchar_t  *bits; int flags};
 struct Pair	{ oop	    head, tail, source; };
 struct Array	{ oop	    size, _array; };
 struct Expr	{ oop	    name, definition, environment, profile; };
@@ -183,7 +183,7 @@ static char *argv0;
 static oop symbols= nil, globals= nil, globalNamespace= nil, expanders= nil, encoders= nil, evaluators= nil, applicators= nil, backtrace= nil, arguments= nil, input= nil, output= nil;
 static int traceDepth= 0;
 static oop traceStack= nil, currentPath= nil, currentLine= nil, currentSource= nil;
-static oop s_locals= nil, s_set= nil, s_define= nil, s_let= nil, s_lambda= nil, s_quote= nil, s_quasiquote= nil, s_unquote= nil, s_unquote_splicing= nil, s_t= nil, s_dot= nil, s_bracket= nil, s_brace= nil, s_main= nil;
+static oop s_locals= nil, s_set= nil, s_define= nil, s_let= nil, s_lambda= nil, s_quote= nil, s_quasiquote= nil, s_unquote= nil, s_unquote_splicing= nil, s_t= nil, s_dot= nil, s_etc= nil, s_bracket= nil, s_brace= nil, s_main= nil;
 // static oop f_set= nil, f_quote= nil, f_lambda= nil, f_let= nil, f_define;
 
 static int opt_b= 0, opt_g= 0, opt_O= 0, opt_p= 0, opt_v= 0;
@@ -1091,6 +1091,33 @@ static void setSource(oop obj, oop src)
     setSource(getTail(obj), src);
 }
 
+static oop getSource(oop exp)
+{
+    if (is(Pair, exp)) {
+	oop src= get(exp, Pair,source);
+	if (nil != src) {
+	    oop path= car(src);
+	    oop line= cdr(src);
+	    if (is(String, path) && is(Long, line))
+		return src;
+	}
+    }
+    return nil;
+}
+
+static int fprintSource(FILE *stream, oop src)
+{
+    if (nil != src) {
+	return fprintf(stream, "%ls:%ld", get(car(src), String,bits), getLong(cdr(src)));
+    }
+    return 0;
+}
+
+static int printSource(oop exp)
+{
+    return fprintSource(stdout, getSource(exp));
+}
+
 static oop exlist(oop obj, oop env);
 
 static oop findFormFunction(oop env, oop var)
@@ -1165,13 +1192,27 @@ static oop exlist(oop list, oop env)
     return head;
 }
 
+static int encodeIndent= 16;
+
 static oop enlist(oop obj, oop env);
 
-static oop encode(oop obj, oop env)
+static oop encodeFrom(oop from, oop obj, oop env)
 {
     switch (getType(obj)) {
 	case Symbol: {
-	    if (nil == findVariable(env, obj))			oprintf("warning: possibly undefined: %P\n", obj);
+	    if (nil == findVariable(env, obj)) {
+		int flags= get(obj, Symbol,flags);
+		if (0 == (1 & flags)) {
+		    set(obj, Symbol,flags, 1 | flags);
+		    oop src= getSource(from);
+		    if (nil != src) {
+			int i= fprintSource(stderr, getSource(from));
+			if (i > encodeIndent) encodeIndent= i;
+			while (i++ <= encodeIndent) putc(' ', stderr);
+		    }
+		    oprintf("warning: possibly undefined: %P\n", obj);
+		}
+	    }
 	    break;
 	}
 	case Pair: {
@@ -1186,8 +1227,10 @@ static oop encode(oop obj, oop env)
 	    else if (head == s_lambda) {			GC_PROTECT(env);
 		oop bindings= cadr(obj);
 		while (isPair(bindings)) {
+		    oop id= bindings;
+		    while (isPair(id)) id= car(id);
 		    env= cons(nil, env);
-		    setHead(env, cons(car(bindings), nil));
+		    setHead(env, cons(id, nil));
 		    bindings= getTail(bindings);
 		}
 		if (is(Symbol, bindings)) {
@@ -1204,24 +1247,60 @@ static oop encode(oop obj, oop env)
 		}
 		bindings= cadr(obj);
 		while (isPair(bindings)) {
+		    oop id= bindings;
+		    while (isPair(id)) id= car(id);
 		    env= cons(nil, env);
-		    setHead(env, cons(caar(bindings), nil));
+		    setHead(env, cons(id, nil));
 		    bindings= getTail(bindings);
 		}
 		enlist(cddr(obj), env);				GC_UNPROTECT(env);
 	    }
-	    else
+	    else {
 		enlist(obj, env);
+		if (is(Symbol, head)) {
+		    oop val= lookup(getVar(globals), head);
+		    if (is(Expr, val)) {
+			oop formal= car(get(val, Expr,definition));
+			oop actual= cdr(obj);
+			while (isPair(formal) && isPair(actual)) {
+			    if (s_etc == car(formal)) {
+				formal= actual= nil;
+			    }
+			    else {
+				formal= cdr(formal);
+				actual= cdr(actual);
+			    }
+			}
+			if (is(Symbol, formal))
+			    formal= actual= nil;
+			if (nil != formal || nil != actual) {
+			    oop src= getSource(obj);
+			    if (nil != src) {
+				int i= fprintSource(stderr, getSource(from));
+				if (i > encodeIndent) encodeIndent= i;
+				while (i++ <= encodeIndent) putc(' ', stderr);
+			    }
+			    oprintf("warning: argument mismatch: %P -> %P\n", obj, car(get(val, Expr,definition)));
+			}
+			// CHECK ARG LIST HERE
+		    }
+		}
+	    }
 	    break;
 	}
     }
     return obj;
 }
 
+static oop encode(oop obj, oop env)
+{
+    return encodeFrom(nil, obj, env);
+}
+
 static oop enlist(oop obj, oop env)
 {
     while (isPair(obj)) {
-	encode(getHead(obj), env);
+	encodeFrom(obj, getHead(obj), env);
 	obj= getTail(obj);
     }
     return obj;
@@ -1353,26 +1432,6 @@ static oop enlist(oop obj, oop env)
 //   head= newPairFrom(head, tail, list);			GC_UNPROTECT(tail);  GC_UNPROTECT(head);
 //   return head;
 // }
-
-static int fprintSource(FILE *stream, oop exp)
-{
-    if (is(Pair, exp)) {
-	oop src= get(exp, Pair,source);
-	if (nil != src) {
-	    oop path= car(src);
-	    oop line= cdr(src);
-	    if (is(String, path) && is(Long, line)) {
-		return fprintf(stream, "%ls:%ld", get(path, String,bits), getLong(line));
-	    }
-	}
-    }
-    return 0;
-}
-
-static int printSource(oop exp)
-{
-    return fprintSource(stdout, exp);
-}
 
 static void vfoprintf(FILE *out, char *fmt, va_list ap)
 {
@@ -1563,7 +1622,7 @@ static oop apply(oop fun, oop arguments, oop env)
 	    oop body= cdr(defn);
 	    if (opt_g) {
 		arrayAtPut(traceStack, traceDepth++, body);
-		if (traceDepth > 1000)					fatal("infinite recursion suspected");
+		if (traceDepth > 2000)					fatal("infinite recursion suspected");
 	    }
 	    while (is(Pair, body)) {
 //		if (opt_g) arrayAtPut(traceStack, traceDepth - 1, getHead(body));
@@ -3377,6 +3436,7 @@ int main(int argc, char **argv)
     s_unquote_splicing	= intern(L"unquote-splicing");		GC_add_root(&s_unquote_splicing	);
     s_t			= intern(L"t");				GC_add_root(&s_t		);
     s_dot		= intern(L".");				GC_add_root(&s_dot		);
+    s_etc		= intern(L"...");			GC_add_root(&s_etc		);
     s_bracket		= intern(L"bracket");			GC_add_root(&s_bracket		);
     s_brace		= intern(L"brace");			GC_add_root(&s_brace		);
     s_main		= intern(L"*main*");			GC_add_root(&s_main		);
