@@ -1,6 +1,6 @@
 typedef struct nile_Thread_ nile_Thread_t;
 
-CACHE_ALIGNED struct nile_Thread_ {
+struct CACHE_ALIGNED nile_Thread_ {
     nile_Lock_t      lock;
     nile_Heap_t      private_heap;
     nile_Heap_t      public_heap;
