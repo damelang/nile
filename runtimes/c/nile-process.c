@@ -184,7 +184,7 @@ nile_Process_block_on_producer (nile_Process_t *p)
         p->state = NILE_BLOCKED_ON_PRODUCER;
         pstate = p->producer ? p->producer->state : pstate;
     nile_Lock_rel (&p->lock);
-    return !(pstate == -1 || pstate == NILE_BLOCKED_ON_CONSUMER);
+    return !(pstate == (nile_ProcessState_t ) -1 || pstate == NILE_BLOCKED_ON_CONSUMER);
 }
 
 static nile_Heap_t

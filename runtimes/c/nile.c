@@ -99,6 +99,12 @@ nile_status (nile_Process_t *init)
     return init->thread->status;
 }
 
+bool
+nile_error (nile_Process_t *init)
+{
+	return (nile_status (init) != NILE_STATUS_OK);
+}
+
 char *
 nile_shutdown (nile_Process_t *init)
 {
