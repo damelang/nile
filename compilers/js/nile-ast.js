@@ -73,6 +73,17 @@ nile.defineASTNode = function(name, fieldnames) {
   nodeConstructor.prototype = nodePrototype;
   nodePrototype.toString = nile.defineASTToString(name, fieldnames);
   nodePrototype.resolve = nile.defineASTResolve(fieldnames);
+
+  Object.defineProperty(nodePrototype, "name", {
+          enumerable: true,
+          get: function() {
+			  return this.__name__;
+          },
+          set: function(value) {
+			  this.__name__ = value;
+          },
+  });
+
   nile[name] = nodePrototype;
 }
 
