@@ -112,7 +112,7 @@
        (equal? self.type (type a))))
 
 (define-method equal? <nile-primtype> (a)
-  (and (is-a? self <nile-primtype>) (= self.name (name a))))
+  (and (is-a? a <nile-primtype>) (= self.name (name a))))
 
 (define-method equal? <nile-recordtype> (a)
   (and (is-a? a <nile-recordtype>) (equal? self.fields (fields a))))

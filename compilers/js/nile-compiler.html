@@ -322,7 +322,7 @@ A:Point ⟂ B:Point : Vector
     ((x1, y1), (x2, y2)) = (A, B)
     v:Vector = (y1 - y2, x2 - x1)
     { v / ‖v‖, if ‖v‖ ≠ 0
-      0,       otherwise  }
+      (0,0),       otherwise  }
 
 M:Matrix P:Point : Point
     (a, b, c, d, e, f) = M
@@ -680,7 +680,7 @@ ReflectGradient () : GradientExtender
 
 BeginGradientColor () : Number >> (Number, Color)
     ∀ s
-        >> (s, 0)
+        >> (s, (0, 0, 0, 0))
 
 GradientSpan (A:Color, a:Number, B:Color, b:Number) : GradientColor
     ∀ (s, C)
@@ -700,10 +700,10 @@ ApplyRadialGradient (A:Point, r:Number, e:GradientExtender, c:GradientColor) : T
     → ProjectRadialGradient (A, r) → e → BeginGradientColor () → c → EndGradientColor ()
 
 SumWeightedColors (n:Number) : (Number, Color) >> Color
-    (i, sum:Color) = (1, 0)
+    (i, sum:Color) = (1, (0, 0, 0, 0))
     ∀ (w, C)
         if i = n
-            (i', sum') = (1, 0)
+            (i', sum') = (1, (0, 0, 0, 0))
             >> 0 ▷ (sum + wC) ◁ 1
         else
             (i', sum') = (i + 1, sum + wC)
@@ -759,7 +759,7 @@ BicubicFilter (t:Texturer) : Texturer
 
 CompositeClear () : Compositor
     ∀ (A, B)
-        >> 0
+        >> (0, 0, 0, 0)
 
 CompositeSrc () : Compositor
     ∀ (A, B)
@@ -930,7 +930,7 @@ ClipBeziers (min:Point, max:Point) : Bezier >> Bezier
             << (N, B ~ C, C) << (A, A ~ B, N) 
 
 CalculateBounds () : Bezier >> (Point, Point)
-    (min:Point, max:Point) = (∞, -∞)
+    (min:Point, max:Point) = ((∞, ∞), (-∞, -∞))
     ∀ (A, B, C)
         if ¬(A.y = B.y = C.y)
             min' = min ◁ A ◁ B ◁ C
