@@ -700,10 +700,10 @@ ApplyRadialGradient (A:Point, r:Number, e:GradientExtender, c:GradientColor) : T
     → ProjectRadialGradient (A, r) → e → BeginGradientColor () → c → EndGradientColor ()
 
 SumWeightedColors (n:Number) : (Number, Color) >> Color
-    (i, sum:Color) = (1, 0)
+    (i, sum:Color) = (1, (0, 0, 0, 0))
     ∀ (w, C)
         if i = n
-            (i', sum') = (1, 0)
+            (i', sum') = (1, (0, 0, 0, 0))
             >> 0 ▷ (sum + wC) ◁ 1
         else
             (i', sum') = (i + 1, sum + wC)
