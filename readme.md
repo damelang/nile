@@ -1,13 +1,14 @@
 ### The Nile Programming Language
 
 
-<small><em>side note: there's a lot code which I have not yet read, so my assumptions may be wrong.</em></small>
+*side note:
+	there's a lot code which I have not yet read, so my assumptions may be wrong.*
 
 ##  
 &nbsp;
 
 
-<center></em>Context and background</em></center>
+<p align="center"><strong>Context and background</strong></p>
 
 This repo is tied to everything that was published by vpri.org and STEPS project.  
 Here's a handy google search query: `site:www.vpri.org filetype:pdf steps`.  
@@ -17,7 +18,7 @@ List of all projects done in VPRI: http://www.vpri.org/writings.php
 &nbsp;
 
 
-<center></em>Goal of the STEPS project</em></center>
+<p align="center"><strong>Goal of the STEPS project</strong></p>
 
 The "STEPS Toward Expressive Programming Systems" project is taking
 the familiar world of personal computing used by more than a bilion
@@ -32,7 +33,7 @@ and the use of science to analyze and create models of software artifacts.
 &nbsp;
 
 
-<center></em>List of whitepapers</em></center>
+<p align="center"><strong>List of whitepapers</strong></p>
 <details><summary><em>Click here to show or hide</em></summary>  
 
 
@@ -134,13 +135,14 @@ and the use of science to analyze and create models of software artifacts.
 #### Open, extensible object models
 `link to pdf:` https://www.piumarta.com/software/cola/objmodel2.pdf  
 
+
 </details>
 
 ##  
 &nbsp;
 
 
-<center></em>List of related projects</em></center>
+<p align="center"><strong>List of related projects</strong></p>
 <details><summary><em>Click here to show or hide</em></summary>  
 
 
@@ -186,3 +188,6 @@ and the use of science to analyze and create models of software artifacts.
 #### ohm
 `source code:` https://github.com/harc/ohm  
 &nbsp;
+
+
+</details>
