@@ -1,15 +1,13 @@
 ### The Nile Programming Language
 
 
-<small>
-*side note: there's a lot code which I have not yet read, so my assumptions may be wrong.*
-</small>
+<small><em>side note: there's a lot code which I have not yet read, so my assumptions may be wrong.</em></small>
 
 ##  
 &nbsp;
 
 
-<center>**Context and background**</center>
+<center></em>Context and background</em></center>
 
 This repo is tied to everything that was published by vpri.org and STEPS project.  
 Here's a handy google search query: `site:www.vpri.org filetype:pdf steps`.  
@@ -19,7 +17,7 @@ List of all projects done in VPRI: http://www.vpri.org/writings.php
 &nbsp;
 
 
-<center>**Goal of the STEPS project**</center>
+<center></em>Goal of the STEPS project</em></center>
 
 The "STEPS Toward Expressive Programming Systems" project is taking
 the familiar world of personal computing used by more than a bilion
@@ -34,7 +32,7 @@ and the use of science to analyze and create models of software artifacts.
 &nbsp;
 
 
-<center>**List of whitepapers**</center>
+<center></em>List of whitepapers</em></center>
 <details><summary><em>Click here to show or hide</em></summary>  
 
 
@@ -142,7 +140,7 @@ and the use of science to analyze and create models of software artifacts.
 &nbsp;
 
 
-<center>**List of related projects**</center>
+<center></em>List of related projects</em></center>
 <details><summary><em>Click here to show or hide</em></summary>  
 
 
