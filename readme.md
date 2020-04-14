@@ -96,37 +96,37 @@ List of all projects done in VPRI: http://www.vpri.org/writings.php
 --------------------------------------------------------------
 
 #### COLA (Combined Object-Lambda Architecture)
-`project url:` https://piumarta.com/software/cola/
-`source code:` https://piumarta.com/software/cola/idst-20070918/
-`description:` Springboard for investigating new computing paradigms.
-`small notes:` alternative name of the project is `idst`.
+`project url:` https://piumarta.com/software/cola/  
+`source code:` https://piumarta.com/software/cola/idst-20070918/  
+`description:` Springboard for investigating new computing paradigms.  
+`small notes:` alternative name of the project is `idst`.  
 
 
 #### Maru
-`project url:` https://piumarta.com/software/maru/
-`source code:` https://github.com/damelang/nile/tree/master/compilers/maru
-`description:` A metacircular s-expression evaluator and compiler.
+`project url:` https://piumarta.com/software/maru/  
+`source code:` https://github.com/damelang/nile/tree/master/compilers/maru  
+`description:` A metacircular s-expression evaluator and compiler.  
 
 
 #### Nile
-`source code:` https://github.com/damelang/nile
-`description:` Revolutionary functional programming language with fluid used-defined syntax.
+`source code:` https://github.com/damelang/nile  
+`description:` Revolutionary functional programming language with fluid used-defined syntax.  
 
 
 #### gezira
-`source code:` https://github.com/damelang/gezira
-`description:` 2d vector graphics library written in nile language.
+`source code:` https://github.com/damelang/gezira  
+`description:` 2d vector graphics library written in nile language.  
 
 
 #### peg/leg
-`project url:` https://piumarta.com/software/peg/
-`source code:` https://piumarta.com/software/peg/peg-0.1.18/
-`description:` recursive-descent parser generators for C
+`project url:` https://piumarta.com/software/peg/  
+`source code:` https://piumarta.com/software/peg/peg-0.1.18/  
+`description:` recursive-descent parser generators for C  
 
 
 #### Nothing
-`source code:` https://github.com/alexwarth/nothing
+`source code:` https://github.com/alexwarth/nothing  
 
 
 #### ohm
-`source code:` https://github.com/harc/ohm
+`source code:` https://github.com/harc/ohm  
